@@ -35,18 +35,105 @@ function resolverTelefone(jid) {
   return jid
 }
 
-// Servidor HTTP: disparos do Python + página do QR Code
+const MSG_ABERTURA = process.env.MSG_ABERTURA || 'Boa tarde! Tudo bem? Aqui é o Luan, da Kora Energia 👋 Falo com {nome}?'
+
+function paginaHTML(status, resultado) {
+  const statusBar = sockGlobal
+    ? '<div style="background:#22c55e;color:#fff;padding:8px 16px;border-radius:6px;font-size:13px">● WhatsApp conectado</div>'
+    : '<div style="background:#ef4444;color:#fff;padding:8px 16px;border-radius:6px;font-size:13px">● WhatsApp desconectado</div>'
+
+  const alerta = resultado
+    ? `<div style="margin:16px 0;padding:12px 16px;border-radius:8px;background:${resultado.ok ? '#dcfce7' : '#fee2e2'};color:${resultado.ok ? '#166534' : '#991b1b'};font-size:14px">${resultado.msg}</div>`
+    : ''
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Kora Energia — Disparador</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:system-ui,sans-serif;background:#f0fdf4;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:32px 16px}
+    .card{background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.08);padding:32px;width:100%;max-width:480px}
+    h1{font-size:22px;font-weight:700;color:#166534;margin-bottom:4px}
+    .sub{font-size:13px;color:#6b7280;margin-bottom:24px}
+    label{display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:4px}
+    input,textarea{width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;margin-bottom:16px;outline:none}
+    input:focus,textarea:focus{border-color:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.15)}
+    textarea{resize:vertical;min-height:72px;font-family:inherit}
+    button{width:100%;background:#16a34a;color:#fff;border:none;border-radius:8px;padding:12px;font-size:15px;font-weight:600;cursor:pointer}
+    button:hover{background:#15803d}
+    .status{display:flex;justify-content:flex-end;margin-bottom:20px}
+    .preview{font-size:12px;color:#6b7280;margin-top:-12px;margin-bottom:16px}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="status">${statusBar}</div>
+    <h1>Kora Energia</h1>
+    <p class="sub">Disparador de prospecção WhatsApp</p>
+    ${alerta}
+    <form method="POST" action="/disparar">
+      <label>Telefone (com DDD e DDI)</label>
+      <input name="telefone" placeholder="5541999990000" required pattern="[0-9]{12,13}"/>
+      <label>Nome do contato</label>
+      <input name="nome" placeholder="João Silva" required/>
+      <label>Mensagem de abertura</label>
+      <textarea name="mensagem">${MSG_ABERTURA}</textarea>
+      <p class="preview">Use {nome} para inserir o nome automaticamente</p>
+      <button type="submit">Enviar mensagem</button>
+    </form>
+  </div>
+</body>
+</html>`
+}
+
+// Servidor HTTP: disparos + QR Code + painel web
 const PORT_BRIDGE = parseInt(process.env.PORT || '9000')
 const server = http.createServer(async (req, res) => {
+
+  // Página principal — disparador
+  if (req.method === 'GET' && (req.url === '/' || req.url === '')) {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+    res.end(paginaHTML(sockGlobal, null))
+    return
+  }
+
+  // Formulário de disparo
+  if (req.method === 'POST' && req.url === '/disparar') {
+    let body = ''
+    req.on('data', d => body += d)
+    req.on('end', async () => {
+      const params = new URLSearchParams(body)
+      const telefone = (params.get('telefone') || '').trim()
+      const nome = (params.get('nome') || '').trim()
+      const mensagemTemplate = params.get('mensagem') || MSG_ABERTURA
+      const mensagem = mensagemTemplate.replace('{nome}', nome)
+      let resultado
+      try {
+        if (!sockGlobal) throw new Error('WhatsApp não conectado')
+        if (!telefone || !nome) throw new Error('Telefone e nome são obrigatórios')
+        const jid = `${telefone}@s.whatsapp.net`
+        await sockGlobal.sendMessage(jid, { text: mensagem })
+        console.log(`[OK] Disparo para ${nome} (${telefone})`)
+        resultado = { ok: true, msg: `Mensagem enviada para ${nome} (${telefone})` }
+      } catch (e) {
+        console.error(`[ERRO] Disparo: ${e.message}`)
+        resultado = { ok: false, msg: `Erro: ${e.message}` }
+      }
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+      res.end(paginaHTML(sockGlobal, resultado))
+    })
+    return
+  }
+
+  // QR Code
   if (req.method === 'GET' && req.url === '/qr') {
     if (!qrAtual) {
-      if (sockGlobal) {
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
-        res.end('<h2>✅ WhatsApp já está conectado!</h2>')
-      } else {
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
-        res.end('<h2>Aguardando QR Code... Recarregue em 5 segundos.</h2><script>setTimeout(()=>location.reload(),5000)</script>')
-      }
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+      const msg = sockGlobal ? '✅ WhatsApp já está conectado!' : 'Aguardando QR Code...<script>setTimeout(()=>location.reload(),5000)</script>'
+      res.end(`<html><body style="font-family:sans-serif;padding:40px;text-align:center"><h2>${msg}</h2><p><a href="/">Voltar ao painel</a></p></body></html>`)
       return
     }
     const imgDataUrl = await QRCode.toDataURL(qrAtual, { width: 300 })
@@ -60,6 +147,7 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
+  // API de envio (usado pelo disparar.py local)
   if (req.method === 'POST' && req.url === '/send') {
     let body = ''
     req.on('data', d => body += d)
