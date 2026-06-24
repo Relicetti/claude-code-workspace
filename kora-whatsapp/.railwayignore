@@ -1,6 +1,5 @@
 whatsapp-bridge/node_modules
-whatsapp-bridge/auth
-db
+db/*.db
 __pycache__
 *.pyc
 .env
