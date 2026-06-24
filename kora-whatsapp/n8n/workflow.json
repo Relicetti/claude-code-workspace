@@ -1,0 +1,354 @@
+{
+  "name": "Kora GD — WhatsApp Automação",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-entrada",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-webhook",
+      "name": "Webhook Entrada",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict"},
+          "conditions": [
+            {
+              "id": "cond-mensagem",
+              "leftValue": "={{ $json.body.event }}",
+              "rightValue": "messages.upsert",
+              "operator": {"type": "string", "operation": "equals"}
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-filtro-evento",
+      "name": "É mensagem nova?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "ignored"
+      },
+      "id": "node-ignore",
+      "name": "Ignorar evento",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 460]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "var-telefone",
+              "name": "telefone",
+              "value": "={{ $json.body.data.key.remoteJid.replace('@s.whatsapp.net','') }}",
+              "type": "string"
+            },
+            {
+              "id": "var-mensagem",
+              "name": "ultima_mensagem",
+              "value": "={{ $json.body.data.message.conversation || $json.body.data.message.extendedTextMessage?.text || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "var-nome",
+              "name": "nome_push",
+              "value": "={{ $json.body.data.pushName || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-extrai-dados",
+      "name": "Extrai telefone e mensagem",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://localhost:3000/leads/{{ $json.telefone }}/historico",
+        "options": {}
+      },
+      "id": "node-busca-historico",
+      "name": "Busca histórico do lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 300],
+      "notes": "Chama a API local (scripts/api.py) que retorna o histórico e status do lead"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "anthropic-version", "value": "2023-06-01"},
+            {"name": "content-type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 1000,\n  \"system\": {{ JSON.stringify($('Extrai telefone e mensagem').item.json._system_prompt || '') }},\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Histórico da conversa:\\n{{ $('Busca histórico do lead').item.json.historico_formatado }}\\n\\nÚltima mensagem do lead:\\n{{ $json.ultima_mensagem }}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "node-chama-ia",
+      "name": "Chama IA (Claude)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "var-intencao",
+              "name": "intencao",
+              "value": "={{ JSON.parse($json.content[0].text).intencao }}",
+              "type": "string"
+            },
+            {
+              "id": "var-proxima-msg",
+              "name": "proxima_mensagem",
+              "value": "={{ JSON.parse($json.content[0].text).proxima_mensagem }}",
+              "type": "string"
+            },
+            {
+              "id": "var-obs",
+              "name": "observacao",
+              "value": "={{ JSON.parse($json.content[0].text).observacao }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-parse-json",
+      "name": "Parse resposta IA",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {"caseSensitive": true},
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intencao }}",
+                    "rightValue": "ENCERRAR",
+                    "operator": {"type": "string", "operation": "equals"}
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "ENCERRAR"
+            },
+            {
+              "conditions": {
+                "options": {"caseSensitive": true},
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intencao }}",
+                    "rightValue": "LEAD_QUENTE",
+                    "operator": {"type": "string", "operation": "equals"}
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "LEAD_QUENTE"
+            },
+            {
+              "conditions": {
+                "options": {"caseSensitive": true},
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intencao }}",
+                    "rightValue": "FORA_DO_PERFIL",
+                    "operator": {"type": "string", "operation": "equals"}
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "FORA_DO_PERFIL"
+            }
+          ]
+        },
+        "options": {"fallbackOutput": "extra"}
+      },
+      "id": "node-roteador",
+      "name": "Roteamento por intenção",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.EVOLUTION_API_URL }}/message/sendText/{{ $env.EVOLUTION_INSTANCE }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "apikey", "value": "={{ $env.EVOLUTION_API_KEY }}"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('Parse resposta IA').item.json.telefone || $('Extrai telefone e mensagem').item.json.telefone }}\",\n  \"text\": \"{{ $json.proxima_mensagem }}\",\n  \"delay\": 3000\n}",
+        "options": {}
+      },
+      "id": "node-envia-msg-normal",
+      "name": "Envia mensagem (fluxo normal)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1800, 160]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.EVOLUTION_API_URL }}/message/sendText/{{ $env.EVOLUTION_INSTANCE }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "apikey", "value": "={{ $env.EVOLUTION_API_KEY }}"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('Extrai telefone e mensagem').item.json.telefone }}\",\n  \"text\": \"{{ $json.proxima_mensagem }}\",\n  \"delay\": 3000\n}",
+        "options": {}
+      },
+      "id": "node-envia-msg-quente",
+      "name": "Envia mensagem (lead quente)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1800, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.EVOLUTION_API_URL }}/message/sendText/{{ $env.EVOLUTION_INSTANCE }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "apikey", "value": "={{ $env.EVOLUTION_API_KEY }}"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $env.VENDEDOR_WHATSAPP }}\",\n  \"text\": \"🔔 *Lead quente — Kora Energia*\\n\\nNome: {{ $('Busca histórico do lead').item.json.lead.nome || '(não identificado)' }}\\nTelefone: {{ $('Extrai telefone e mensagem').item.json.telefone }}\\nEmpresa: {{ $('Busca histórico do lead').item.json.lead.empresa || '-' }}\\nConta estimada: R$ {{ $('Busca histórico do lead').item.json.lead.conta_energia || '?' }}/mês\\nCNPJ: {{ $('Busca histórico do lead').item.json.lead.cnpj || '?' }}\\n\\nObservação da IA:\\n{{ $('Parse resposta IA').item.json.observacao }}\\n\\n👉 Assuma a conversa agora.\",\n  \"delay\": 1000\n}",
+        "options": {}
+      },
+      "id": "node-notifica-vendedor",
+      "name": "Notifica vendedor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2020, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:3000/leads/atualizar",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"telefone\": \"{{ $('Extrai telefone e mensagem').item.json.telefone }}\",\n  \"status\": \"{{ $('Roteamento por intenção').item.json.intencao === 'ENCERRAR' ? 'descartado' : $('Roteamento por intenção').item.json.intencao === 'LEAD_QUENTE' ? 'em_negociacao' : $('Roteamento por intenção').item.json.intencao === 'FORA_DO_PERFIL' ? 'fora_do_perfil' : 'ativo' }}\",\n  \"mensagem_lead\": \"{{ $('Extrai telefone e mensagem').item.json.ultima_mensagem }}\",\n  \"mensagem_bot\": \"{{ $('Parse resposta IA').item.json.proxima_mensagem }}\",\n  \"intencao\": \"{{ $('Parse resposta IA').item.json.intencao }}\"\n}",
+        "options": {}
+      },
+      "id": "node-atualiza-estado",
+      "name": "Atualiza estado no DB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2240, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "ok"
+      },
+      "id": "node-responde-webhook",
+      "name": "Responde webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2460, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Entrada": {
+      "main": [[{"node": "É mensagem nova?", "type": "main", "index": 0}]]
+    },
+    "É mensagem nova?": {
+      "main": [
+        [{"node": "Extrai telefone e mensagem", "type": "main", "index": 0}],
+        [{"node": "Ignorar evento", "type": "main", "index": 0}]
+      ]
+    },
+    "Extrai telefone e mensagem": {
+      "main": [[{"node": "Busca histórico do lead", "type": "main", "index": 0}]]
+    },
+    "Busca histórico do lead": {
+      "main": [[{"node": "Chama IA (Claude)", "type": "main", "index": 0}]]
+    },
+    "Chama IA (Claude)": {
+      "main": [[{"node": "Parse resposta IA", "type": "main", "index": 0}]]
+    },
+    "Parse resposta IA": {
+      "main": [[{"node": "Roteamento por intenção", "type": "main", "index": 0}]]
+    },
+    "Roteamento por intenção": {
+      "main": [
+        [{"node": "Envia mensagem (fluxo normal)", "type": "main", "index": 0}],
+        [{"node": "Envia mensagem (lead quente)", "type": "main", "index": 0}],
+        [{"node": "Envia mensagem (fluxo normal)", "type": "main", "index": 0}],
+        [{"node": "Envia mensagem (fluxo normal)", "type": "main", "index": 0}]
+      ]
+    },
+    "Envia mensagem (lead quente)": {
+      "main": [[{"node": "Notifica vendedor", "type": "main", "index": 0}]]
+    },
+    "Envia mensagem (fluxo normal)": {
+      "main": [[{"node": "Atualiza estado no DB", "type": "main", "index": 0}]]
+    },
+    "Notifica vendedor": {
+      "main": [[{"node": "Atualiza estado no DB", "type": "main", "index": 0}]]
+    },
+    "Atualiza estado no DB": {
+      "main": [[{"node": "Responde webhook", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [{"name": "kora-gd"}, {"name": "whatsapp"}],
+  "meta": {
+    "instanceId": "kora-energia-local"
+  }
+}
