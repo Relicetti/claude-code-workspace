@@ -11,7 +11,7 @@ const path = require('path')
 const http = require('http')
 
 const BOT_URL  = process.env.BOT_URL || 'http://localhost:8000/webhook/whatsapp'
-const AUTH_DIR = path.join(__dirname, 'auth')
+const AUTH_DIR = process.env.AUTH_DIR || path.join(__dirname, 'auth')
 const DEBOUNCE_MS = 4000
 
 const pendentes = {}
