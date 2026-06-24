@@ -4,7 +4,7 @@ const {
   DisconnectReason,
   fetchLatestBaileysVersion,
 } = require('@whiskeysockets/baileys')
-const qrcode = require('qrcode-terminal')
+const QRCode = require('qrcode')
 const axios = require('axios')
 const pino = require('pino')
 const path = require('path')
@@ -16,6 +16,7 @@ const DEBOUNCE_MS = 4000
 
 const pendentes = {}
 let sockGlobal = null
+let qrAtual = null
 
 // Mapa local LID → telefone real (preenchido pelos eventos de contato)
 const lidMap = {}
@@ -34,8 +35,31 @@ function resolverTelefone(jid) {
   return jid
 }
 
-// Servidor HTTP para disparos do Python
-const server = http.createServer((req, res) => {
+// Servidor HTTP: disparos do Python + página do QR Code
+const PORT_BRIDGE = parseInt(process.env.PORT || '9000')
+const server = http.createServer(async (req, res) => {
+  if (req.method === 'GET' && req.url === '/qr') {
+    if (!qrAtual) {
+      if (sockGlobal) {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+        res.end('<h2>✅ WhatsApp já está conectado!</h2>')
+      } else {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+        res.end('<h2>Aguardando QR Code... Recarregue em 5 segundos.</h2><script>setTimeout(()=>location.reload(),5000)</script>')
+      }
+      return
+    }
+    const imgDataUrl = await QRCode.toDataURL(qrAtual, { width: 300 })
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+    res.end(`<html><body style="display:flex;flex-direction:column;align-items:center;font-family:sans-serif;padding:40px">
+      <h2>Escaneie com o WhatsApp Business</h2>
+      <img src="${imgDataUrl}" style="width:300px;height:300px"/>
+      <p>WhatsApp → três pontinhos → Dispositivos vinculados → Vincular dispositivo</p>
+      <script>setTimeout(()=>location.reload(),20000)</script>
+      </body></html>`)
+    return
+  }
+
   if (req.method === 'POST' && req.url === '/send') {
     let body = ''
     req.on('data', d => body += d)
@@ -45,18 +69,24 @@ const server = http.createServer((req, res) => {
         if (!sockGlobal) throw new Error('WhatsApp não conectado')
         const jid = telefone.includes('@') ? telefone : `${telefone}@s.whatsapp.net`
         await sockGlobal.sendMessage(jid, { text: mensagem })
-        console.log(`📤 Disparo enviado para ${telefone}`)
+        console.log(`[OK] Disparo enviado para ${telefone}`)
         res.writeHead(200); res.end(JSON.stringify({ ok: true }))
       } catch (e) {
-        console.error(`❌ Erro no disparo: ${e.message}`)
+        console.error(`[ERRO] Disparo: ${e.message}`)
         res.writeHead(500); res.end(JSON.stringify({ ok: false, erro: e.message }))
       }
     })
-  } else {
-    res.writeHead(404); res.end()
+    return
   }
+
+  if (req.method === 'GET' && req.url === '/health') {
+    res.writeHead(200); res.end(JSON.stringify({ ok: true, conectado: !!sockGlobal }))
+    return
+  }
+
+  res.writeHead(404); res.end()
 })
-server.listen(9000, () => console.log('📡 Bridge HTTP rodando na porta 9000'))
+server.listen(PORT_BRIDGE, () => console.log(`Bridge HTTP na porta ${PORT_BRIDGE}`))
 
 async function conectar() {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR)
@@ -84,14 +114,13 @@ async function conectar() {
 
   sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
     if (qr) {
-      console.clear()
-      console.log('\n📱 Escaneie o QR Code abaixo com o WhatsApp:\n')
-      qrcode.generate(qr, { small: true })
-      console.log('\nNo celular: WhatsApp → três pontinhos → Dispositivos vinculados → Vincular dispositivo\n')
+      qrAtual = qr
+      console.log(`[QR] Acesse /qr para escanear o QR Code`)
     }
     if (connection === 'open') {
+      qrAtual = null
       sockGlobal = sock
-      console.log('✅ WhatsApp conectado com sucesso!\n')
+      console.log('[OK] WhatsApp conectado!')
     }
     if (connection === 'close') {
       sockGlobal = null
