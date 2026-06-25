@@ -18,7 +18,8 @@ module.exports = {
     },
     {
       name: 'dashboard',
-      script: 'streamlit',
+      script: '/usr/local/bin/streamlit',
+      interpreter: 'none',
       args: 'run dashboard.py --server.port 8501 --server.address 0.0.0.0 --server.headless true',
       env: { PYTHONIOENCODING: 'utf-8' },
     },
