@@ -90,7 +90,7 @@ function paginaHTML(status, resultado) {
 }
 
 // Servidor HTTP: disparos + QR Code + painel web
-const PORT_BRIDGE = parseInt(process.env.PORT || '9000')
+const PORT_BRIDGE = parseInt(process.env.BRIDGE_PORT || '9000')
 const server = http.createServer(async (req, res) => {
 
   // Página principal — disparador
