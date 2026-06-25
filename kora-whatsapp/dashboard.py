@@ -367,7 +367,7 @@ elif pagina == "Disparar":
             else:
                 texto = mensagem.replace("{nome}", nome)
                 try:
-                    r = httpx.post(BRIDGE_URL, json={"telefone": telefone, "mensagem": texto}, timeout=10)
+                    r = httpx.post(BRIDGE_URL, json={"telefone": telefone, "mensagem": texto}, timeout=30)
                     if r.status_code == 200:
                         st.success(f"Mensagem enviada para {nome} ({telefone})")
                         conn = get_conn()
