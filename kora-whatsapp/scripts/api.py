@@ -7,10 +7,36 @@ import os
 DB_PATH = os.getenv("DB_PATH", "./db/kora.db")
 app = FastAPI(title="Kora GD — API de Estado")
 
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS leads (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  telefone TEXT UNIQUE NOT NULL,
+  nome TEXT, empresa TEXT,
+  status TEXT DEFAULT 'ativo',
+  etapa INTEGER DEFAULT 1,
+  conta_energia REAL, cnpj TEXT,
+  criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS mensagens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  lead_id INTEGER REFERENCES leads(id),
+  origem TEXT, conteudo TEXT, intencao_ia TEXT,
+  enviado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TRIGGER IF NOT EXISTS atualiza_lead_ts
+AFTER UPDATE ON leads BEGIN
+  UPDATE leads SET atualizado_em = CURRENT_TIMESTAMP WHERE id = NEW.id;
+END;
+"""
+
 
 def get_conn():
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+    conn.executescript(SCHEMA)
+    conn.commit()
     return conn
 
 

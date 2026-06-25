@@ -156,6 +156,14 @@ const server = http.createServer(async (req, res) => {
         const { telefone, mensagem } = JSON.parse(body)
         if (!sockGlobal) throw new Error('WhatsApp não conectado')
         const jid = telefone.includes('@') ? telefone : `${telefone}@s.whatsapp.net`
+        // Resolve LID antes de enviar e registra no mapa
+        try {
+          const [info] = await sockGlobal.onWhatsApp(telefone)
+          if (info && info.jid && info.jid.includes('@lid')) {
+            lidMap[info.jid] = telefone
+            console.log(`[LID] Mapeado ${info.jid} → ${telefone}`)
+          }
+        } catch (_) {}
         await sockGlobal.sendMessage(jid, { text: mensagem })
         console.log(`[OK] Disparo enviado para ${telefone}`)
         res.writeHead(200); res.end(JSON.stringify({ ok: true }))
