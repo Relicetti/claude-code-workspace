@@ -1,0 +1,7 @@
+whatsapp-bridge/node_modules
+db/*.db
+__pycache__
+*.pyc
+.env
+*.bat
+debug.log

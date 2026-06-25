@@ -2,7 +2,7 @@
 
 This repository is my personal workspace for experimenting with Claude Code.
 
-## Geting Started
+## Getting Started
 
 1. Install [Claude Code](https://claude.ai/code)
 2. Open this folder in your terminal
@@ -10,10 +10,10 @@ This repository is my personal workspace for experimenting with Claude Code.
 
 ## Features
 
-- AI-powered code editting
-- Integrated with GitHub for pull requets
-- Suports multiple programming languages
+- AI-powered code editing
+- Integrated with GitHub for pull requests
+- Supports multiple programming languages
 
 ## Notes
 
-Keep notes about usefull prompts and workflows here.
+Keep notes about useful prompts and workflows here.
