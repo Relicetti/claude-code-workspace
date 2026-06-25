@@ -16,5 +16,12 @@ module.exports = {
       name: 'bridge',
       script: 'whatsapp-bridge/index.js',
     },
+    {
+      name: 'dashboard',
+      interpreter: 'python3',
+      script: '-m',
+      args: 'streamlit run dashboard.py --server.port 8501 --server.address 0.0.0.0 --server.headless true',
+      env: { PYTHONIOENCODING: 'utf-8' },
+    },
   ],
 }

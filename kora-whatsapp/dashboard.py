@@ -119,7 +119,7 @@ with st.sidebar:
 
     pagina = st.radio(
         "Navegação",
-        ["Painel", "Conversas", "Leads", "Importar contatos", "Configurações"],
+        ["Painel", "Conversas", "Leads", "Disparar", "Importar contatos", "Configurações"],
         label_visibility="collapsed",
     )
 
@@ -339,6 +339,86 @@ elif pagina == "Leads":
                             f'</div>',
                             unsafe_allow_html=True,
                         )
+
+
+# ── Página: Disparar ──────────────────────────────────────────────────────────
+
+elif pagina == "Disparar":
+    import httpx
+
+    BRIDGE_URL = os.getenv("BRIDGE_URL", "http://localhost:9000/send")
+    MSG_PADRAO = os.getenv("MSG_ABERTURA", "Boa tarde! Tudo bem? Aqui é o Luan, da Kora Energia 👋 Falo com {nome}?")
+
+    st.markdown("## Disparar mensagem")
+
+    tab1, tab2 = st.tabs(["Contato avulso", "Disparar para lista de leads"])
+
+    with tab1:
+        with st.form("form_disparo"):
+            col1, col2 = st.columns(2)
+            telefone = col1.text_input("Telefone (com DDI e DDD)", placeholder="5541999990000")
+            nome = col2.text_input("Nome", placeholder="João Silva")
+            mensagem = st.text_area("Mensagem", value=MSG_PADRAO, height=100)
+            enviado = st.form_submit_button("Enviar mensagem", type="primary")
+
+        if enviado:
+            if not telefone or not nome:
+                st.error("Preencha telefone e nome.")
+            else:
+                texto = mensagem.replace("{nome}", nome)
+                try:
+                    r = httpx.post(BRIDGE_URL, json={"telefone": telefone, "mensagem": texto}, timeout=10)
+                    if r.status_code == 200:
+                        st.success(f"Mensagem enviada para {nome} ({telefone})")
+                        conn = get_conn()
+                        if conn:
+                            lead = conn.execute("SELECT id FROM leads WHERE telefone = ?", (telefone,)).fetchone()
+                            if not lead:
+                                conn.execute("INSERT INTO leads (telefone, nome) VALUES (?, ?)", (telefone, nome))
+                                conn.commit()
+                                lead = conn.execute("SELECT id FROM leads WHERE telefone = ?", (telefone,)).fetchone()
+                            conn.execute("INSERT INTO mensagens (lead_id, origem, conteudo) VALUES (?, 'vendedor', ?)", (lead[0], texto))
+                            conn.commit()
+                            conn.close()
+                    else:
+                        st.error(f"Erro ao enviar: {r.text}")
+                except Exception as e:
+                    st.error(f"Erro de conexão com a bridge: {e}")
+
+    with tab2:
+        df = carregar_leads()
+        df_ativos = df[df["status"] == "ativo"].copy() if not df.empty else pd.DataFrame()
+
+        if df_ativos.empty:
+            st.info("Nenhum lead com status 'ativo' para disparar.")
+        else:
+            st.caption(f"{len(df_ativos)} leads ativos disponíveis")
+            st.dataframe(
+                df_ativos[["nome", "telefone", "empresa"]].rename(
+                    columns={"nome": "Nome", "telefone": "Telefone", "empresa": "Empresa"}
+                ),
+                use_container_width=True, hide_index=True,
+            )
+            mensagem_lista = st.text_area("Mensagem para todos", value=MSG_PADRAO, height=100)
+            delay = st.slider("Delay entre mensagens (segundos)", 30, 120, 45)
+
+            if st.button("Disparar para todos os ativos", type="primary"):
+                import time
+                prog = st.progress(0)
+                resultados = []
+                for i, (_, row) in enumerate(df_ativos.iterrows()):
+                    texto = mensagem_lista.replace("{nome}", row["nome"] or "")
+                    try:
+                        r = httpx.post(BRIDGE_URL, json={"telefone": row["telefone"], "mensagem": texto}, timeout=10)
+                        ok = r.status_code == 200
+                    except Exception:
+                        ok = False
+                    resultados.append((row["nome"] or row["telefone"], ok))
+                    prog.progress((i + 1) / len(df_ativos))
+                    if i < len(df_ativos) - 1:
+                        time.sleep(delay)
+                enviados = sum(1 for _, ok in resultados if ok)
+                st.success(f"{enviados}/{len(df_ativos)} mensagens enviadas.")
 
 
 # ── Página: Importar contatos ──────────────────────────────────────────────────
