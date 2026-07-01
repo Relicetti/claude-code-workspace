@@ -72,11 +72,28 @@ export function importData(json: string): { sessions: number; analyses: number }
     currentWorkoutId?: string
   }
 
+  // Merge by id instead of overwriting, so importing a backup (or a
+  // single session someone sends you) adds to existing history rather
+  // than wiping out whatever is already on this device.
   if (data.sessions) {
-    localStorage.setItem(SESSIONS_KEY, JSON.stringify(data.sessions))
+    const existing = loadSessions()
+    const merged = [...existing]
+    for (const session of data.sessions) {
+      const idx = merged.findIndex(s => s.id === session.id)
+      if (idx >= 0) merged[idx] = session
+      else merged.push(session)
+    }
+    localStorage.setItem(SESSIONS_KEY, JSON.stringify(merged))
   }
   if (data.analyses) {
-    localStorage.setItem(ANALYSES_KEY, JSON.stringify(data.analyses))
+    const existing = loadAnalyses()
+    const merged = [...existing]
+    for (const analysis of data.analyses) {
+      const idx = merged.findIndex(a => a.id === analysis.id)
+      if (idx >= 0) merged[idx] = analysis
+      else merged.push(analysis)
+    }
+    localStorage.setItem(ANALYSES_KEY, JSON.stringify(merged))
   }
   if (data.plan) {
     saveCustomPlan(data.plan)
