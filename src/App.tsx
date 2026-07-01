@@ -12,6 +12,13 @@ export default function App() {
 
   useEffect(() => {
     loadFromStorage()
+
+    // Ask the browser to treat this site's storage as persistent, so
+    // iOS/mobile browsers are less likely to silently evict localStorage
+    // (workout history, plan, analyses) under low-storage pressure.
+    if (navigator.storage?.persist) {
+      navigator.storage.persist().catch(() => {})
+    }
   }, [loadFromStorage])
 
   return (
