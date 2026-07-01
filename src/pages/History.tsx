@@ -35,8 +35,8 @@ export function History() {
     .filter(s => filter === 'all' || s.workoutType === filter)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
-  const handleExport = () => {
-    const data = exportData()
+  const handleExport = async () => {
+    const data = await exportData()
     const blob = new Blob([data], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -50,10 +50,10 @@ export function History() {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = ev => {
+    reader.onload = async ev => {
       try {
-        const result = importData(ev.target?.result as string)
-        loadFromStorage()
+        const result = await importData(ev.target?.result as string)
+        await loadFromStorage()
         alert(`Importado: ${result.sessions} sessões, ${result.analyses} análises`)
       } catch {
         setImportError('Arquivo inválido')

@@ -1,138 +1,97 @@
 import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan } from '@/types'
 
-const SESSIONS_KEY = 'workout_sessions_v1'
-const ANALYSES_KEY = 'workout_analyses_v1'
-const CUSTOM_PLAN_KEY = 'workout_custom_plan_v1'
-const CURRENT_WORKOUT_KEY = 'workout_current_id_v1'
-
-export function loadSessions(): WorkoutSession[] {
-  try {
-    const raw = localStorage.getItem(SESSIONS_KEY)
-    return raw ? (JSON.parse(raw) as WorkoutSession[]) : []
-  } catch {
-    return []
+async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(`/api${path}`, {
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    ...options,
+  })
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({ error: response.statusText }))
+    throw new Error(body.error ?? `Erro ${response.status}`)
   }
+  return response.json() as Promise<T>
 }
 
-export function saveSession(session: WorkoutSession): void {
-  const sessions = loadSessions()
-  const idx = sessions.findIndex(s => s.id === session.id)
-  if (idx >= 0) {
-    sessions[idx] = session
-  } else {
-    sessions.push(session)
-  }
-  localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions))
+// --- Auth ---
+
+export async function login(password: string): Promise<void> {
+  await apiFetch('/login', { method: 'POST', body: JSON.stringify({ password }) })
 }
 
-export function deleteSession(id: string): void {
-  const sessions = loadSessions().filter(s => s.id !== id)
-  localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions))
+export async function logout(): Promise<void> {
+  await apiFetch('/logout', { method: 'POST' })
 }
 
-export function loadAnalyses(): WeeklyAnalysis[] {
-  try {
-    const raw = localStorage.getItem(ANALYSES_KEY)
-    return raw ? (JSON.parse(raw) as WeeklyAnalysis[]) : []
-  } catch {
-    return []
-  }
+export async function checkAuthenticated(): Promise<boolean> {
+  const { authenticated } = await apiFetch<{ authenticated: boolean }>('/session')
+  return authenticated
 }
 
-export function saveAnalysis(analysis: WeeklyAnalysis): void {
-  const analyses = loadAnalyses()
-  const idx = analyses.findIndex(a => a.id === analysis.id)
-  if (idx >= 0) {
-    analyses[idx] = analysis
-  } else {
-    analyses.unshift(analysis)
-  }
-  localStorage.setItem(ANALYSES_KEY, JSON.stringify(analyses))
+// --- Sessions ---
+
+export async function loadSessions(): Promise<WorkoutSession[]> {
+  const { sessions } = await apiFetch<{ sessions: WorkoutSession[] }>('/sessions')
+  return sessions
 }
 
-export function exportData(): string {
-  return JSON.stringify(
-    {
-      sessions: loadSessions(),
-      analyses: loadAnalyses(),
-      plan: loadCustomPlan(),
-      currentWorkoutId: loadCurrentWorkoutId(),
-      exportedAt: new Date().toISOString(),
-    },
-    null,
-    2,
-  )
+export async function saveSession(session: WorkoutSession): Promise<void> {
+  await apiFetch(`/sessions/${session.id}`, { method: 'PUT', body: JSON.stringify(session) })
 }
 
-export function importData(json: string): { sessions: number; analyses: number } {
-  const data = JSON.parse(json) as {
-    sessions?: WorkoutSession[]
-    analyses?: WeeklyAnalysis[]
-    plan?: WorkoutPlan
-    currentWorkoutId?: string
-  }
-
-  // Merge by id instead of overwriting, so importing a backup (or a
-  // single session someone sends you) adds to existing history rather
-  // than wiping out whatever is already on this device.
-  if (data.sessions) {
-    const existing = loadSessions()
-    const merged = [...existing]
-    for (const session of data.sessions) {
-      const idx = merged.findIndex(s => s.id === session.id)
-      if (idx >= 0) merged[idx] = session
-      else merged.push(session)
-    }
-    localStorage.setItem(SESSIONS_KEY, JSON.stringify(merged))
-  }
-  if (data.analyses) {
-    const existing = loadAnalyses()
-    const merged = [...existing]
-    for (const analysis of data.analyses) {
-      const idx = merged.findIndex(a => a.id === analysis.id)
-      if (idx >= 0) merged[idx] = analysis
-      else merged.push(analysis)
-    }
-    localStorage.setItem(ANALYSES_KEY, JSON.stringify(merged))
-  }
-  if (data.plan) {
-    saveCustomPlan(data.plan)
-  }
-  if (data.currentWorkoutId) {
-    saveCurrentWorkoutId(data.currentWorkoutId)
-  }
-
-  return {
-    sessions: data.sessions?.length ?? 0,
-    analyses: data.analyses?.length ?? 0,
-  }
+export async function deleteSession(id: string): Promise<void> {
+  await apiFetch(`/sessions/${id}`, { method: 'DELETE' })
 }
 
-export function saveCustomPlan(plan: WorkoutPlan): void {
-  localStorage.setItem(CUSTOM_PLAN_KEY, JSON.stringify(plan))
+// --- Analyses ---
+
+export async function loadAnalyses(): Promise<WeeklyAnalysis[]> {
+  const { analyses } = await apiFetch<{ analyses: WeeklyAnalysis[] }>('/analyses')
+  return analyses
 }
 
-export function loadCustomPlan(): WorkoutPlan | null {
-  try {
-    const raw = localStorage.getItem(CUSTOM_PLAN_KEY)
-    return raw ? (JSON.parse(raw) as WorkoutPlan) : null
-  } catch {
-    return null
-  }
+export async function saveAnalysis(analysis: WeeklyAnalysis): Promise<void> {
+  await apiFetch(`/analyses/${analysis.id}`, { method: 'PUT', body: JSON.stringify(analysis) })
 }
 
-export function clearCustomPlan(): void {
-  localStorage.removeItem(CUSTOM_PLAN_KEY)
+// --- Plan ---
+
+export async function saveCustomPlan(plan: WorkoutPlan): Promise<void> {
+  await apiFetch('/plan', { method: 'PUT', body: JSON.stringify({ plan }) })
 }
 
-export function saveCurrentWorkoutId(id: string): void {
-  localStorage.setItem(CURRENT_WORKOUT_KEY, id)
+export async function loadCustomPlan(): Promise<WorkoutPlan | null> {
+  const { plan } = await apiFetch<{ plan: WorkoutPlan | null }>('/plan')
+  return plan
 }
 
-export function loadCurrentWorkoutId(): string | null {
-  return localStorage.getItem(CURRENT_WORKOUT_KEY)
+export async function clearCustomPlan(): Promise<void> {
+  await apiFetch('/plan', { method: 'DELETE' })
 }
 
-export function clearCurrentWorkoutId(): void {
-  localStorage.removeItem(CURRENT_WORKOUT_KEY)
+// --- Current workout pointer ---
+
+export async function saveCurrentWorkoutId(id: string): Promise<void> {
+  await apiFetch('/current-workout', { method: 'PUT', body: JSON.stringify({ id }) })
+}
+
+export async function loadCurrentWorkoutId(): Promise<string | null> {
+  const { id } = await apiFetch<{ id: string | null }>('/current-workout')
+  return id
+}
+
+export async function clearCurrentWorkoutId(): Promise<void> {
+  await apiFetch('/current-workout', { method: 'DELETE' })
+}
+
+// --- Export / Import ---
+
+export async function exportData(): Promise<string> {
+  const data = await apiFetch('/export')
+  return JSON.stringify(data, null, 2)
+}
+
+export async function importData(json: string): Promise<{ sessions: number; analyses: number }> {
+  const data = JSON.parse(json)
+  return apiFetch('/import', { method: 'POST', body: JSON.stringify(data) })
 }

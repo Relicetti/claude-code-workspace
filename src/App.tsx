@@ -7,20 +7,33 @@ import { Progress } from '@/pages/Progress'
 import { Analytics } from '@/pages/Analytics'
 import { PlanEditor } from '@/pages/PlanEditor'
 import { About } from '@/pages/About'
+import { Login } from '@/pages/Login'
 
 export default function App() {
-  const { activeView, loadFromStorage } = useWorkoutStore()
+  const { activeView, authChecked, isAuthenticated, dataLoaded, checkAuth } = useWorkoutStore()
 
   useEffect(() => {
-    loadFromStorage()
+    checkAuth()
 
     // Ask the browser to treat this site's storage as persistent, so
-    // iOS/mobile browsers are less likely to silently evict localStorage
-    // (workout history, plan, analyses) under low-storage pressure.
+    // mobile browsers are less likely to silently evict any locally
+    // cached state under low-storage pressure.
     if (navigator.storage?.persist) {
       navigator.storage.persist().catch(() => {})
     }
-  }, [loadFromStorage])
+  }, [checkAuth])
+
+  if (!authChecked) {
+    return <div className="min-h-screen bg-gray-950" />
+  }
+
+  if (!isAuthenticated) {
+    return <Login />
+  }
+
+  if (!dataLoaded) {
+    return <div className="min-h-screen bg-gray-950" />
+  }
 
   return (
     <div className="min-h-screen bg-gray-950 text-white font-sans">

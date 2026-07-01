@@ -19,10 +19,18 @@ import {
   loadCurrentWorkoutId,
   saveCurrentWorkoutId,
   clearCurrentWorkoutId,
+  login as apiLogin,
+  logout as apiLogout,
+  checkAuthenticated,
 } from '@/lib/storage'
 import { defaultWorkoutPlan } from '@/data/workoutPlan'
 
 interface WorkoutStore {
+  // Auth
+  authChecked: boolean
+  isAuthenticated: boolean
+  dataLoaded: boolean
+
   // Active workout plan (custom if edited, else default)
   plan: WorkoutPlan
 
@@ -47,7 +55,11 @@ interface WorkoutStore {
   activeView: 'today' | 'history' | 'progress' | 'analytics' | 'plan' | 'about'
 
   // Actions
-  loadFromStorage: () => void
+  checkAuth: () => Promise<void>
+  login: (password: string) => Promise<boolean>
+  logout: () => Promise<void>
+  loadFromStorage: () => Promise<void>
+
   startSession: () => void
   pauseResumeSession: () => void
   finishSession: () => void
@@ -96,6 +108,9 @@ function buildInitialExercises(workout: WorkoutDay): ExerciseRecord[] {
 }
 
 export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
+  authChecked: false,
+  isAuthenticated: false,
+  dataLoaded: false,
   plan: defaultWorkoutPlan,
   currentWorkoutId: null,
   sessions: [],
@@ -106,19 +121,59 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
   analyses: [],
   activeView: 'today',
 
-  loadFromStorage: () => {
-    const customPlan = loadCustomPlan()
+  checkAuth: async () => {
+    try {
+      const authenticated = await checkAuthenticated()
+      set({ isAuthenticated: authenticated, authChecked: true })
+      if (authenticated) await get().loadFromStorage()
+    } catch {
+      set({ isAuthenticated: false, authChecked: true })
+    }
+  },
+
+  login: async (password) => {
+    try {
+      await apiLogin(password)
+      set({ isAuthenticated: true })
+      await get().loadFromStorage()
+      return true
+    } catch {
+      return false
+    }
+  },
+
+  logout: async () => {
+    await apiLogout().catch(() => {})
+    set({
+      isAuthenticated: false,
+      dataLoaded: false,
+      plan: defaultWorkoutPlan,
+      currentWorkoutId: null,
+      sessions: [],
+      analyses: [],
+      activeSession: null,
+    })
+  },
+
+  loadFromStorage: async () => {
+    const customPlan = await loadCustomPlan().catch(() => null)
     const plan = customPlan ?? defaultWorkoutPlan
-    const storedId = loadCurrentWorkoutId()
+    const storedId = await loadCurrentWorkoutId().catch(() => null)
     const currentWorkoutId = storedId && plan.workouts.some(w => w.id === storedId)
       ? storedId
       : (plan.workouts[0]?.id ?? null)
 
+    const [sessions, analyses] = await Promise.all([
+      loadSessions().catch(() => []),
+      loadAnalyses().catch(() => []),
+    ])
+
     set({
       plan,
       currentWorkoutId,
-      sessions: loadSessions(),
-      analyses: loadAnalyses(),
+      sessions,
+      analyses,
+      dataLoaded: true,
     })
   },
 
@@ -171,7 +226,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       durationSeconds: totalElapsed,
     }
 
-    saveSession(finished)
+    saveSession(finished).catch(console.error)
 
     // Advance to the next workout in the sequence
     const idx = plan.workouts.findIndex(w => w.id === finished.workoutType)
@@ -179,7 +234,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       ? plan.workouts[(idx + 1) % plan.workouts.length]
       : null
     if (nextWorkout) {
-      saveCurrentWorkoutId(nextWorkout.id)
+      saveCurrentWorkoutId(nextWorkout.id).catch(console.error)
     }
 
     set({
@@ -213,7 +268,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
 
     const updated = { ...activeSession, exercises }
     set({ activeSession: updated })
-    saveSession(updated)
+    saveSession(updated).catch(console.error)
   },
 
   markExerciseComplete: (exerciseId) => {
@@ -226,7 +281,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
 
     const updated = { ...activeSession, exercises }
     set({ activeSession: updated })
-    saveSession(updated)
+    saveSession(updated).catch(console.error)
   },
 
   skipExercise: (exerciseId, reason) => {
@@ -241,7 +296,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
 
     const updated = { ...activeSession, exercises }
     set({ activeSession: updated })
-    saveSession(updated)
+    saveSession(updated).catch(console.error)
   },
 
   addSubstituteExercise: (originalExerciseId, substitute, reason) => {
@@ -272,7 +327,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
 
     const updated = { ...activeSession, exercises }
     set({ activeSession: updated })
-    saveSession(updated)
+    saveSession(updated).catch(console.error)
   },
 
   updateAIFeedback: (feedback) => {
@@ -280,11 +335,11 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     if (!activeSession) return
     const updated = { ...activeSession, aiFeedback: feedback }
     set({ activeSession: updated })
-    saveSession(updated)
+    saveSession(updated).catch(console.error)
   },
 
   saveAnalysisResult: (analysis) => {
-    saveAnalysis(analysis)
+    saveAnalysis(analysis).catch(console.error)
     set(state => ({
       analyses: [analysis, ...state.analyses.filter(a => a.id !== analysis.id)],
     }))
@@ -321,14 +376,14 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       }))
 
       updatedPlan = { ...plan, workouts }
-      saveCustomPlan(updatedPlan)
+      saveCustomPlan(updatedPlan).catch(console.error)
     }
 
     const applied = [...analysis.applied]
     applied[adjustmentIndex] = true
 
     const updatedAnalysis = { ...analysis, applied }
-    saveAnalysis(updatedAnalysis)
+    saveAnalysis(updatedAnalysis).catch(console.error)
     set(state => ({
       plan: updatedPlan,
       analyses: state.analyses.map(a => (a.id === analysisId ? updatedAnalysis : a)),
@@ -344,22 +399,22 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
   },
 
   setCurrentWorkout: (id) => {
-    saveCurrentWorkoutId(id)
+    saveCurrentWorkoutId(id).catch(console.error)
     set({ currentWorkoutId: id })
   },
 
   updatePlan: (plan) => {
-    saveCustomPlan(plan)
+    saveCustomPlan(plan).catch(console.error)
     const currentWorkoutId = get().currentWorkoutId
     const stillValid = currentWorkoutId && plan.workouts.some(w => w.id === currentWorkoutId)
     const nextCurrentId = stillValid ? currentWorkoutId : (plan.workouts[0]?.id ?? null)
-    if (nextCurrentId) saveCurrentWorkoutId(nextCurrentId)
+    if (nextCurrentId) saveCurrentWorkoutId(nextCurrentId).catch(console.error)
     set({ plan, currentWorkoutId: nextCurrentId })
   },
 
   resetPlan: () => {
-    clearCustomPlan()
-    clearCurrentWorkoutId()
+    clearCustomPlan().catch(console.error)
+    clearCurrentWorkoutId().catch(console.error)
     set({ plan: defaultWorkoutPlan, currentWorkoutId: defaultWorkoutPlan.workouts[0]?.id ?? null })
   },
 

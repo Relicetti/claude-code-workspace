@@ -1,10 +1,10 @@
-import { ChevronLeft, Dumbbell } from 'lucide-react'
+import { ChevronLeft, Dumbbell, LogOut } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
 
 const buildDate = new Date(__BUILD_TIME__)
 
 export function About() {
-  const { setActiveView } = useWorkoutStore()
+  const { setActiveView, logout } = useWorkoutStore()
 
   return (
     <div className="px-4 py-4 pb-24 space-y-4">
@@ -52,6 +52,14 @@ export function About() {
         Se a data do build acima for anterior ao último ajuste que você pediu, o app instalado
         ainda não pegou a versão nova — feche e abra de novo, ou aguarde a atualização automática.
       </p>
+
+      <button
+        onClick={() => logout()}
+        className="w-full flex items-center justify-center gap-2 text-gray-500 hover:text-red-400 text-sm py-3 transition-colors"
+      >
+        <LogOut size={15} />
+        Sair
+      </button>
     </div>
   )
 }
