@@ -1,5 +1,8 @@
 FROM node:20-alpine AS builder
 
+ARG VITE_ANTHROPIC_API_KEY
+ENV VITE_ANTHROPIC_API_KEY=$VITE_ANTHROPIC_API_KEY
+
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
