@@ -3,23 +3,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Brain, Loader2, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
 import { getWeeklyAnalysis } from '@/lib/claudeApi'
-import { workoutPlan } from '@/data/workoutPlan'
-import type { WeeklyAnalysis } from '@/types'
-
-const MUSCLE_LABELS: Record<string, string> = {
-  peito: 'Peito',
-  costas: 'Costas',
-  ombro: 'Ombro',
-  triceps: 'Tríceps',
-  biceps: 'Bíceps',
-  quadriceps: 'Quadríceps',
-  posterior: 'Posterior',
-  adutora: 'Adutora',
-  abdutora: 'Abdutora',
-  panturrilha: 'Panturrilha',
-  abdomen: 'Abdômen',
-  trapezio: 'Trapézio',
-}
+import { MUSCLE_LABELS } from '@/lib/muscleLabels'
+import type { WeeklyAnalysis, WorkoutPlan } from '@/types'
 
 const ADJUSTMENT_LABELS: Record<string, string> = {
   increase_weight: '↑ Aumentar carga',
@@ -29,14 +14,17 @@ const ADJUSTMENT_LABELS: Record<string, string> = {
   rest_exercise: '⏸ Descansar exercício',
 }
 
-function computeVolumeByMuscle(sessions: ReturnType<typeof useWorkoutStore.getState>['sessions']): Record<string, number> {
+function computeVolumeByMuscle(
+  sessions: ReturnType<typeof useWorkoutStore.getState>['sessions'],
+  plan: WorkoutPlan,
+): Record<string, number> {
   const vol: Record<string, number> = {}
 
   sessions.forEach(session => {
     session.exercises.forEach(ex => {
       if (ex.skipped) return
-      const planDay = workoutPlan.days.find(d => d.type === session.workoutType)
-      const planEx = planDay?.exercises.find(e => e.id === ex.exerciseId)
+      const workout = plan.workouts.find(w => w.id === session.workoutType)
+      const planEx = workout?.exercises.find(e => e.id === ex.exerciseId)
       if (!planEx) return
       const completedSets = ex.sets.filter(s => s.completedAt !== null).length
       planEx.muscleGroups.forEach(m => {
@@ -49,7 +37,7 @@ function computeVolumeByMuscle(sessions: ReturnType<typeof useWorkoutStore.getSt
 }
 
 export function Analytics() {
-  const { sessions, analyses, saveAnalysisResult, applyAdjustment } = useWorkoutStore()
+  const { sessions, analyses, plan, saveAnalysisResult, applyAdjustment } = useWorkoutStore()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -70,12 +58,12 @@ export function Analytics() {
     return d >= prevWeekStart && d < weekStart
   })
 
-  const volumeData = computeVolumeByMuscle(thisWeekSessions)
+  const volumeData = computeVolumeByMuscle(thisWeekSessions, plan)
   const chartData = Object.entries(volumeData)
     .filter(([, v]) => v > 0)
     .sort(([, a], [, b]) => b - a)
     .map(([key, value]) => ({
-      muscle: MUSCLE_LABELS[key] ?? key,
+      muscle: (MUSCLE_LABELS as Record<string, string>)[key] ?? key,
       sets: value,
     }))
 

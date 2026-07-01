@@ -10,12 +10,12 @@ import {
 } from 'recharts'
 import { TrendingUp, TrendingDown, Minus as MinusIcon } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
-import { workoutPlan } from '@/data/workoutPlan'
+import type { WorkoutPlan } from '@/types'
 
-function getAllExercises() {
+function getAllExercises(plan: WorkoutPlan) {
   const exs: { id: string; name: string }[] = []
-  workoutPlan.days.forEach(d => {
-    d.exercises.forEach(e => {
+  plan.workouts.forEach(w => {
+    w.exercises.forEach(e => {
       if (!exs.find(x => x.id === e.id)) {
         exs.push({ id: e.id, name: e.name })
       }
@@ -25,8 +25,8 @@ function getAllExercises() {
 }
 
 export function Progress() {
-  const { sessions } = useWorkoutStore()
-  const allExercises = getAllExercises()
+  const { sessions, plan } = useWorkoutStore()
+  const allExercises = getAllExercises(plan)
   const [selectedId, setSelectedId] = useState(allExercises[0]?.id ?? '')
 
   const chartData = sessions

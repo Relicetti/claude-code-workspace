@@ -1,9 +1,8 @@
-import type { DayWorkout, WorkoutPlan, WorkoutType } from '@/types'
+import type { WorkoutDay, WorkoutPlan } from '@/types'
 
-const segunda: DayWorkout = {
-  day: 'segunda',
+const upperA: WorkoutDay = {
+  id: 'upper_a',
   label: 'Upper A — Peito Foco',
-  type: 'upper_a',
   exercises: [
     {
       id: 'ua_supino_maq',
@@ -74,10 +73,9 @@ const segunda: DayWorkout = {
   ],
 }
 
-const terca: DayWorkout = {
-  day: 'terca',
+const lowerA: WorkoutDay = {
+  id: 'lower_a',
   label: 'Lower A',
-  type: 'lower_a',
   exercises: [
     {
       id: 'la_leg_press',
@@ -136,10 +134,9 @@ const terca: DayWorkout = {
   ],
 }
 
-const quarta: DayWorkout = {
-  day: 'quarta',
+const upperB: WorkoutDay = {
+  id: 'upper_b',
   label: 'Upper B — Costas Foco + Ombro Posterior',
-  type: 'upper_b',
   exercises: [
     {
       id: 'ub_puxada_neutra',
@@ -208,17 +205,9 @@ const quarta: DayWorkout = {
   ],
 }
 
-const quinta: DayWorkout = {
-  day: 'quinta',
-  label: 'Descanso',
-  type: 'off',
-  exercises: [],
-}
-
-const sexta: DayWorkout = {
-  day: 'sexta',
+const lowerB: WorkoutDay = {
+  id: 'lower_b',
   label: 'Lower B',
-  type: 'lower_b',
   exercises: [
     {
       id: 'lb_hack_machine',
@@ -277,10 +266,9 @@ const sexta: DayWorkout = {
   ],
 }
 
-const sabado: DayWorkout = {
-  day: 'sabado',
+const upperC: WorkoutDay = {
+  id: 'upper_c',
   label: 'Upper C — Ombro Controlado + Braços',
-  type: 'upper_c',
   exercises: [
     {
       id: 'uc_desenv_maq',
@@ -355,15 +343,8 @@ const sabado: DayWorkout = {
   ],
 }
 
-const domingo: DayWorkout = {
-  day: 'domingo',
-  label: 'Descanso',
-  type: 'off',
-  exercises: [],
-}
-
-export const workoutPlan: WorkoutPlan = {
-  days: [segunda, terca, quarta, quinta, sexta, sabado, domingo],
+export const defaultWorkoutPlan: WorkoutPlan = {
+  workouts: [upperA, lowerA, upperB, lowerB, upperC],
   userNotes: `Contexto clínico relevante: tenho uma lesão no ombro anterior (dor provável no tendão do bíceps / manguito rotador anterior), provocada principalmente por supino inclinado com halteres e desenvolvimento com halteres. Por isso o plano prioriza máquinas, evita amplitude excessiva, e usa face pull / rotação externa como reforço do manguito em quase todo treino de upper.
 
 Fase atual: saindo de cutting (2200 kcal) para superávit calórico, priorizando hipertrofia. Volume semanal por grupo deve estar entre 10-20 séries para otimizar hipertrofia.
@@ -373,15 +354,3 @@ Restrições importantes para sugestão de exercícios:
 - PREFERIR: máquinas com guias fixas, movimentos controlados, amplitude reduzida quando necessário
 - SEMPRE incluir face pull / rotação externa nos dias de upper como reforço preventivo`,
 }
-
-export function getTodayWorkout(): DayWorkout {
-  const dayIndex = new Date().getDay()
-  // JS: 0=dom, 1=seg, 2=ter, 3=qua, 4=qui, 5=sex, 6=sab
-  const map = [6, 0, 1, 2, 3, 4, 5] // reorder to match our array (seg=0)
-  return workoutPlan.days[map[dayIndex]]
-}
-
-export function getWorkoutByType(type: WorkoutType): DayWorkout | undefined {
-  return workoutPlan.days.find(d => d.type === type)
-}
-

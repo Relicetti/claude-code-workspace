@@ -1,8 +1,9 @@
-import { Dumbbell, History, TrendingUp, Brain } from 'lucide-react'
+import { Dumbbell, History, TrendingUp, Brain, ListChecks } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
 
 const TABS = [
   { id: 'today', label: 'Treino', icon: Dumbbell },
+  { id: 'plan', label: 'Plano', icon: ListChecks },
   { id: 'history', label: 'Histórico', icon: History },
   { id: 'progress', label: 'Progresso', icon: TrendingUp },
   { id: 'analytics', label: 'Analytics', icon: Brain },

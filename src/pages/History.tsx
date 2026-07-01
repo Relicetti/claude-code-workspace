@@ -2,16 +2,19 @@ import { useState } from 'react'
 import { Calendar, Clock, ChevronDown, ChevronUp, Download, Upload } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
 import { exportData, importData } from '@/lib/storage'
-import type { WorkoutType } from '@/types'
+import type { WorkoutType, WorkoutSession, WorkoutPlan } from '@/types'
 
-const FILTERS: { label: string; value: WorkoutType | 'all' }[] = [
-  { label: 'Todos', value: 'all' },
-  { label: 'Upper A', value: 'upper_a' },
-  { label: 'Lower A', value: 'lower_a' },
-  { label: 'Upper B', value: 'upper_b' },
-  { label: 'Lower B', value: 'lower_b' },
-  { label: 'Upper C', value: 'upper_c' },
-]
+function buildFilters(plan: WorkoutPlan, sessions: WorkoutSession[]): { label: string; value: WorkoutType | 'all' }[] {
+  const seen = new Map<string, string>()
+  plan.workouts.forEach(w => seen.set(w.id, w.label))
+  sessions.forEach(s => {
+    if (!seen.has(s.workoutType)) seen.set(s.workoutType, s.workoutLabel)
+  })
+  return [
+    { label: 'Todos', value: 'all' },
+    ...Array.from(seen.entries()).map(([value, label]) => ({ label, value })),
+  ]
+}
 
 function formatDuration(seconds: number | null): string {
   if (!seconds) return '--'
@@ -21,10 +24,12 @@ function formatDuration(seconds: number | null): string {
 }
 
 export function History() {
-  const { sessions, loadFromStorage } = useWorkoutStore()
+  const { sessions, plan, loadFromStorage } = useWorkoutStore()
   const [filter, setFilter] = useState<WorkoutType | 'all'>('all')
   const [expanded, setExpanded] = useState<string | null>(null)
   const [importError, setImportError] = useState('')
+
+  const filters = buildFilters(plan, sessions)
 
   const filtered = sessions
     .filter(s => filter === 'all' || s.workoutType === filter)
@@ -82,7 +87,7 @@ export function History() {
 
       {/* Filters */}
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-        {FILTERS.map(f => (
+        {filters.map(f => (
           <button
             key={f.value}
             onClick={() => setFilter(f.value)}

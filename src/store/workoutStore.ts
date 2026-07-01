@@ -5,11 +5,30 @@ import type {
   SetRecord,
   WorkoutType,
   WeeklyAnalysis,
+  WorkoutPlan,
+  WorkoutDay,
 } from '@/types'
-import { loadSessions, saveSession, loadAnalyses, saveAnalysis } from '@/lib/storage'
-import { getTodayWorkout, workoutPlan } from '@/data/workoutPlan'
+import {
+  loadSessions,
+  saveSession,
+  loadAnalyses,
+  saveAnalysis,
+  loadCustomPlan,
+  saveCustomPlan,
+  clearCustomPlan,
+  loadCurrentWorkoutId,
+  saveCurrentWorkoutId,
+  clearCurrentWorkoutId,
+} from '@/lib/storage'
+import { defaultWorkoutPlan } from '@/data/workoutPlan'
 
 interface WorkoutStore {
+  // Active workout plan (custom if edited, else default)
+  plan: WorkoutPlan
+
+  // Id of the workout that comes up next in the sequence
+  currentWorkoutId: string | null
+
   // All historical sessions
   sessions: WorkoutSession[]
 
@@ -25,7 +44,7 @@ interface WorkoutStore {
   analyses: WeeklyAnalysis[]
 
   // Current view
-  activeView: 'today' | 'history' | 'progress' | 'analytics'
+  activeView: 'today' | 'history' | 'progress' | 'analytics' | 'plan'
 
   // Actions
   loadFromStorage: () => void
@@ -49,13 +68,18 @@ interface WorkoutStore {
 
   setActiveView: (view: WorkoutStore['activeView']) => void
 
+  getCurrentWorkout: () => WorkoutDay | null
+  setCurrentWorkout: (id: string) => void
+  updatePlan: (plan: WorkoutPlan) => void
+  resetPlan: () => void
+
   getSessionsByType: (type: WorkoutType) => WorkoutSession[]
   getLastSessionByType: (type: WorkoutType) => WorkoutSession | null
   getSessionsInRange: (startDate: Date, endDate: Date) => WorkoutSession[]
 }
 
-function buildInitialExercises(session: ReturnType<typeof getTodayWorkout>): ExerciseRecord[] {
-  return session.exercises.map(ex => ({
+function buildInitialExercises(workout: WorkoutDay): ExerciseRecord[] {
+  return workout.exercises.map(ex => ({
     exerciseId: ex.id,
     exerciseName: ex.name,
     completed: false,
@@ -71,6 +95,8 @@ function buildInitialExercises(session: ReturnType<typeof getTodayWorkout>): Exe
 }
 
 export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
+  plan: defaultWorkoutPlan,
+  currentWorkoutId: null,
   sessions: [],
   activeSession: null,
   sessionStartTime: null,
@@ -80,22 +106,31 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
   activeView: 'today',
 
   loadFromStorage: () => {
+    const customPlan = loadCustomPlan()
+    const plan = customPlan ?? defaultWorkoutPlan
+    const storedId = loadCurrentWorkoutId()
+    const currentWorkoutId = storedId && plan.workouts.some(w => w.id === storedId)
+      ? storedId
+      : (plan.workouts[0]?.id ?? null)
+
     set({
+      plan,
+      currentWorkoutId,
       sessions: loadSessions(),
       analyses: loadAnalyses(),
     })
   },
 
   startSession: () => {
-    const todayWorkout = getTodayWorkout()
-    if (todayWorkout.type === 'off') return
+    const workout = get().getCurrentWorkout()
+    if (!workout) return
 
     const session: WorkoutSession = {
       id: crypto.randomUUID(),
       date: new Date().toISOString().split('T')[0],
-      workoutType: todayWorkout.type,
-      workoutLabel: todayWorkout.label,
-      exercises: buildInitialExercises(todayWorkout),
+      workoutType: workout.id,
+      workoutLabel: workout.label,
+      exercises: buildInitialExercises(workout),
       startedAt: new Date().toISOString(),
       finishedAt: null,
       durationSeconds: null,
@@ -122,7 +157,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
   },
 
   finishSession: () => {
-    const { activeSession, sessionStartTime, sessionElapsedSeconds, sessions } = get()
+    const { activeSession, sessionStartTime, sessionElapsedSeconds, sessions, plan } = get()
     if (!activeSession) return
 
     const totalElapsed = sessionStartTime
@@ -136,12 +171,23 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     }
 
     saveSession(finished)
+
+    // Advance to the next workout in the sequence
+    const idx = plan.workouts.findIndex(w => w.id === finished.workoutType)
+    const nextWorkout = plan.workouts.length > 0
+      ? plan.workouts[(idx + 1) % plan.workouts.length]
+      : null
+    if (nextWorkout) {
+      saveCurrentWorkoutId(nextWorkout.id)
+    }
+
     set({
       sessions: [...sessions.filter(s => s.id !== finished.id), finished],
       activeSession: null,
       sessionStartTime: null,
       sessionPaused: false,
       sessionElapsedSeconds: 0,
+      currentWorkoutId: nextWorkout?.id ?? get().currentWorkoutId,
     })
   },
 
@@ -244,21 +290,77 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
   },
 
   applyAdjustment: (analysisId, adjustmentIndex) => {
-    const { analyses } = get()
+    const { analyses, plan } = get()
     const analysis = analyses.find(a => a.id === analysisId)
     if (!analysis) return
+
+    const adj = analysis.adjustments[adjustmentIndex]
+    let updatedPlan = plan
+
+    if (adj) {
+      const normalizedTarget = adj.exerciseName.trim().toLowerCase()
+      const workouts = plan.workouts.map(w => ({
+        ...w,
+        exercises: w.exercises.map(ex => {
+          if (ex.name.trim().toLowerCase() !== normalizedTarget) return ex
+
+          if (adj.type === 'increase_volume' || adj.type === 'decrease_volume') {
+            return {
+              ...ex,
+              sets: adj.targetSets ?? ex.sets,
+              repsMin: adj.targetRepsMin ?? ex.repsMin,
+              repsMax: adj.targetRepsMax ?? ex.repsMax,
+            }
+          }
+          if (adj.type === 'swap_exercise' && adj.substituteExerciseName) {
+            return { ...ex, name: adj.substituteExerciseName }
+          }
+          return ex
+        }),
+      }))
+
+      updatedPlan = { ...plan, workouts }
+      saveCustomPlan(updatedPlan)
+    }
 
     const applied = [...analysis.applied]
     applied[adjustmentIndex] = true
 
-    const updated = { ...analysis, applied }
-    saveAnalysis(updated)
+    const updatedAnalysis = { ...analysis, applied }
+    saveAnalysis(updatedAnalysis)
     set(state => ({
-      analyses: state.analyses.map(a => (a.id === analysisId ? updated : a)),
+      plan: updatedPlan,
+      analyses: state.analyses.map(a => (a.id === analysisId ? updatedAnalysis : a)),
     }))
   },
 
   setActiveView: (view) => set({ activeView: view }),
+
+  getCurrentWorkout: () => {
+    const { plan, currentWorkoutId } = get()
+    if (plan.workouts.length === 0) return null
+    return plan.workouts.find(w => w.id === currentWorkoutId) ?? plan.workouts[0]
+  },
+
+  setCurrentWorkout: (id) => {
+    saveCurrentWorkoutId(id)
+    set({ currentWorkoutId: id })
+  },
+
+  updatePlan: (plan) => {
+    saveCustomPlan(plan)
+    const currentWorkoutId = get().currentWorkoutId
+    const stillValid = currentWorkoutId && plan.workouts.some(w => w.id === currentWorkoutId)
+    const nextCurrentId = stillValid ? currentWorkoutId : (plan.workouts[0]?.id ?? null)
+    if (nextCurrentId) saveCurrentWorkoutId(nextCurrentId)
+    set({ plan, currentWorkoutId: nextCurrentId })
+  },
+
+  resetPlan: () => {
+    clearCustomPlan()
+    clearCurrentWorkoutId()
+    set({ plan: defaultWorkoutPlan, currentWorkoutId: defaultWorkoutPlan.workouts[0]?.id ?? null })
+  },
 
   getSessionsByType: (type) => {
     return get().sessions.filter(s => s.workoutType === type).sort(
@@ -280,6 +382,3 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     })
   },
 }))
-
-// Make workoutPlan accessible for external references
-export { workoutPlan }

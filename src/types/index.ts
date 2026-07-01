@@ -1,5 +1,3 @@
-export type DayOfWeek = 'segunda' | 'terca' | 'quarta' | 'quinta' | 'sexta' | 'sabado' | 'domingo'
-
 export type MuscleGroup =
   | 'peito'
   | 'costas'
@@ -27,17 +25,17 @@ export interface Exercise {
   touchesShoulderAnterior?: boolean
 }
 
-export type WorkoutType = 'upper_a' | 'lower_a' | 'upper_b' | 'lower_b' | 'upper_c' | 'off'
+// Free-form id referencing a workout within the active plan's sequence
+export type WorkoutType = string
 
-export interface DayWorkout {
-  day: DayOfWeek
+export interface WorkoutDay {
+  id: WorkoutType
   label: string
-  type: WorkoutType
   exercises: Exercise[]
 }
 
 export interface WorkoutPlan {
-  days: DayWorkout[]
+  workouts: WorkoutDay[]
   userNotes: string
 }
 

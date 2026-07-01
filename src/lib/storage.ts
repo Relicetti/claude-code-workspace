@@ -1,8 +1,9 @@
-import type { WorkoutSession, WeeklyAnalysis } from '@/types'
+import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan } from '@/types'
 
 const SESSIONS_KEY = 'workout_sessions_v1'
 const ANALYSES_KEY = 'workout_analyses_v1'
 const CUSTOM_PLAN_KEY = 'workout_custom_plan_v1'
+const CURRENT_WORKOUT_KEY = 'workout_current_id_v1'
 
 export function loadSessions(): WorkoutSession[] {
   try {
@@ -54,6 +55,8 @@ export function exportData(): string {
     {
       sessions: loadSessions(),
       analyses: loadAnalyses(),
+      plan: loadCustomPlan(),
+      currentWorkoutId: loadCurrentWorkoutId(),
       exportedAt: new Date().toISOString(),
     },
     null,
@@ -65,6 +68,8 @@ export function importData(json: string): { sessions: number; analyses: number }
   const data = JSON.parse(json) as {
     sessions?: WorkoutSession[]
     analyses?: WeeklyAnalysis[]
+    plan?: WorkoutPlan
+    currentWorkoutId?: string
   }
 
   if (data.sessions) {
@@ -73,6 +78,12 @@ export function importData(json: string): { sessions: number; analyses: number }
   if (data.analyses) {
     localStorage.setItem(ANALYSES_KEY, JSON.stringify(data.analyses))
   }
+  if (data.plan) {
+    saveCustomPlan(data.plan)
+  }
+  if (data.currentWorkoutId) {
+    saveCurrentWorkoutId(data.currentWorkoutId)
+  }
 
   return {
     sessions: data.sessions?.length ?? 0,
@@ -80,15 +91,31 @@ export function importData(json: string): { sessions: number; analyses: number }
   }
 }
 
-export function saveCustomPlan(plan: unknown): void {
+export function saveCustomPlan(plan: WorkoutPlan): void {
   localStorage.setItem(CUSTOM_PLAN_KEY, JSON.stringify(plan))
 }
 
-export function loadCustomPlan(): unknown | null {
+export function loadCustomPlan(): WorkoutPlan | null {
   try {
     const raw = localStorage.getItem(CUSTOM_PLAN_KEY)
-    return raw ? JSON.parse(raw) : null
+    return raw ? (JSON.parse(raw) as WorkoutPlan) : null
   } catch {
     return null
   }
+}
+
+export function clearCustomPlan(): void {
+  localStorage.removeItem(CUSTOM_PLAN_KEY)
+}
+
+export function saveCurrentWorkoutId(id: string): void {
+  localStorage.setItem(CURRENT_WORKOUT_KEY, id)
+}
+
+export function loadCurrentWorkoutId(): string | null {
+  return localStorage.getItem(CURRENT_WORKOUT_KEY)
+}
+
+export function clearCurrentWorkoutId(): void {
+  localStorage.removeItem(CURRENT_WORKOUT_KEY)
 }

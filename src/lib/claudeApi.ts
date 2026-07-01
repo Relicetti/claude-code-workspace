@@ -4,7 +4,7 @@ import type {
   AIAlternativesResponse,
   AIAnalyticsResponse,
 } from '@/types'
-import { workoutPlan } from '@/data/workoutPlan'
+import { useWorkoutStore } from '@/store/workoutStore'
 
 const API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY as string | undefined
 
@@ -46,7 +46,9 @@ function parseJSON<T>(raw: string): T {
   return JSON.parse(jsonStr) as T
 }
 
-const SHOULDER_CONTEXT = workoutPlan.userNotes
+function getShoulderContext(): string {
+  return useWorkoutStore.getState().plan.userNotes
+}
 
 export async function getExerciseAlternatives(
   exercise: Exercise,
@@ -71,7 +73,7 @@ Formato exigido:
   ]
 }
 
-${isUpperBody ? `RESTRIÇÃO CRÍTICA DO ATLETA:\n${SHOULDER_CONTEXT}` : ''}`
+${isUpperBody ? `RESTRIÇÃO CRÍTICA DO ATLETA:\n${getShoulderContext()}` : ''}`
 
   const userMessage = `Exercício a substituir: ${exercise.name}
 Grupos musculares: ${exercise.muscleGroups.join(', ')}
@@ -126,7 +128,7 @@ Exercícios:
 ${exerciseSummary}
 
 Contexto do atleta:
-${SHOULDER_CONTEXT}`
+${getShoulderContext()}`
 
   return callClaude(systemPrompt, userMessage)
 }
@@ -155,7 +157,7 @@ Formato exigido:
 }
 
 CONTEXTO DO ATLETA:
-${SHOULDER_CONTEXT}`
+${getShoulderContext()}`
 
   const sessionsSummary = sessions.map(s => {
     const exSummary = s.exercises

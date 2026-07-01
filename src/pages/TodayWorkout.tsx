@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Play, Pause, CheckCircle2, Moon, Loader2, ChevronDown, ChevronUp } from 'lucide-react'
+import { Play, Pause, CheckCircle2, Loader2, ChevronDown, ChevronUp, ListChecks } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
-import { getTodayWorkout, workoutPlan } from '@/data/workoutPlan'
 import { ExerciseCard } from '@/components/ExerciseCard'
 import { RestTimer } from '@/components/RestTimer'
 import { SubstituteModal } from '@/components/SubstituteModal'
@@ -11,8 +10,8 @@ import { getSessionFeedback } from '@/lib/claudeApi'
 import type { Exercise, ExerciseAlternative } from '@/types'
 
 export function TodayWorkout() {
-  const todayWorkout = getTodayWorkout()
   const {
+    plan,
     activeSession,
     startSession,
     pauseResumeSession,
@@ -25,7 +24,11 @@ export function TodayWorkout() {
     sessionStartTime,
     sessionPaused,
     getLastSessionByType,
+    getCurrentWorkout,
+    setActiveView,
   } = useWorkoutStore()
+
+  const currentWorkout = getCurrentWorkout()
 
   const sessionDisplay = useSessionTimer()
   const restTimer = useRestTimer()
@@ -54,7 +57,7 @@ export function TodayWorkout() {
       completedAt: new Date().toISOString(),
     })
 
-    const exercise = todayWorkout.exercises.find(e => e.id === exerciseId)
+    const exercise = currentWorkout?.exercises.find(e => e.id === exerciseId)
     if (exercise) {
       setPendingRestSeconds(exercise.restSeconds)
       setShowRestTimer(true)
@@ -111,18 +114,22 @@ export function TodayWorkout() {
   const totalCount = activeSession?.exercises.length ?? 0
   const allDone = completedCount >= totalCount && totalCount > 0
 
-  if (todayWorkout.type === 'off') {
+  const workoutIndex = currentWorkout ? plan.workouts.findIndex(w => w.id === currentWorkout.id) : -1
+
+  if (!currentWorkout) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-        <Moon size={56} className="text-gray-600 mb-4" />
-        <h2 className="text-2xl font-bold text-white mb-2">Dia de descanso</h2>
-        <p className="text-gray-400 text-sm max-w-xs">
-          Hoje é dia de recuperação. Aproveite para dormir bem e se alimentar corretamente.
+        <ListChecks size={56} className="text-gray-600 mb-4" />
+        <h2 className="text-2xl font-bold text-white mb-2">Nenhum treino configurado</h2>
+        <p className="text-gray-400 text-sm max-w-xs mb-6">
+          Adicione pelo menos um treino no seu plano para começar.
         </p>
-        <div className="mt-6 p-4 bg-gray-900 rounded-2xl border border-gray-800 text-left max-w-xs w-full">
-          <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Lembrete</p>
-          <p className="text-sm text-gray-300">{todayWorkout.label}</p>
-        </div>
+        <button
+          onClick={() => setActiveView('plan')}
+          className="bg-brand-600 hover:bg-brand-500 text-white font-semibold px-5 py-3 rounded-xl transition-all"
+        >
+          Ir para Meu Plano
+        </button>
       </div>
     )
   }
@@ -133,7 +140,7 @@ export function TodayWorkout() {
         <div className="text-center">
           <CheckCircle2 size={56} className="text-brand-400 mx-auto mb-3" />
           <h2 className="text-2xl font-bold text-white">Treino concluído!</h2>
-          <p className="text-gray-400 text-sm mt-1">{todayWorkout.label}</p>
+          <p className="text-gray-400 text-sm mt-1">{currentWorkout.label}</p>
         </div>
 
         {aiFeedback && (
@@ -142,6 +149,11 @@ export function TodayWorkout() {
             <p className="text-sm text-gray-200 leading-relaxed">{aiFeedback}</p>
           </div>
         )}
+
+        <div className="bg-gray-900 rounded-2xl border border-gray-800 p-4">
+          <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Próximo treino</p>
+          <p className="text-sm font-semibold text-white">{getCurrentWorkout()?.label ?? '—'}</p>
+        </div>
 
         <button
           onClick={() => setShowFinishedCard(false)}
@@ -159,11 +171,13 @@ export function TodayWorkout() {
       <div className="sticky top-0 z-30 bg-gray-950/95 backdrop-blur border-b border-gray-800 px-4 py-3">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs text-gray-500 uppercase tracking-wide">Hoje</p>
-            <h1 className="font-bold text-white text-sm leading-tight">{todayWorkout.label}</h1>
+            <p className="text-xs text-gray-500 uppercase tracking-wide">
+              Treino {workoutIndex + 1} de {plan.workouts.length}
+            </p>
+            <h1 className="font-bold text-white text-sm leading-tight">{currentWorkout.label}</h1>
           </div>
 
-          {isSessionActive && (
+          {isSessionActive ? (
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-2 bg-gray-900 px-3 py-1.5 rounded-xl border border-gray-700">
                 <div className={`w-2 h-2 rounded-full ${isRunning ? 'bg-brand-400 animate-pulse' : 'bg-gray-500'}`} />
@@ -173,6 +187,14 @@ export function TodayWorkout() {
                 </button>
               </div>
             </div>
+          ) : (
+            <button
+              onClick={() => setActiveView('plan')}
+              className="text-gray-500 hover:text-white p-2 -mr-2"
+              title="Editar plano"
+            >
+              <ListChecks size={20} />
+            </button>
           )}
         </div>
 
@@ -188,20 +210,24 @@ export function TodayWorkout() {
 
       <div className="px-4 pt-4 space-y-3">
         {/* Notes section */}
-        <button
-          onClick={() => setShowNotes(n => !n)}
-          className="w-full flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 text-left"
-        >
-          <div className="flex items-center gap-2">
-            <span className="text-yellow-400 text-sm">⚠️</span>
-            <span className="text-xs text-yellow-400/80 font-medium">Restrição ombro anterior</span>
-          </div>
-          {showNotes ? <ChevronUp size={16} className="text-gray-500" /> : <ChevronDown size={16} className="text-gray-500" />}
-        </button>
-        {showNotes && (
-          <div className="bg-gray-900 border border-yellow-900/40 rounded-xl px-4 py-3">
-            <p className="text-xs text-gray-300 leading-relaxed">{workoutPlan.userNotes.split('\n')[0]}</p>
-          </div>
+        {plan.userNotes && (
+          <>
+            <button
+              onClick={() => setShowNotes(n => !n)}
+              className="w-full flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 text-left"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-yellow-400 text-sm">⚠️</span>
+                <span className="text-xs text-yellow-400/80 font-medium">Restrição ombro anterior</span>
+              </div>
+              {showNotes ? <ChevronUp size={16} className="text-gray-500" /> : <ChevronDown size={16} className="text-gray-500" />}
+            </button>
+            {showNotes && (
+              <div className="bg-gray-900 border border-yellow-900/40 rounded-xl px-4 py-3">
+                <p className="text-xs text-gray-300 leading-relaxed">{plan.userNotes.split('\n')[0]}</p>
+              </div>
+            )}
+          </>
         )}
 
         {/* Start / active session */}
@@ -216,7 +242,7 @@ export function TodayWorkout() {
         ) : (
           <>
             {/* Exercise cards */}
-            {todayWorkout.exercises.map((exercise, idx) => {
+            {currentWorkout.exercises.map((exercise, idx) => {
               const record = activeSession.exercises.find(e => e.exerciseId === exercise.id)
               if (!record) return null
               const isCardActive = idx === 0 || activeSession.exercises
