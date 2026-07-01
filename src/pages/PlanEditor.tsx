@@ -9,6 +9,7 @@ import {
   Sparkles,
   RotateCcw,
   Star,
+  Info,
 } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
 import { NumberStepper } from '@/components/NumberStepper'
@@ -37,7 +38,7 @@ function newWorkout(): WorkoutDay {
 }
 
 export function PlanEditor() {
-  const { plan, currentWorkoutId, updatePlan, resetPlan, setCurrentWorkout } = useWorkoutStore()
+  const { plan, currentWorkoutId, updatePlan, resetPlan, setCurrentWorkout, setActiveView } = useWorkoutStore()
   const [expandedWorkout, setExpandedWorkout] = useState<string | null>(plan.workouts[0]?.id ?? null)
   const [aiSwapTarget, setAiSwapTarget] = useState<{ workoutId: string; exercise: Exercise } | null>(null)
   const [showNotesEditor, setShowNotesEditor] = useState(false)
@@ -113,13 +114,22 @@ export function PlanEditor() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-white">Meu Plano</h1>
         {!confirmReset ? (
-          <button
-            onClick={() => setConfirmReset(true)}
-            className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors"
-          >
-            <RotateCcw size={14} />
-            Restaurar padrão
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setActiveView('about')}
+              className="text-gray-500 hover:text-gray-300 transition-colors"
+              title="Sobre o app"
+            >
+              <Info size={16} />
+            </button>
+            <button
+              onClick={() => setConfirmReset(true)}
+              className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors"
+            >
+              <RotateCcw size={14} />
+              Restaurar padrão
+            </button>
+          </div>
         ) : (
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-400">Tem certeza?</span>

@@ -44,7 +44,7 @@ interface WorkoutStore {
   analyses: WeeklyAnalysis[]
 
   // Current view
-  activeView: 'today' | 'history' | 'progress' | 'analytics' | 'plan'
+  activeView: 'today' | 'history' | 'progress' | 'analytics' | 'plan' | 'about'
 
   // Actions
   loadFromStorage: () => void

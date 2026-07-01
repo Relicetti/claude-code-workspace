@@ -1,12 +1,12 @@
 import { useEffect } from 'react'
 import { useWorkoutStore } from '@/store/workoutStore'
 import { BottomNav } from '@/components/BottomNav'
-import { BuildBadge } from '@/components/BuildBadge'
 import { TodayWorkout } from '@/pages/TodayWorkout'
 import { History } from '@/pages/History'
 import { Progress } from '@/pages/Progress'
 import { Analytics } from '@/pages/Analytics'
 import { PlanEditor } from '@/pages/PlanEditor'
+import { About } from '@/pages/About'
 
 export default function App() {
   const { activeView, loadFromStorage } = useWorkoutStore()
@@ -30,9 +30,9 @@ export default function App() {
         {activeView === 'history' && <History />}
         {activeView === 'progress' && <Progress />}
         {activeView === 'analytics' && <Analytics />}
+        {activeView === 'about' && <About />}
       </main>
       <BottomNav />
-      <BuildBadge />
     </div>
   )
 }
