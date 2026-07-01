@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useWorkoutStore } from '@/store/workoutStore'
 import { BottomNav } from '@/components/BottomNav'
+import { BuildBadge } from '@/components/BuildBadge'
 import { TodayWorkout } from '@/pages/TodayWorkout'
 import { History } from '@/pages/History'
 import { Progress } from '@/pages/Progress'
@@ -31,6 +32,7 @@ export default function App() {
         {activeView === 'analytics' && <Analytics />}
       </main>
       <BottomNav />
+      <BuildBadge />
     </div>
   )
 }
