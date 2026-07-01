@@ -9,6 +9,11 @@ import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { getSessionFeedback } from '@/lib/claudeApi'
 import type { Exercise, ExerciseAlternative } from '@/types'
 
+function formatShortDate(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00')
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+}
+
 export function TodayWorkout() {
   const {
     plan,
@@ -25,6 +30,8 @@ export function TodayWorkout() {
     sessionPaused,
     getLastSessionByType,
     getCurrentWorkout,
+    getMostRecentSession,
+    setCurrentWorkout,
     setActiveView,
   } = useWorkoutStore()
 
@@ -170,11 +177,25 @@ export function TodayWorkout() {
       {/* Header */}
       <div className="sticky top-0 z-30 bg-gray-950/95 backdrop-blur border-b border-gray-800 px-4 py-3">
         <div className="flex items-center justify-between">
-          <div>
+          <div className="flex-1 min-w-0">
             <p className="text-xs text-gray-500 uppercase tracking-wide">
               Treino {workoutIndex + 1} de {plan.workouts.length}
             </p>
-            <h1 className="font-bold text-white text-sm leading-tight">{currentWorkout.label}</h1>
+            {isSessionActive ? (
+              <h1 className="font-bold text-white text-sm leading-tight">{currentWorkout.label}</h1>
+            ) : (
+              <select
+                value={currentWorkout.id}
+                onChange={e => setCurrentWorkout(e.target.value)}
+                className="font-bold text-white text-sm leading-tight bg-transparent outline-none -ml-0.5 max-w-full"
+              >
+                {plan.workouts.map(w => (
+                  <option key={w.id} value={w.id} className="bg-gray-900 text-white">
+                    {w.label}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {isSessionActive ? (
@@ -229,6 +250,16 @@ export function TodayWorkout() {
             )}
           </>
         )}
+
+        {/* Last workout indicator */}
+        {!isSessionActive && (() => {
+          const lastSession = getMostRecentSession()
+          return lastSession ? (
+            <p className="text-xs text-gray-500 text-center">
+              Último treino: <span className="text-gray-300 font-medium">{lastSession.workoutLabel}</span> · {formatShortDate(lastSession.date)}
+            </p>
+          ) : null
+        })()}
 
         {/* Start / active session */}
         {!isSessionActive ? (

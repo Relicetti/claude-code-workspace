@@ -75,6 +75,7 @@ interface WorkoutStore {
 
   getSessionsByType: (type: WorkoutType) => WorkoutSession[]
   getLastSessionByType: (type: WorkoutType) => WorkoutSession | null
+  getMostRecentSession: () => WorkoutSession | null
   getSessionsInRange: (startDate: Date, endDate: Date) => WorkoutSession[]
 }
 
@@ -372,6 +373,13 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     const sessions = get()
       .sessions.filter(s => s.workoutType === type && s.finishedAt !== null)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    return sessions[0] ?? null
+  },
+
+  getMostRecentSession: () => {
+    const sessions = get()
+      .sessions.filter(s => s.finishedAt !== null)
+      .sort((a, b) => new Date(b.finishedAt!).getTime() - new Date(a.finishedAt!).getTime())
     return sessions[0] ?? null
   },
 
