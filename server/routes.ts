@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { pool } from './db.js'
 import { checkPassword, issueToken, setAuthCookie, clearAuthCookie, isAuthenticated, requireAuth } from './auth.js'
-import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan } from '../src/types/index.js'
+import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan, CardioSession } from '../src/types/index.js'
 
 export const router = Router()
 
@@ -137,6 +137,55 @@ router.delete('/sessions/:id', async (req, res) => {
   res.json({ ok: true })
 })
 
+// --- Cardio sessions ---
+
+function rowToCardio(row: Record<string, unknown>): CardioSession {
+  return {
+    id: row.id as string,
+    date: (row.date as Date).toISOString().split('T')[0],
+    type: row.type as CardioSession['type'],
+    customTypeLabel: (row.custom_type_label as string) ?? undefined,
+    durationSeconds: row.duration_seconds as number,
+    distanceMeters: (row.distance_meters as number) ?? null,
+    caloriesBurned: (row.calories_burned as number) ?? null,
+    notes: (row.notes as string) ?? undefined,
+    createdAt: (row.created_at as Date).toISOString(),
+  }
+}
+
+router.get('/cardio', async (req, res) => {
+  const result = await pool.query('SELECT * FROM cardio_sessions ORDER BY date DESC, created_at DESC')
+  res.json({ cardioSessions: result.rows.map(rowToCardio) })
+})
+
+router.put('/cardio/:id', async (req, res) => {
+  const c = req.body as CardioSession
+  await pool.query(
+    `INSERT INTO cardio_sessions (id, date, type, custom_type_label, duration_seconds, distance_meters, calories_burned, notes, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     ON CONFLICT (id) DO UPDATE SET
+       date = $2, type = $3, custom_type_label = $4, duration_seconds = $5,
+       distance_meters = $6, calories_burned = $7, notes = $8, created_at = $9`,
+    [
+      c.id,
+      c.date,
+      c.type,
+      c.customTypeLabel ?? null,
+      c.durationSeconds,
+      c.distanceMeters,
+      c.caloriesBurned,
+      c.notes ?? null,
+      c.createdAt,
+    ],
+  )
+  res.json({ ok: true })
+})
+
+router.delete('/cardio/:id', async (req, res) => {
+  await pool.query('DELETE FROM cardio_sessions WHERE id = $1', [req.params.id])
+  res.json({ ok: true })
+})
+
 // --- Analyses ---
 
 function rowToAnalysis(row: Record<string, unknown>): WeeklyAnalysis {
@@ -187,8 +236,9 @@ router.delete('/analyses/:id', async (req, res) => {
 // --- Export / Import ---
 
 router.get('/export', async (req, res) => {
-  const [sessionsResult, analysesResult, planResult, currentWorkoutResult] = await Promise.all([
+  const [sessionsResult, cardioResult, analysesResult, planResult, currentWorkoutResult] = await Promise.all([
     pool.query('SELECT * FROM sessions ORDER BY started_at ASC'),
+    pool.query('SELECT * FROM cardio_sessions ORDER BY date ASC, created_at ASC'),
     pool.query('SELECT * FROM analyses ORDER BY generated_at DESC'),
     pool.query("SELECT value FROM app_state WHERE key = 'plan'"),
     pool.query("SELECT value FROM app_state WHERE key = 'current_workout_id'"),
@@ -196,6 +246,7 @@ router.get('/export', async (req, res) => {
 
   res.json({
     sessions: sessionsResult.rows.map(rowToSession),
+    cardioSessions: cardioResult.rows.map(rowToCardio),
     analyses: analysesResult.rows.map(rowToAnalysis),
     plan: planResult.rows[0]?.value ?? null,
     currentWorkoutId: currentWorkoutResult.rows[0]?.value ?? null,
@@ -206,22 +257,24 @@ router.get('/export', async (req, res) => {
 router.post('/import', async (req, res) => {
   const data = req.body as {
     sessions?: WorkoutSession[]
+    cardioSessions?: CardioSession[]
     analyses?: WeeklyAnalysis[]
     plan?: WorkoutPlan
     currentWorkoutId?: string
   }
 
   let sessionsImported = 0
+  let cardioImported = 0
   let analysesImported = 0
 
   if (data.sessions) {
     for (const session of data.sessions) {
       await pool.query(
-        `INSERT INTO sessions (id, date, workout_type, workout_label, started_at, finished_at, duration_seconds, ai_feedback, exercises)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `INSERT INTO sessions (id, date, workout_type, workout_label, started_at, finished_at, duration_seconds, ai_feedback, exercises, calories_burned)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          ON CONFLICT (id) DO UPDATE SET
            date = $2, workout_type = $3, workout_label = $4, started_at = $5,
-           finished_at = $6, duration_seconds = $7, ai_feedback = $8, exercises = $9`,
+           finished_at = $6, duration_seconds = $7, ai_feedback = $8, exercises = $9, calories_burned = $10`,
         [
           session.id,
           session.date,
@@ -232,9 +285,34 @@ router.post('/import', async (req, res) => {
           session.durationSeconds,
           session.aiFeedback ?? null,
           JSON.stringify(session.exercises),
+          session.caloriesBurned ?? null,
         ],
       )
       sessionsImported++
+    }
+  }
+
+  if (data.cardioSessions) {
+    for (const c of data.cardioSessions) {
+      await pool.query(
+        `INSERT INTO cardio_sessions (id, date, type, custom_type_label, duration_seconds, distance_meters, calories_burned, notes, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (id) DO UPDATE SET
+           date = $2, type = $3, custom_type_label = $4, duration_seconds = $5,
+           distance_meters = $6, calories_burned = $7, notes = $8, created_at = $9`,
+        [
+          c.id,
+          c.date,
+          c.type,
+          c.customTypeLabel ?? null,
+          c.durationSeconds,
+          c.distanceMeters,
+          c.caloriesBurned,
+          c.notes ?? null,
+          c.createdAt,
+        ],
+      )
+      cardioImported++
     }
   }
 
@@ -275,5 +353,5 @@ router.post('/import', async (req, res) => {
     )
   }
 
-  res.json({ sessions: sessionsImported, analyses: analysesImported })
+  res.json({ sessions: sessionsImported, cardio: cardioImported, analyses: analysesImported })
 })

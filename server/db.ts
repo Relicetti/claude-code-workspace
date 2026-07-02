@@ -38,5 +38,17 @@ export async function migrate(): Promise<void> {
     );
 
     ALTER TABLE sessions ADD COLUMN IF NOT EXISTS calories_burned INTEGER;
+
+    CREATE TABLE IF NOT EXISTS cardio_sessions (
+      id UUID PRIMARY KEY,
+      date DATE NOT NULL,
+      type TEXT NOT NULL,
+      custom_type_label TEXT,
+      duration_seconds INTEGER NOT NULL,
+      distance_meters INTEGER,
+      calories_burned INTEGER,
+      notes TEXT,
+      created_at TIMESTAMPTZ NOT NULL
+    );
   `)
 }

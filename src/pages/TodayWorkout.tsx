@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Play, Pause, CheckCircle2, Loader2, ChevronDown, ChevronUp, ListChecks, Flame } from 'lucide-react'
+import { Play, Pause, CheckCircle2, Loader2, ChevronDown, ChevronUp, ListChecks, Flame, HeartPulse } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
 import { ExerciseCard } from '@/components/ExerciseCard'
 import { RestTimer } from '@/components/RestTimer'
 import { SubstituteModal } from '@/components/SubstituteModal'
+import { CardioModal } from '@/components/CardioModal'
 import { useRestTimer } from '@/hooks/useRestTimer'
 import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { getSessionFeedback } from '@/lib/claudeApi'
@@ -52,6 +53,7 @@ export function TodayWorkout() {
   const [showCaloriesPrompt, setShowCaloriesPrompt] = useState(false)
   const [calories, setCalories] = useState<number | null>(null)
   const [finishedCalories, setFinishedCalories] = useState<number | null>(null)
+  const [showCardioModal, setShowCardioModal] = useState(false)
 
   const isSessionActive = !!activeSession
   const isRunning = isSessionActive && sessionStartTime !== null && !sessionPaused
@@ -229,13 +231,22 @@ export function TodayWorkout() {
               </div>
             </div>
           ) : (
-            <button
-              onClick={() => setActiveView('plan')}
-              className="text-gray-500 hover:text-white p-2 -mr-2"
-              title="Editar plano"
-            >
-              <ListChecks size={20} />
-            </button>
+            <div className="flex items-center gap-1 -mr-2">
+              <button
+                onClick={() => setShowCardioModal(true)}
+                className="text-gray-500 hover:text-white p-2"
+                title="Registrar cardio"
+              >
+                <HeartPulse size={20} />
+              </button>
+              <button
+                onClick={() => setActiveView('plan')}
+                className="text-gray-500 hover:text-white p-2"
+                title="Editar plano"
+              >
+                <ListChecks size={20} />
+              </button>
+            </div>
           )}
         </div>
 
@@ -419,6 +430,10 @@ export function TodayWorkout() {
             </div>
           </div>
         </div>
+      )}
+
+      {showCardioModal && (
+        <CardioModal onClose={() => setShowCardioModal(false)} />
       )}
     </div>
   )

@@ -1,4 +1,4 @@
-import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan } from '@/types'
+import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan, CardioSession } from '@/types'
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`/api${path}`, {
@@ -41,6 +41,21 @@ export async function saveSession(session: WorkoutSession): Promise<void> {
 
 export async function deleteSession(id: string): Promise<void> {
   await apiFetch(`/sessions/${id}`, { method: 'DELETE' })
+}
+
+// --- Cardio ---
+
+export async function loadCardioSessions(): Promise<CardioSession[]> {
+  const { cardioSessions } = await apiFetch<{ cardioSessions: CardioSession[] }>('/cardio')
+  return cardioSessions
+}
+
+export async function saveCardioSession(session: CardioSession): Promise<void> {
+  await apiFetch(`/cardio/${session.id}`, { method: 'PUT', body: JSON.stringify(session) })
+}
+
+export async function deleteCardioSession(id: string): Promise<void> {
+  await apiFetch(`/cardio/${id}`, { method: 'DELETE' })
 }
 
 // --- Analyses ---

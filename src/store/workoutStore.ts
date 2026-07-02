@@ -7,11 +7,15 @@ import type {
   WeeklyAnalysis,
   WorkoutPlan,
   WorkoutDay,
+  CardioSession,
 } from '@/types'
 import {
   loadSessions,
   saveSession,
   deleteSession as apiDeleteSession,
+  loadCardioSessions,
+  saveCardioSession,
+  deleteCardioSession as apiDeleteCardioSession,
   loadAnalyses,
   saveAnalysis,
   deleteAnalysis as apiDeleteAnalysis,
@@ -43,6 +47,9 @@ interface WorkoutStore {
 
   // All historical sessions
   sessions: WorkoutSession[]
+
+  // Cardio activities (independent of the strength plan)
+  cardioSessions: CardioSession[]
 
   // Active session being tracked
   activeSession: WorkoutSession | null
@@ -85,6 +92,9 @@ interface WorkoutStore {
   updateSessionCalories: (calories: number | null) => void
   deleteSessionResult: (sessionId: string) => void
 
+  addCardioSession: (entry: Omit<CardioSession, 'id' | 'createdAt'>) => void
+  deleteCardioSessionResult: (id: string) => void
+
   saveAnalysisResult: (analysis: WeeklyAnalysis) => void
   deleteAnalysisResult: (analysisId: string) => void
   applyAdjustment: (analysisId: string, adjustmentIndex: number) => void
@@ -126,6 +136,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
   plan: defaultWorkoutPlan,
   currentWorkoutId: null,
   sessions: [],
+  cardioSessions: [],
   activeSession: null,
   sessionStartTime: null,
   sessionPaused: false,
@@ -163,6 +174,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       plan: defaultWorkoutPlan,
       currentWorkoutId: null,
       sessions: [],
+      cardioSessions: [],
       analyses: [],
       weightSuggestions: {},
       activeSession: null,
@@ -177,8 +189,9 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       ? storedId
       : (plan.workouts[0]?.id ?? null)
 
-    const [sessions, analyses, weightSuggestions] = await Promise.all([
+    const [sessions, cardioSessions, analyses, weightSuggestions] = await Promise.all([
       loadSessions().catch(() => []),
+      loadCardioSessions().catch(() => []),
       loadAnalyses().catch(() => []),
       loadWeightSuggestions().catch(() => ({})),
     ])
@@ -187,6 +200,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       plan,
       currentWorkoutId,
       sessions,
+      cardioSessions,
       analyses,
       weightSuggestions,
       dataLoaded: true,
@@ -366,6 +380,25 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     apiDeleteSession(sessionId).catch(console.error)
     set(state => ({
       sessions: state.sessions.filter(s => s.id !== sessionId),
+    }))
+  },
+
+  addCardioSession: (entry) => {
+    const session: CardioSession = {
+      ...entry,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+    }
+    saveCardioSession(session).catch(console.error)
+    set(state => ({
+      cardioSessions: [session, ...state.cardioSessions],
+    }))
+  },
+
+  deleteCardioSessionResult: (id) => {
+    apiDeleteCardioSession(id).catch(console.error)
+    set(state => ({
+      cardioSessions: state.cardioSessions.filter(c => c.id !== id),
     }))
   },
 

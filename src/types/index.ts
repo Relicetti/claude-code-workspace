@@ -73,6 +73,22 @@ export interface WorkoutSession {
   caloriesBurned?: number | null
 }
 
+// Cardio tracking (independent of the strength workout plan/sequence)
+
+export type CardioType = 'natacao' | 'corrida' | 'esteira' | 'bike' | 'outro'
+
+export interface CardioSession {
+  id: string
+  date: string
+  type: CardioType
+  customTypeLabel?: string
+  durationSeconds: number
+  distanceMeters: number | null
+  caloriesBurned: number | null
+  notes?: string
+  createdAt: string
+}
+
 // Analytics types
 
 export interface WeeklyAnalysis {
