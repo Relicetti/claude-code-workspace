@@ -54,6 +54,10 @@ export async function saveAnalysis(analysis: WeeklyAnalysis): Promise<void> {
   await apiFetch(`/analyses/${analysis.id}`, { method: 'PUT', body: JSON.stringify(analysis) })
 }
 
+export async function deleteAnalysis(id: string): Promise<void> {
+  await apiFetch(`/analyses/${id}`, { method: 'DELETE' })
+}
+
 // --- Plan ---
 
 export async function saveCustomPlan(plan: WorkoutPlan): Promise<void> {

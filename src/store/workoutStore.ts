@@ -13,6 +13,7 @@ import {
   saveSession,
   loadAnalyses,
   saveAnalysis,
+  deleteAnalysis as apiDeleteAnalysis,
   loadCustomPlan,
   saveCustomPlan,
   clearCustomPlan,
@@ -76,6 +77,7 @@ interface WorkoutStore {
   updateAIFeedback: (feedback: string) => void
 
   saveAnalysisResult: (analysis: WeeklyAnalysis) => void
+  deleteAnalysisResult: (analysisId: string) => void
   applyAdjustment: (analysisId: string, adjustmentIndex: number) => void
 
   setActiveView: (view: WorkoutStore['activeView']) => void
@@ -342,6 +344,13 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     saveAnalysis(analysis).catch(console.error)
     set(state => ({
       analyses: [analysis, ...state.analyses.filter(a => a.id !== analysis.id)],
+    }))
+  },
+
+  deleteAnalysisResult: (analysisId) => {
+    apiDeleteAnalysis(analysisId).catch(console.error)
+    set(state => ({
+      analyses: state.analyses.filter(a => a.id !== analysisId),
     }))
   },
 

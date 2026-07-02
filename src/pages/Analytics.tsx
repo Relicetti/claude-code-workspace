@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
-import { Brain, Loader2, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react'
+import { Brain, Loader2, CheckCircle2, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
 import { getWeeklyAnalysis } from '@/lib/claudeApi'
 import { MUSCLE_LABELS } from '@/lib/muscleLabels'
@@ -37,7 +37,8 @@ function computeVolumeByMuscle(
 }
 
 export function Analytics() {
-  const { sessions, analyses, plan, saveAnalysisResult, applyAdjustment } = useWorkoutStore()
+  const { sessions, analyses, plan, saveAnalysisResult, deleteAnalysisResult, applyAdjustment } = useWorkoutStore()
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -171,20 +172,48 @@ export function Analytics() {
 
             return (
               <div key={analysis.id} className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-                <button
-                  className="w-full flex items-center justify-between p-4 text-left"
-                  onClick={() => setExpanded(isExpanded ? null : analysis.id)}
-                >
-                  <div>
+                <div className="w-full flex items-center justify-between p-4">
+                  <button
+                    className="flex-1 text-left"
+                    onClick={() => setExpanded(isExpanded ? null : analysis.id)}
+                  >
                     <p className="font-semibold text-white text-sm">
                       Semana de {new Date(analysis.weekStart).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
                     </p>
                     <p className="text-xs text-gray-500 mt-0.5">
                       {analysis.adjustments.length} sugestões · {appliedCount} aplicadas
                     </p>
-                  </div>
-                  {isExpanded ? <ChevronUp size={16} className="text-gray-500" /> : <ChevronDown size={16} className="text-gray-500" />}
-                </button>
+                  </button>
+
+                  {confirmDelete === analysis.id ? (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => { deleteAnalysisResult(analysis.id); setConfirmDelete(null) }}
+                        className="text-xs text-red-400 font-semibold px-2 py-1"
+                      >
+                        Excluir
+                      </button>
+                      <button
+                        onClick={() => setConfirmDelete(null)}
+                        className="text-xs text-gray-500 px-2 py-1"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 shrink-0">
+                      <button
+                        onClick={() => setConfirmDelete(analysis.id)}
+                        className="text-gray-600 hover:text-red-400 transition-colors"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                      <button onClick={() => setExpanded(isExpanded ? null : analysis.id)}>
+                        {isExpanded ? <ChevronUp size={16} className="text-gray-500" /> : <ChevronDown size={16} className="text-gray-500" />}
+                      </button>
+                    </div>
+                  )}
+                </div>
 
                 {isExpanded && (
                   <div className="px-4 pb-4 space-y-4 border-t border-gray-800 pt-3">

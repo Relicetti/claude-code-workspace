@@ -161,6 +161,11 @@ router.put('/analyses/:id', async (req, res) => {
   res.json({ ok: true })
 })
 
+router.delete('/analyses/:id', async (req, res) => {
+  await pool.query('DELETE FROM analyses WHERE id = $1', [req.params.id])
+  res.json({ ok: true })
+})
+
 // --- Export / Import ---
 
 router.get('/export', async (req, res) => {
