@@ -8,7 +8,7 @@ import { useWorkoutStore } from '@/store/workoutStore'
 
 const API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY as string | undefined
 
-async function callClaude(systemPrompt: string, userMessage: string): Promise<string> {
+async function callClaude(systemPrompt: string, userMessage: string, maxTokens = 1024): Promise<string> {
   if (!API_KEY) {
     throw new Error('VITE_ANTHROPIC_API_KEY não configurada. Adicione no arquivo .env ou nas variáveis do Railway.')
   }
@@ -23,7 +23,7 @@ async function callClaude(systemPrompt: string, userMessage: string): Promise<st
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
+      max_tokens: maxTokens,
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessage }],
     }),
@@ -34,16 +34,23 @@ async function callClaude(systemPrompt: string, userMessage: string): Promise<st
     throw new Error(`Anthropic API error ${response.status}: ${err}`)
   }
 
-  const data = await response.json() as { content: { type: string; text: string }[] }
+  const data = await response.json() as { content: { type: string; text: string }[]; stop_reason?: string }
   const textBlock = data.content.find(b => b.type === 'text')
   if (!textBlock) throw new Error('Resposta vazia da API')
+  if (data.stop_reason === 'max_tokens') {
+    throw new Error('A resposta da IA foi cortada por ficar longa demais. Tenta de novo — geralmente resolve.')
+  }
   return textBlock.text
 }
 
 function parseJSON<T>(raw: string): T {
   const match = raw.match(/```json\s*([\s\S]*?)\s*```/) || raw.match(/(\{[\s\S]*\})/)
   const jsonStr = match ? match[1] : raw
-  return JSON.parse(jsonStr) as T
+  try {
+    return JSON.parse(jsonStr) as T
+  } catch {
+    throw new Error('A IA respondeu num formato inesperado. Tenta de novo.')
+  }
 }
 
 function getShoulderContext(): string {
@@ -181,6 +188,6 @@ ${getShoulderContext()}`
 
 Analise o progresso, volume por grupo muscular, e sugira ajustes concretos no plano. Máx 5 sugestões prioritárias.`
 
-  const raw = await callClaude(systemPrompt, userMessage)
+  const raw = await callClaude(systemPrompt, userMessage, 2048)
   return parseJSON<AIAnalyticsResponse>(raw)
 }
