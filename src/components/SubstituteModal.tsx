@@ -20,6 +20,7 @@ interface Props {
 export function SubstituteModal({ exercise, onConfirm, onCancel }: Props) {
   const [reason, setReason] = useState('')
   const [customReason, setCustomReason] = useState('')
+  const [suggestedExercise, setSuggestedExercise] = useState('')
   const [loading, setLoading] = useState(false)
   const [alternatives, setAlternatives] = useState<ExerciseAlternative[]>([])
   const [error, setError] = useState('')
@@ -31,7 +32,7 @@ export function SubstituteModal({ exercise, onConfirm, onCancel }: Props) {
     setLoading(true)
     setError('')
     try {
-      const result = await getExerciseAlternatives(exercise, effectiveReason)
+      const result = await getExerciseAlternatives(exercise, effectiveReason, suggestedExercise.trim() || undefined)
       setAlternatives(result.alternatives)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao buscar alternativas')
@@ -82,6 +83,20 @@ export function SubstituteModal({ exercise, onConfirm, onCancel }: Props) {
               />
             )}
           </div>
+
+          {/* Optional specific exercise suggestion */}
+          {!alternatives.length && (
+            <div>
+              <p className="text-sm text-gray-400 mb-2">Já tem um exercício em mente? (opcional)</p>
+              <input
+                type="text"
+                placeholder="Ex: Crucifixo máquina"
+                value={suggestedExercise}
+                onChange={e => setSuggestedExercise(e.target.value)}
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-2.5 text-sm border border-gray-700 focus:border-brand-500 outline-none"
+              />
+            </div>
+          )}
 
           {/* Search button */}
           {!alternatives.length && (

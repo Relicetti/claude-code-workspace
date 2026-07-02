@@ -73,6 +73,7 @@ function formatSetDetails(sets: WorkoutSession['exercises'][number]['sets']): st
 export async function getExerciseAlternatives(
   exercise: Exercise,
   reason: string,
+  suggestedExercise?: string,
 ): Promise<AIAlternativesResponse> {
   const isUpperBody = exercise.muscleGroups.some(m =>
     ['peito', 'ombro', 'triceps', 'costas', 'biceps', 'trapezio'].includes(m),
@@ -95,12 +96,18 @@ Formato exigido:
 
 ${isUpperBody ? `RESTRIÇÃO CRÍTICA DO ATLETA:\n${getShoulderContext()}` : ''}`
 
+  const suggestionInstruction = suggestedExercise
+    ? `\n\nO atleta sugeriu especificamente este exercício: "${suggestedExercise}". Avalie essa sugestão primeiro:
+- Se for adequada (respeitando a restrição do ombro quando aplicável), inclua ela como a PRIMEIRA alternativa, com séries/reps ajustados ao contexto.
+- Se não for adequada ou for arriscada, ainda assim inclua ela na lista mas explique claramente na justificativa por que não é ideal, e ofereça as outras alternativas como opções mais seguras.`
+    : ''
+
   const userMessage = `Exercício a substituir: ${exercise.name}
 Grupos musculares: ${exercise.muscleGroups.join(', ')}
 Motivo da troca: ${reason}
 Séries/reps originais: ${exercise.sets}x${exercise.repsMin}-${exercise.repsMax}
 
-Sugira 2-3 alternativas disponíveis numa academia comum, priorizando máquinas e movimentos controlados.`
+Sugira 2-3 alternativas disponíveis numa academia comum, priorizando máquinas e movimentos controlados.${suggestionInstruction}`
 
   const raw = await callClaude(systemPrompt, userMessage)
   return parseJSON<AIAlternativesResponse>(raw)
