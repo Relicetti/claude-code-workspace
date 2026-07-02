@@ -1,6 +1,7 @@
 import type {
   Exercise,
   WorkoutSession,
+  WorkoutPlan,
   AIAlternativesResponse,
   AIAnalyticsResponse,
 } from '@/types'
@@ -143,7 +144,15 @@ ${getShoulderContext()}`
 export async function getWeeklyAnalysis(
   sessions: WorkoutSession[],
   previousWeekSessions: WorkoutSession[],
+  plan: WorkoutPlan,
 ): Promise<AIAnalyticsResponse> {
+  const planSummary = plan.workouts.map(w => {
+    const exList = w.exercises
+      .map(e => `  - ${e.name} (${e.muscleGroups.join(', ')}) — ${e.sets}x${e.repsMin === e.repsMax ? e.repsMax : `${e.repsMin}-${e.repsMax}`}`)
+      .join('\n')
+    return `${w.label}:\n${exList}`
+  }).join('\n\n')
+
   const systemPrompt = `Você é um personal trainer especializado em hipertrofia e reabilitação.
 Responda APENAS com JSON válido, sem texto adicional.
 Formato exigido:
@@ -162,6 +171,9 @@ Formato exigido:
     }
   ]
 }
+
+PLANO DE TREINO ATUAL DO ATLETA (esta é a referência de verdade — não sugira "adicionar" um exercício ou grupo muscular que já está listado aqui; se ele não apareceu na sessão da semana, é porque não foi feito, não porque falta no plano):
+${planSummary}
 
 CONTEXTO DO ATLETA:
 ${getShoulderContext()}`

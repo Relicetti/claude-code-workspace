@@ -75,7 +75,7 @@ export function Analytics() {
     setLoading(true)
     setError('')
     try {
-      const result = await getWeeklyAnalysis(thisWeekSessions, prevWeekSessions)
+      const result = await getWeeklyAnalysis(thisWeekSessions, prevWeekSessions, plan)
       const analysis: WeeklyAnalysis = {
         id: crypto.randomUUID(),
         generatedAt: new Date().toISOString(),
