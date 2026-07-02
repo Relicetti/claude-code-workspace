@@ -58,6 +58,18 @@ function getShoulderContext(): string {
   return useWorkoutStore.getState().plan.userNotes
 }
 
+// Averaging weight across sets hides real progression on pyramid-style
+// schemes (e.g. 120/160/200/220kg) — the average lands nowhere near what
+// was actually worked. List each set and call out the top-set weight
+// instead, so the AI reasons about what was actually lifted.
+function formatSetDetails(sets: WorkoutSession['exercises'][number]['sets']): string {
+  const done = sets.filter(s => s.completedAt !== null)
+  if (done.length === 0) return 'não realizado'
+  const detail = done.map(s => `${s.weight ?? 0}kg×${s.actualReps ?? 0}`).join(', ')
+  const maxWeight = Math.max(...done.map(s => s.weight ?? 0))
+  return `${done.length} séries (${detail}) — carga máxima: ${maxWeight}kg`
+}
+
 export async function getExerciseAlternatives(
   exercise: Exercise,
   reason: string,
@@ -107,21 +119,19 @@ NÃO use JSON. Responda em texto simples em português.`
   const exerciseSummary = session.exercises
     .filter(e => !e.skipped)
     .map(e => {
-      const completedSets = e.sets.filter(s => s.completedAt !== null)
-      const avgWeight = completedSets.reduce((acc, s) => acc + (s.weight ?? 0), 0) / (completedSets.length || 1)
-      const avgReps = completedSets.reduce((acc, s) => acc + (s.actualReps ?? 0), 0) / (completedSets.length || 1)
-
       let prevInfo = ''
       if (previousSession) {
         const prevEx = previousSession.exercises.find(pe => pe.exerciseId === e.exerciseId)
         if (prevEx) {
-          const prevSets = prevEx.sets.filter(s => s.completedAt !== null)
-          const prevAvgWeight = prevSets.reduce((acc, s) => acc + (s.weight ?? 0), 0) / (prevSets.length || 1)
-          prevInfo = ` (anterior: ${prevAvgWeight.toFixed(1)}kg)`
+          const prevDone = prevEx.sets.filter(s => s.completedAt !== null)
+          if (prevDone.length > 0) {
+            const prevMax = Math.max(...prevDone.map(s => s.weight ?? 0))
+            prevInfo = ` (sessão anterior — carga máxima: ${prevMax}kg)`
+          }
         }
       }
 
-      return `- ${e.exerciseName}: ${completedSets.length} séries, ~${avgWeight.toFixed(1)}kg${prevInfo}, ~${avgReps.toFixed(0)} reps`
+      return `- ${e.exerciseName}: ${formatSetDetails(e.sets)}${prevInfo}`
     })
     .join('\n')
 
@@ -181,11 +191,7 @@ ${getShoulderContext()}`
   const sessionsSummary = sessions.map(s => {
     const exSummary = s.exercises
       .filter(e => !e.skipped)
-      .map(e => {
-        const done = e.sets.filter(set => set.completedAt !== null)
-        const avgW = done.reduce((a, set) => a + (set.weight ?? 0), 0) / (done.length || 1)
-        return `  ${e.exerciseName}: ${done.length}/${e.sets.length} séries, ~${avgW.toFixed(1)}kg`
-      })
+      .map(e => `  ${e.exerciseName}: ${formatSetDetails(e.sets)}`)
       .join('\n')
     return `${s.workoutLabel} (${new Date(s.date).toLocaleDateString('pt-BR')}):\n${exSummary}`
   }).join('\n\n')
