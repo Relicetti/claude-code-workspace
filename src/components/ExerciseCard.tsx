@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CheckCircle2, ChevronDown, ChevronUp, ArrowLeftRight, AlertTriangle } from 'lucide-react'
+import { CheckCircle2, ChevronDown, ChevronUp, ArrowLeftRight, AlertTriangle, Youtube } from 'lucide-react'
 import { NumberStepper } from './NumberStepper'
 import type { ExerciseRecord } from '@/types'
 import type { Exercise } from '@/types'
@@ -33,6 +33,10 @@ export function ExerciseCard({
   const completedSets = record.sets.filter(s => s.completedAt !== null).length
   const totalSets = record.sets.length
   const allDone = completedSets === totalSets
+
+  const youtubeSearchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(
+    `${exercise.name} execução exercício academia`,
+  )}`
 
   const handleConfirmSet = () => {
     if (currentSetIndex < 0 || currentSetIndex >= totalSets) return
@@ -172,16 +176,27 @@ export function ExerciseCard({
             </div>
           )}
 
-          {/* Substitute button */}
-          {!record.skipped && !allDone && (
-            <button
-              onClick={onRequestSubstitute}
-              className="w-full flex items-center justify-center gap-2 text-gray-500 hover:text-gray-300 text-sm py-2 transition-colors"
+          {/* Video / substitute actions */}
+          <div className="flex gap-2">
+            <a
+              href={youtubeSearchUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 flex items-center justify-center gap-2 text-gray-500 hover:text-gray-300 text-sm py-2 transition-colors"
             >
-              <ArrowLeftRight size={14} />
-              Trocar exercício
-            </button>
-          )}
+              <Youtube size={14} />
+              Ver execução
+            </a>
+            {!record.skipped && !allDone && (
+              <button
+                onClick={onRequestSubstitute}
+                className="flex-1 flex items-center justify-center gap-2 text-gray-500 hover:text-gray-300 text-sm py-2 transition-colors"
+              >
+                <ArrowLeftRight size={14} />
+                Trocar exercício
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
