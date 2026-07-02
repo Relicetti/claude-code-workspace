@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Calendar, Clock, ChevronDown, ChevronUp, Download, Upload, Flame } from 'lucide-react'
+import { Calendar, Clock, ChevronDown, ChevronUp, Download, Upload, Flame, Trash2 } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
 import { exportData, importData } from '@/lib/storage'
 import type { WorkoutType, WorkoutSession, WorkoutPlan } from '@/types'
@@ -24,10 +24,11 @@ function formatDuration(seconds: number | null): string {
 }
 
 export function History() {
-  const { sessions, plan, loadFromStorage } = useWorkoutStore()
+  const { sessions, plan, loadFromStorage, deleteSessionResult } = useWorkoutStore()
   const [filter, setFilter] = useState<WorkoutType | 'all'>('all')
   const [expanded, setExpanded] = useState<string | null>(null)
   const [importError, setImportError] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
 
   const filters = buildFilters(plan, sessions)
 
@@ -116,11 +117,11 @@ export function History() {
 
         return (
           <div key={session.id} className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-            <button
-              className="w-full flex items-center justify-between p-4 text-left"
-              onClick={() => setExpanded(isExpanded ? null : session.id)}
-            >
-              <div className="flex items-center gap-3">
+            <div className="w-full flex items-center justify-between p-4">
+              <button
+                className="flex-1 flex items-center gap-3 text-left min-w-0"
+                onClick={() => setExpanded(isExpanded ? null : session.id)}
+              >
                 <div className="bg-gray-800 w-10 h-10 rounded-xl flex flex-col items-center justify-center shrink-0">
                   <span className="text-xs font-bold text-white leading-none">
                     {date.toLocaleDateString('pt-BR', { day: '2-digit' })}
@@ -129,8 +130,8 @@ export function History() {
                     {date.toLocaleDateString('pt-BR', { month: 'short' })}
                   </span>
                 </div>
-                <div>
-                  <p className="font-semibold text-white text-sm">{session.workoutLabel}</p>
+                <div className="min-w-0">
+                  <p className="font-semibold text-white text-sm truncate">{session.workoutLabel}</p>
                   <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
                     <span>{completedExercises} exercícios</span>
                     {session.durationSeconds && (
@@ -153,9 +154,37 @@ export function History() {
                     )}
                   </div>
                 </div>
-              </div>
-              {isExpanded ? <ChevronUp size={16} className="text-gray-500" /> : <ChevronDown size={16} className="text-gray-500" />}
-            </button>
+              </button>
+
+              {confirmDelete === session.id ? (
+                <div className="flex items-center gap-2 shrink-0 pl-2">
+                  <button
+                    onClick={() => { deleteSessionResult(session.id); setConfirmDelete(null) }}
+                    className="text-xs text-red-400 font-semibold px-2 py-1"
+                  >
+                    Excluir
+                  </button>
+                  <button
+                    onClick={() => setConfirmDelete(null)}
+                    className="text-xs text-gray-500 px-2 py-1"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 shrink-0 pl-2">
+                  <button
+                    onClick={() => setConfirmDelete(session.id)}
+                    className="text-gray-600 hover:text-red-400 transition-colors"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                  <button onClick={() => setExpanded(isExpanded ? null : session.id)}>
+                    {isExpanded ? <ChevronUp size={16} className="text-gray-500" /> : <ChevronDown size={16} className="text-gray-500" />}
+                  </button>
+                </div>
+              )}
+            </div>
 
             {isExpanded && (
               <div className="px-4 pb-4 space-y-3 border-t border-gray-800 pt-3">

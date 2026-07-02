@@ -11,6 +11,7 @@ import type {
 import {
   loadSessions,
   saveSession,
+  deleteSession as apiDeleteSession,
   loadAnalyses,
   saveAnalysis,
   deleteAnalysis as apiDeleteAnalysis,
@@ -76,6 +77,7 @@ interface WorkoutStore {
   ) => void
   updateAIFeedback: (feedback: string) => void
   updateSessionCalories: (calories: number | null) => void
+  deleteSessionResult: (sessionId: string) => void
 
   saveAnalysisResult: (analysis: WeeklyAnalysis) => void
   deleteAnalysisResult: (analysisId: string) => void
@@ -347,6 +349,13 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     const updated = { ...activeSession, caloriesBurned: calories }
     set({ activeSession: updated })
     saveSession(updated).catch(console.error)
+  },
+
+  deleteSessionResult: (sessionId) => {
+    apiDeleteSession(sessionId).catch(console.error)
+    set(state => ({
+      sessions: state.sessions.filter(s => s.id !== sessionId),
+    }))
   },
 
   saveAnalysisResult: (analysis) => {
