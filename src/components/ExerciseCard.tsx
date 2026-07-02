@@ -11,6 +11,7 @@ interface Props {
   onExerciseComplete: () => void
   onRequestSubstitute: () => void
   isActive: boolean
+  suggestedWeight?: number | null
 }
 
 export function ExerciseCard({
@@ -20,12 +21,13 @@ export function ExerciseCard({
   onExerciseComplete,
   onRequestSubstitute,
   isActive,
+  suggestedWeight,
 }: Props) {
   const [expanded, setExpanded] = useState(isActive)
   const [currentSetIndex, setCurrentSetIndex] = useState(
     record.sets.findIndex(s => s.completedAt === null),
   )
-  const [weight, setWeight] = useState<number | null>(null)
+  const [weight, setWeight] = useState<number | null>(suggestedWeight ?? null)
   const [reps, setReps] = useState<number | null>(exercise.repsMax)
 
   const completedSets = record.sets.filter(s => s.completedAt !== null).length
@@ -133,7 +135,12 @@ export function ExerciseCard({
 
               <div className="flex gap-4 justify-center">
                 <div className="text-center">
-                  <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">Carga</p>
+                  <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">
+                    Carga
+                    {currentSetIndex === 0 && suggestedWeight != null && weight === suggestedWeight && (
+                      <span className="text-brand-400 normal-case tracking-normal"> · sugestão</span>
+                    )}
+                  </p>
                   <NumberStepper
                     value={weight}
                     onChange={setWeight}

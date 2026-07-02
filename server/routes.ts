@@ -70,6 +70,22 @@ router.delete('/current-workout', async (req, res) => {
   res.json({ ok: true })
 })
 
+// --- Weight suggestions (from applied "increase_weight" analysis adjustments) ---
+
+router.get('/weight-suggestions', async (req, res) => {
+  const result = await pool.query("SELECT value FROM app_state WHERE key = 'weight_suggestions'")
+  res.json({ suggestions: (result.rows[0]?.value as Record<string, number>) ?? {} })
+})
+
+router.put('/weight-suggestions', async (req, res) => {
+  const { suggestions } = req.body as { suggestions: Record<string, number> }
+  await pool.query(
+    "INSERT INTO app_state (key, value) VALUES ('weight_suggestions', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+    [JSON.stringify(suggestions)],
+  )
+  res.json({ ok: true })
+})
+
 // --- Sessions ---
 
 function rowToSession(row: Record<string, unknown>): WorkoutSession {

@@ -95,6 +95,7 @@ export interface WorkoutAdjustment {
   targetSets?: number
   targetRepsMin?: number
   targetRepsMax?: number
+  targetWeight?: number
   substituteExerciseName?: string
 }
 

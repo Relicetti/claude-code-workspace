@@ -88,6 +88,17 @@ export async function clearCurrentWorkoutId(): Promise<void> {
   await apiFetch('/current-workout', { method: 'DELETE' })
 }
 
+// --- Weight suggestions ---
+
+export async function loadWeightSuggestions(): Promise<Record<string, number>> {
+  const { suggestions } = await apiFetch<{ suggestions: Record<string, number> }>('/weight-suggestions')
+  return suggestions
+}
+
+export async function saveWeightSuggestions(suggestions: Record<string, number>): Promise<void> {
+  await apiFetch('/weight-suggestions', { method: 'PUT', body: JSON.stringify({ suggestions }) })
+}
+
 // --- Export / Import ---
 
 export async function exportData(): Promise<string> {

@@ -184,10 +184,13 @@ Formato exigido:
       "targetSets": null,
       "targetRepsMin": null,
       "targetRepsMax": null,
+      "targetWeight": null,
       "substituteExerciseName": null
     }
   ]
 }
+
+Para sugestões do tipo "increase_weight", SEMPRE preencha "targetWeight" com um número concreto em kg (a carga recomendada pra próxima sessão, baseada na carga máxima real que o atleta já levantou nesse exercício). Esse valor será usado para pré-preencher a carga automaticamente na próxima vez que o atleta for treinar esse exercício, então precisa ser um número específico, nunca null nesse caso.
 
 PLANO DE TREINO ATUAL DO ATLETA (esta é a referência de verdade — não sugira "adicionar" um exercício ou grupo muscular que já está listado aqui; se ele não apareceu na sessão da semana, é porque não foi feito, não porque falta no plano):
 ${planSummary}

@@ -32,6 +32,7 @@ export function TodayWorkout() {
     getLastSessionByType,
     getCurrentWorkout,
     getMostRecentSession,
+    getSuggestedWeight,
     setCurrentWorkout,
     setActiveView,
   } = useWorkoutStore()
@@ -305,6 +306,7 @@ export function TodayWorkout() {
                   exercise={exercise}
                   record={record}
                   isActive={isCardActive && !record.completed && !record.skipped}
+                  suggestedWeight={getSuggestedWeight(exercise.id, exercise.name)}
                   onSetComplete={(setIdx, w, r) => handleSetComplete(exercise.id, setIdx, w, r)}
                   onExerciseComplete={() => handleExerciseComplete(exercise.id)}
                   onRequestSubstitute={() => handleRequestSubstitute(exercise)}

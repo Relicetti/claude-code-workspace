@@ -21,6 +21,8 @@ import {
   loadCurrentWorkoutId,
   saveCurrentWorkoutId,
   clearCurrentWorkoutId,
+  loadWeightSuggestions,
+  saveWeightSuggestions,
   login as apiLogin,
   logout as apiLogout,
   checkAuthenticated,
@@ -52,6 +54,10 @@ interface WorkoutStore {
 
   // Weekly analyses
   analyses: WeeklyAnalysis[]
+
+  // Weight suggested for an exercise (from an applied "increase_weight"
+  // analysis adjustment), keyed by normalized exercise name
+  weightSuggestions: Record<string, number>
 
   // Current view
   activeView: 'today' | 'history' | 'progress' | 'analytics' | 'plan' | 'about'
@@ -94,6 +100,7 @@ interface WorkoutStore {
   getLastSessionByType: (type: WorkoutType) => WorkoutSession | null
   getMostRecentSession: () => WorkoutSession | null
   getSessionsInRange: (startDate: Date, endDate: Date) => WorkoutSession[]
+  getSuggestedWeight: (exerciseId: string, exerciseName: string) => number | null
 }
 
 function buildInitialExercises(workout: WorkoutDay): ExerciseRecord[] {
@@ -124,6 +131,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
   sessionPaused: false,
   sessionElapsedSeconds: 0,
   analyses: [],
+  weightSuggestions: {},
   activeView: 'today',
 
   checkAuth: async () => {
@@ -156,6 +164,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       currentWorkoutId: null,
       sessions: [],
       analyses: [],
+      weightSuggestions: {},
       activeSession: null,
     })
   },
@@ -168,9 +177,10 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       ? storedId
       : (plan.workouts[0]?.id ?? null)
 
-    const [sessions, analyses] = await Promise.all([
+    const [sessions, analyses, weightSuggestions] = await Promise.all([
       loadSessions().catch(() => []),
       loadAnalyses().catch(() => []),
+      loadWeightSuggestions().catch(() => ({})),
     ])
 
     set({
@@ -178,6 +188,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       currentWorkoutId,
       sessions,
       analyses,
+      weightSuggestions,
       dataLoaded: true,
     })
   },
@@ -373,12 +384,13 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
   },
 
   applyAdjustment: (analysisId, adjustmentIndex) => {
-    const { analyses, plan } = get()
+    const { analyses, plan, weightSuggestions } = get()
     const analysis = analyses.find(a => a.id === analysisId)
     if (!analysis) return
 
     const adj = analysis.adjustments[adjustmentIndex]
     let updatedPlan = plan
+    let updatedWeightSuggestions = weightSuggestions
 
     if (adj) {
       const normalizedTarget = adj.exerciseName.trim().toLowerCase()
@@ -404,6 +416,11 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
 
       updatedPlan = { ...plan, workouts }
       saveCustomPlan(updatedPlan).catch(console.error)
+
+      if (adj.type === 'increase_weight' && adj.targetWeight != null) {
+        updatedWeightSuggestions = { ...weightSuggestions, [normalizedTarget]: adj.targetWeight }
+        saveWeightSuggestions(updatedWeightSuggestions).catch(console.error)
+      }
     }
 
     const applied = [...analysis.applied]
@@ -413,6 +430,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     saveAnalysis(updatedAnalysis).catch(console.error)
     set(state => ({
       plan: updatedPlan,
+      weightSuggestions: updatedWeightSuggestions,
       analyses: state.analyses.map(a => (a.id === analysisId ? updatedAnalysis : a)),
     }))
   },
@@ -470,5 +488,28 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       const d = new Date(s.date)
       return d >= startDate && d <= endDate
     })
+  },
+
+  getSuggestedWeight: (exerciseId, exerciseName) => {
+    const { weightSuggestions, sessions } = get()
+
+    const applied = weightSuggestions[exerciseName.trim().toLowerCase()]
+    if (applied != null) return applied
+
+    // Fall back to the weight used last time this exercise was performed,
+    // most recent session first, using the first completed set as the
+    // starting reference (pyramids ramp up from there).
+    const sorted = [...sessions]
+      .filter(s => s.finishedAt !== null)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+    for (const session of sorted) {
+      const record = session.exercises.find(e => e.exerciseId === exerciseId && !e.skipped)
+      if (!record) continue
+      const firstDone = record.sets.find(s => s.completedAt !== null)
+      if (firstDone?.weight != null) return firstDone.weight
+    }
+
+    return null
   },
 }))
