@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Play, Pause, CheckCircle2, Loader2, ChevronDown, ChevronUp, ListChecks } from 'lucide-react'
+import { Play, Pause, CheckCircle2, Loader2, ChevronDown, ChevronUp, ListChecks, Flame } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
 import { ExerciseCard } from '@/components/ExerciseCard'
 import { RestTimer } from '@/components/RestTimer'
 import { SubstituteModal } from '@/components/SubstituteModal'
+import { NumberStepper } from '@/components/NumberStepper'
 import { useRestTimer } from '@/hooks/useRestTimer'
 import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { getSessionFeedback } from '@/lib/claudeApi'
@@ -26,6 +27,7 @@ export function TodayWorkout() {
     markExerciseComplete,
     addSubstituteExercise,
     updateAIFeedback,
+    updateSessionCalories,
     sessionStartTime,
     sessionPaused,
     getLastSessionByType,
@@ -47,6 +49,9 @@ export function TodayWorkout() {
   const [aiFeedback, setAIFeedback] = useState('')
   const [showFinishedCard, setShowFinishedCard] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
+  const [showCaloriesPrompt, setShowCaloriesPrompt] = useState(false)
+  const [calories, setCalories] = useState<number | null>(null)
+  const [finishedCalories, setFinishedCalories] = useState<number | null>(null)
 
   const isSessionActive = !!activeSession
   const isRunning = isSessionActive && sessionStartTime !== null && !sessionPaused
@@ -97,9 +102,12 @@ export function TodayWorkout() {
     setSubstituteFor(null)
   }
 
-  const handleFinish = async () => {
+  const handleFinish = async (caloriesValue: number | null) => {
     if (!activeSession) return
+    setShowCaloriesPrompt(false)
     setFinishLoading(true)
+
+    if (caloriesValue !== null) updateSessionCalories(caloriesValue)
 
     const prevSession = getLastSessionByType(activeSession.workoutType)
     try {
@@ -111,6 +119,8 @@ export function TodayWorkout() {
     }
 
     finishSession()
+    setFinishedCalories(caloriesValue)
+    setCalories(null)
     setFinishLoading(false)
     setShowFinishedCard(true)
   }
@@ -154,6 +164,16 @@ export function TodayWorkout() {
           <div className="bg-gray-900 rounded-2xl border border-gray-800 p-4">
             <p className="text-xs text-brand-400 uppercase tracking-wide font-medium mb-2">Feedback do Trainer IA</p>
             <p className="text-sm text-gray-200 leading-relaxed">{aiFeedback}</p>
+          </div>
+        )}
+
+        {finishedCalories !== null && (
+          <div className="bg-gray-900 rounded-2xl border border-gray-800 p-4 flex items-center gap-3">
+            <Flame size={20} className="text-orange-400 shrink-0" />
+            <div>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">Calorias gastas</p>
+              <p className="text-sm font-semibold text-white">{finishedCalories} kcal</p>
+            </div>
           </div>
         )}
 
@@ -329,7 +349,7 @@ export function TodayWorkout() {
                 Cancelar
               </button>
               <button
-                onClick={handleFinish}
+                onClick={() => setShowCaloriesPrompt(true)}
                 disabled={finishLoading}
                 className="flex-1 bg-brand-600 hover:bg-brand-500 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
               >
@@ -363,6 +383,32 @@ export function TodayWorkout() {
           onConfirm={handleConfirmSubstitute}
           onCancel={() => setSubstituteFor(null)}
         />
+      )}
+
+      {showCaloriesPrompt && (
+        <div className="fixed inset-0 bg-gray-950/90 flex items-end sm:items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-2xl border border-gray-700 w-full max-w-sm p-6 text-center">
+            <Flame size={32} className="text-orange-400 mx-auto mb-2" />
+            <p className="text-sm text-gray-400 mb-4">Quantas calorias você gastou nesse treino? (opcional)</p>
+            <div className="flex justify-center mb-6">
+              <NumberStepper value={calories} onChange={setCalories} step={10} min={0} max={2000} suffix="kcal" />
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => handleFinish(null)}
+                className="flex-1 border border-gray-700 text-gray-400 hover:text-white hover:border-gray-600 font-medium py-3 rounded-xl transition-all text-sm"
+              >
+                Pular
+              </button>
+              <button
+                onClick={() => handleFinish(calories)}
+                className="flex-1 bg-brand-600 hover:bg-brand-500 text-white font-semibold py-3 rounded-xl transition-all text-sm"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

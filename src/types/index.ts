@@ -70,6 +70,7 @@ export interface WorkoutSession {
   finishedAt: string | null
   durationSeconds: number | null
   aiFeedback?: string
+  caloriesBurned?: number | null
 }
 
 // Analytics types

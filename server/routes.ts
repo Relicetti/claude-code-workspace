@@ -82,6 +82,7 @@ function rowToSession(row: Record<string, unknown>): WorkoutSession {
     finishedAt: row.finished_at ? (row.finished_at as Date).toISOString() : null,
     durationSeconds: row.duration_seconds as number | null,
     aiFeedback: (row.ai_feedback as string) ?? undefined,
+    caloriesBurned: (row.calories_burned as number) ?? null,
     exercises: row.exercises as WorkoutSession['exercises'],
   }
 }
@@ -94,11 +95,11 @@ router.get('/sessions', async (req, res) => {
 router.put('/sessions/:id', async (req, res) => {
   const session = req.body as WorkoutSession
   await pool.query(
-    `INSERT INTO sessions (id, date, workout_type, workout_label, started_at, finished_at, duration_seconds, ai_feedback, exercises)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `INSERT INTO sessions (id, date, workout_type, workout_label, started_at, finished_at, duration_seconds, ai_feedback, exercises, calories_burned)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      ON CONFLICT (id) DO UPDATE SET
        date = $2, workout_type = $3, workout_label = $4, started_at = $5,
-       finished_at = $6, duration_seconds = $7, ai_feedback = $8, exercises = $9`,
+       finished_at = $6, duration_seconds = $7, ai_feedback = $8, exercises = $9, calories_burned = $10`,
     [
       session.id,
       session.date,
@@ -109,6 +110,7 @@ router.put('/sessions/:id', async (req, res) => {
       session.durationSeconds,
       session.aiFeedback ?? null,
       JSON.stringify(session.exercises),
+      session.caloriesBurned ?? null,
     ],
   )
   res.json({ ok: true })

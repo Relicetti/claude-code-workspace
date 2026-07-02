@@ -75,6 +75,7 @@ interface WorkoutStore {
     reason: string,
   ) => void
   updateAIFeedback: (feedback: string) => void
+  updateSessionCalories: (calories: number | null) => void
 
   saveAnalysisResult: (analysis: WeeklyAnalysis) => void
   deleteAnalysisResult: (analysisId: string) => void
@@ -336,6 +337,14 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     const { activeSession } = get()
     if (!activeSession) return
     const updated = { ...activeSession, aiFeedback: feedback }
+    set({ activeSession: updated })
+    saveSession(updated).catch(console.error)
+  },
+
+  updateSessionCalories: (calories) => {
+    const { activeSession } = get()
+    if (!activeSession) return
+    const updated = { ...activeSession, caloriesBurned: calories }
     set({ activeSession: updated })
     saveSession(updated).catch(console.error)
   },

@@ -36,5 +36,7 @@ export async function migrate(): Promise<void> {
       key TEXT PRIMARY KEY,
       value JSONB NOT NULL
     );
+
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS calories_burned INTEGER;
   `)
 }

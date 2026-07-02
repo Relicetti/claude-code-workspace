@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Calendar, Clock, ChevronDown, ChevronUp, Download, Upload } from 'lucide-react'
+import { Calendar, Clock, ChevronDown, ChevronUp, Download, Upload, Flame } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
 import { exportData, importData } from '@/lib/storage'
 import type { WorkoutType, WorkoutSession, WorkoutPlan } from '@/types'
@@ -139,6 +139,15 @@ export function History() {
                         <span className="flex items-center gap-1">
                           <Clock size={11} />
                           {formatDuration(session.durationSeconds)}
+                        </span>
+                      </>
+                    )}
+                    {session.caloriesBurned != null && (
+                      <>
+                        <span>·</span>
+                        <span className="flex items-center gap-1">
+                          <Flame size={11} />
+                          {session.caloriesBurned} kcal
                         </span>
                       </>
                     )}
