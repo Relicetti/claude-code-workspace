@@ -4,7 +4,6 @@ import { useWorkoutStore } from '@/store/workoutStore'
 import { ExerciseCard } from '@/components/ExerciseCard'
 import { RestTimer } from '@/components/RestTimer'
 import { SubstituteModal } from '@/components/SubstituteModal'
-import { NumberStepper } from '@/components/NumberStepper'
 import { useRestTimer } from '@/hooks/useRestTimer'
 import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { getSessionFeedback } from '@/lib/claudeApi'
@@ -390,8 +389,17 @@ export function TodayWorkout() {
           <div className="bg-gray-900 rounded-2xl border border-gray-700 w-full max-w-sm p-6 text-center">
             <Flame size={32} className="text-orange-400 mx-auto mb-2" />
             <p className="text-sm text-gray-400 mb-4">Quantas calorias você gastou nesse treino? (opcional)</p>
-            <div className="flex justify-center mb-6">
-              <NumberStepper value={calories} onChange={setCalories} step={10} min={0} max={2000} suffix="kcal" />
+            <div className="flex items-center justify-center gap-2 mb-6">
+              <input
+                type="number"
+                inputMode="numeric"
+                autoFocus
+                value={calories ?? ''}
+                onChange={e => setCalories(e.target.value === '' ? null : Number(e.target.value))}
+                placeholder="0"
+                className="w-32 bg-gray-800 text-white text-3xl font-mono font-bold text-center rounded-xl px-3 py-2.5 border border-gray-700 focus:border-brand-500 outline-none"
+              />
+              <span className="text-gray-500 text-sm">kcal</span>
             </div>
             <div className="flex gap-3">
               <button
