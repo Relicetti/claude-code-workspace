@@ -62,6 +62,11 @@ export interface ExerciseRecord {
   // analytics don't depend on the exercise still being present in the current plan
   // (e.g. imported history or exercises later removed/substituted out of the plan).
   muscleGroups?: MuscleGroup[]
+  // Snapshot of target reps/rest, needed to render a substituted exercise (which
+  // has no entry in the plan) as a fully interactive card during a live session.
+  repsMin?: number
+  repsMax?: number
+  restSeconds?: number
 }
 
 export interface WorkoutSession {

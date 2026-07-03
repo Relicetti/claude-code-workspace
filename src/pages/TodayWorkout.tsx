@@ -71,9 +71,12 @@ export function TodayWorkout() {
       completedAt: new Date().toISOString(),
     })
 
-    const exercise = currentWorkout?.exercises.find(e => e.id === exerciseId)
-    if (exercise) {
-      setPendingRestSeconds(exercise.restSeconds)
+    // Read rest time off the session record rather than the plan, so this
+    // works for substituted exercises too (they have no entry in the plan).
+    const record = activeSession?.exercises.find(e => e.exerciseId === exerciseId)
+    const restSeconds = record?.restSeconds ?? currentWorkout?.exercises.find(e => e.id === exerciseId)?.restSeconds
+    if (restSeconds) {
+      setPendingRestSeconds(restSeconds)
       setShowRestTimer(true)
     }
   }
@@ -94,6 +97,7 @@ export function TodayWorkout() {
         exerciseId: '',
         exerciseName: alt.name,
         muscleGroups: substituteFor.muscleGroups,
+        restSeconds: substituteFor.restSeconds,
         completed: false,
         skipped: false,
         targetSets: alt.sets,
@@ -326,29 +330,35 @@ export function TodayWorkout() {
               )
             })}
 
-            {/* Substitute exercise cards */}
+            {/* Substitute exercise cards — same interactive card as plan exercises,
+                built from the substitute's own snapshot since it has no plan entry */}
             {activeSession.exercises
               .filter(e => e.originalExerciseId)
               .map(subRecord => {
+                const substituteExercise: Exercise = {
+                  id: subRecord.exerciseId,
+                  name: subRecord.exerciseName,
+                  muscleGroups: subRecord.muscleGroups ?? [],
+                  sets: subRecord.sets.length,
+                  repsMin: subRecord.repsMin ?? subRecord.sets[0]?.targetReps ?? 10,
+                  repsMax: subRecord.repsMax ?? subRecord.sets[0]?.targetReps ?? 10,
+                  restSeconds: subRecord.restSeconds ?? 60,
+                }
+
                 return (
-                  <div key={subRecord.exerciseId} className="rounded-2xl border border-blue-700/50 bg-blue-950/20 p-4">
-                    <p className="text-xs text-blue-400 font-medium mb-1">Substituição</p>
-                    <p className="font-semibold text-white text-sm">{subRecord.exerciseName}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">Motivo: {subRecord.substituteReason}</p>
-                    <div className="mt-3 space-y-2">
-                      {subRecord.sets.map((s, i) => (
-                        <div key={i} className="flex items-center gap-3">
-                          <span className="text-xs text-gray-500">S{i + 1}</span>
-                          {s.completedAt ? (
-                            <span className="text-sm text-brand-400 font-mono font-bold">
-                              ✓ {s.weight}kg × {s.actualReps}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-gray-600">Pendente</span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
+                  <div key={subRecord.exerciseId} className="space-y-1.5">
+                    <p className="text-xs text-blue-400 font-medium px-1">
+                      Substituição · {subRecord.substituteReason}
+                    </p>
+                    <ExerciseCard
+                      exercise={substituteExercise}
+                      record={subRecord}
+                      isActive={!subRecord.completed && !subRecord.skipped}
+                      suggestedWeight={getSuggestedWeight(subRecord.exerciseId, subRecord.exerciseName)}
+                      onSetComplete={(setIdx, w, r) => handleSetComplete(subRecord.exerciseId, setIdx, w, r)}
+                      onExerciseComplete={() => handleExerciseComplete(subRecord.exerciseId)}
+                      onRequestSubstitute={() => handleRequestSubstitute(substituteExercise)}
+                    />
                   </div>
                 )
               })}
