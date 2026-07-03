@@ -117,6 +117,7 @@ function buildInitialExercises(workout: WorkoutDay): ExerciseRecord[] {
   return workout.exercises.map(ex => ({
     exerciseId: ex.id,
     exerciseName: ex.name,
+    muscleGroups: ex.muscleGroups,
     completed: false,
     skipped: false,
     sets: Array.from({ length: ex.sets }, (_, i) => ({
@@ -336,6 +337,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     const subRecord: ExerciseRecord = {
       exerciseId: `sub_${crypto.randomUUID()}`,
       exerciseName: substitute.exerciseName,
+      muscleGroups: substitute.muscleGroups,
       completed: false,
       skipped: false,
       substituteReason: reason,

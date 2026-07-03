@@ -58,6 +58,10 @@ export interface ExerciseRecord {
   skipped: boolean
   substituteReason?: string
   originalExerciseId?: string
+  // Snapshot of the exercise's muscle groups at record time, so volume/progress
+  // analytics don't depend on the exercise still being present in the current plan
+  // (e.g. imported history or exercises later removed/substituted out of the plan).
+  muscleGroups?: MuscleGroup[]
 }
 
 export interface WorkoutSession {

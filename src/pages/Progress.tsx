@@ -10,9 +10,12 @@ import {
 } from 'recharts'
 import { TrendingUp, TrendingDown, Minus as MinusIcon } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
-import type { WorkoutPlan } from '@/types'
+import type { WorkoutPlan, WorkoutSession } from '@/types'
 
-function getAllExercises(plan: WorkoutPlan) {
+// Combines the current plan's exercises with every exercise that shows up in
+// session history, so progress can be charted for exercises that were
+// substituted/removed from the plan or imported from outside it.
+function getAllExercises(plan: WorkoutPlan, sessions: WorkoutSession[]) {
   const exs: { id: string; name: string }[] = []
   plan.workouts.forEach(w => {
     w.exercises.forEach(e => {
@@ -21,12 +24,19 @@ function getAllExercises(plan: WorkoutPlan) {
       }
     })
   })
+  sessions.forEach(s => {
+    s.exercises.forEach(e => {
+      if (!exs.find(x => x.id === e.exerciseId)) {
+        exs.push({ id: e.exerciseId, name: e.exerciseName })
+      }
+    })
+  })
   return exs
 }
 
 export function Progress() {
   const { sessions, plan } = useWorkoutStore()
-  const allExercises = getAllExercises(plan)
+  const allExercises = getAllExercises(plan, sessions)
   const [selectedId, setSelectedId] = useState(allExercises[0]?.id ?? '')
 
   const chartData = sessions

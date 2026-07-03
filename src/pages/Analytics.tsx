@@ -23,11 +23,16 @@ function computeVolumeByMuscle(
   sessions.forEach(session => {
     session.exercises.forEach(ex => {
       if (ex.skipped) return
+      // Prefer the muscle groups snapshotted on the record itself (works for
+      // imported/historical sessions and exercises no longer in the plan).
+      // Fall back to looking up the current plan for older records saved
+      // before this field existed.
       const workout = plan.workouts.find(w => w.id === session.workoutType)
       const planEx = workout?.exercises.find(e => e.id === ex.exerciseId)
-      if (!planEx) return
+      const muscleGroups = ex.muscleGroups ?? planEx?.muscleGroups
+      if (!muscleGroups) return
       const completedSets = ex.sets.filter(s => s.completedAt !== null).length
-      planEx.muscleGroups.forEach(m => {
+      muscleGroups.forEach(m => {
         vol[m] = (vol[m] ?? 0) + completedSets
       })
     })

@@ -93,6 +93,7 @@ export function TodayWorkout() {
       {
         exerciseId: '',
         exerciseName: alt.name,
+        muscleGroups: substituteFor.muscleGroups,
         completed: false,
         skipped: false,
         targetSets: alt.sets,
