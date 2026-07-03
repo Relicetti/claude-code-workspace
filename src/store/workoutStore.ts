@@ -204,13 +204,22 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       ? storedId
       : (plan.workouts[0]?.id ?? null)
 
-    const [sessions, cardioSessions, analyses, shapeAssessments, weightSuggestions] = await Promise.all([
+    const [allSessions, cardioSessions, analyses, shapeAssessments, weightSuggestions] = await Promise.all([
       loadSessions().catch(() => []),
       loadCardioSessions().catch(() => []),
       loadAnalyses().catch(() => []),
       loadShapeAssessments().catch(() => []),
       loadWeightSuggestions().catch(() => ({})),
     ])
+
+    // A session with no finishedAt was left running when the app closed/reloaded
+    // mid-workout (e.g. a PWA update forcing a reload). Resume the most recent
+    // one instead of leaving it stuck looking like a finished history entry.
+    const unfinished = allSessions
+      .filter(s => s.finishedAt === null)
+      .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
+    const resumedSession = unfinished[0] ?? null
+    const sessions = allSessions.filter(s => s.finishedAt !== null)
 
     set({
       plan,
@@ -220,6 +229,12 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       analyses,
       shapeAssessments,
       weightSuggestions,
+      activeSession: resumedSession,
+      sessionStartTime: resumedSession ? Date.now() : null,
+      sessionPaused: false,
+      sessionElapsedSeconds: resumedSession
+        ? Math.max(0, Math.floor((Date.now() - new Date(resumedSession.startedAt).getTime()) / 1000))
+        : 0,
       dataLoaded: true,
     })
   },
@@ -295,6 +310,13 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
   },
 
   cancelSession: () => {
+    const { activeSession } = get()
+    // Sets are saved incrementally as they're confirmed, so a cancelled
+    // session may already have a row persisted with finishedAt still null —
+    // delete it so it doesn't linger and get mistaken for a resumable session.
+    if (activeSession) {
+      apiDeleteSession(activeSession.id).catch(console.error)
+    }
     set({
       activeSession: null,
       sessionStartTime: null,
