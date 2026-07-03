@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Waves, Footprints, Bike, Zap, MoreHorizontal } from 'lucide-react'
+import { X, Waves, Footprints, Bike, Zap, Thermometer, MoreHorizontal } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
 import type { CardioType } from '@/types'
 
@@ -8,6 +8,7 @@ const TYPES: { value: CardioType; label: string; icon: typeof Waves }[] = [
   { value: 'corrida', label: 'Corrida', icon: Footprints },
   { value: 'esteira', label: 'Esteira', icon: Zap },
   { value: 'bike', label: 'Bike', icon: Bike },
+  { value: 'sauna', label: 'Sauna', icon: Thermometer },
   { value: 'outro', label: 'Outro', icon: MoreHorizontal },
 ]
 
@@ -109,18 +110,20 @@ export function CardioModal({ onClose }: Props) {
             />
           </div>
 
-          {/* Distance */}
-          <div>
-            <p className="text-sm text-gray-400 mb-2">Distância / metragem (metros, opcional)</p>
-            <input
-              type="number"
-              inputMode="numeric"
-              placeholder="0"
-              value={distance}
-              onChange={e => setDistance(e.target.value)}
-              className="w-full bg-gray-800 text-white text-2xl font-mono font-bold rounded-xl px-4 py-2.5 border border-gray-700 focus:border-brand-500 outline-none"
-            />
-          </div>
+          {/* Distance (not applicable to sauna) */}
+          {type !== 'sauna' && (
+            <div>
+              <p className="text-sm text-gray-400 mb-2">Distância / metragem (metros, opcional)</p>
+              <input
+                type="number"
+                inputMode="numeric"
+                placeholder="0"
+                value={distance}
+                onChange={e => setDistance(e.target.value)}
+                className="w-full bg-gray-800 text-white text-2xl font-mono font-bold rounded-xl px-4 py-2.5 border border-gray-700 focus:border-brand-500 outline-none"
+              />
+            </div>
+          )}
 
           {/* Calories */}
           <div>

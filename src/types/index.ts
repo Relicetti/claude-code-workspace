@@ -79,7 +79,7 @@ export interface WorkoutSession {
 
 // Cardio tracking (independent of the strength workout plan/sequence)
 
-export type CardioType = 'natacao' | 'corrida' | 'esteira' | 'bike' | 'outro'
+export type CardioType = 'natacao' | 'corrida' | 'esteira' | 'bike' | 'sauna' | 'outro'
 
 export interface CardioSession {
   id: string

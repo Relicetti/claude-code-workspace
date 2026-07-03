@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Calendar, Clock, ChevronDown, ChevronUp, Download, Upload, Flame, Trash2, Waves, Footprints, Bike, Zap, MoreHorizontal, MapPin } from 'lucide-react'
+import { Calendar, Clock, ChevronDown, ChevronUp, Download, Upload, Flame, Trash2, Waves, Footprints, Bike, Zap, Thermometer, MoreHorizontal, MapPin } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
 import { exportData, importData } from '@/lib/storage'
 import type { WorkoutType, WorkoutSession, WorkoutPlan, CardioType } from '@/types'
@@ -9,6 +9,7 @@ const CARDIO_ICONS: Record<CardioType, typeof Waves> = {
   corrida: Footprints,
   esteira: Zap,
   bike: Bike,
+  sauna: Thermometer,
   outro: MoreHorizontal,
 }
 
@@ -17,6 +18,7 @@ const CARDIO_LABELS: Record<CardioType, string> = {
   corrida: 'Corrida',
   esteira: 'Esteira',
   bike: 'Bike',
+  sauna: 'Sauna',
   outro: 'Outro',
 }
 

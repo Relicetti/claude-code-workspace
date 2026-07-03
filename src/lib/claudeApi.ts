@@ -164,6 +164,7 @@ const CARDIO_LABELS: Record<CardioSession['type'], string> = {
   corrida: 'Corrida',
   esteira: 'Esteira',
   bike: 'Bike',
+  sauna: 'Sauna',
   outro: 'Outro',
 }
 
