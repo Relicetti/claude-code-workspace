@@ -104,7 +104,6 @@ export function Shape() {
               <input
                 type="file"
                 accept="image/*"
-                capture="environment"
                 className="hidden"
                 onChange={e => handlePhotoChange(a.value, e.target.files?.[0])}
               />
