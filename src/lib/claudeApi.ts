@@ -2,6 +2,7 @@ import type {
   Exercise,
   WorkoutSession,
   WorkoutPlan,
+  CardioSession,
   AIAlternativesResponse,
   AIAnalyticsResponse,
 } from '@/types'
@@ -158,10 +159,33 @@ ${getShoulderContext()}`
   return callClaude(systemPrompt, userMessage)
 }
 
+const CARDIO_LABELS: Record<CardioSession['type'], string> = {
+  natacao: 'Natação',
+  corrida: 'Corrida',
+  esteira: 'Esteira',
+  bike: 'Bike',
+  outro: 'Outro',
+}
+
+function formatCardioSummary(cardioSessions: CardioSession[]): string {
+  if (cardioSessions.length === 0) return 'Nenhum cardio registrado.'
+  return cardioSessions
+    .map(c => {
+      const label = c.type === 'outro' ? (c.customTypeLabel || 'Outro') : CARDIO_LABELS[c.type]
+      const minutes = Math.round(c.durationSeconds / 60)
+      const distance = c.distanceMeters != null ? `, ${c.distanceMeters}m` : ''
+      const calories = c.caloriesBurned != null ? `, ${c.caloriesBurned}kcal` : ''
+      return `  ${label} (${new Date(c.date).toLocaleDateString('pt-BR')}): ${minutes}min${distance}${calories}`
+    })
+    .join('\n')
+}
+
 export async function getWeeklyAnalysis(
   sessions: WorkoutSession[],
   previousWeekSessions: WorkoutSession[],
   plan: WorkoutPlan,
+  cardioSessions: CardioSession[] = [],
+  previousWeekCardioSessions: CardioSession[] = [],
 ): Promise<AIAnalyticsResponse> {
   const planSummary = plan.workouts.map(w => {
     const exList = w.exercises
@@ -203,7 +227,9 @@ ${getShoulderContext()}`
       .filter(e => !e.skipped)
       .map(e => `  ${e.exerciseName}: ${formatSetDetails(e.sets)}`)
       .join('\n')
-    return `${s.workoutLabel} (${new Date(s.date).toLocaleDateString('pt-BR')}):\n${exSummary}`
+    const duration = s.durationSeconds != null ? `${Math.round(s.durationSeconds / 60)}min` : 'duração não registrada'
+    const calories = s.caloriesBurned != null ? `, ${s.caloriesBurned}kcal` : ''
+    return `${s.workoutLabel} (${new Date(s.date).toLocaleDateString('pt-BR')}) — ${duration}${calories}:\n${exSummary}`
   }).join('\n\n')
 
   const prevSummary = previousWeekSessions.length > 0
@@ -212,9 +238,17 @@ ${getShoulderContext()}`
       ).join('\n')}`
     : '\nNão há dados da semana anterior para comparação.'
 
+  const cardioSummary = formatCardioSummary(cardioSessions)
+  const prevCardioSummary = previousWeekCardioSessions.length > 0
+    ? `\nCardio semana anterior:\n${formatCardioSummary(previousWeekCardioSessions)}`
+    : ''
+
   const userMessage = `Semana atual:\n${sessionsSummary}${prevSummary}
 
-Analise o progresso, volume por grupo muscular, e sugira ajustes concretos no plano. Máx 5 sugestões prioritárias.`
+Cardio da semana (natação, corrida, esteira, bike etc — atividade separada do plano de musculação):
+${cardioSummary}${prevCardioSummary}
+
+Analise o progresso, volume por grupo muscular, tempo de treino, calorias gastas e o cardio realizado, e sugira ajustes concretos no plano. Considere o cardio como parte do condicionamento geral do atleta (ex: se está fazendo pouco ou muito cardio em relação à musculação, se o tempo total de treino está adequado). Máx 5 sugestões prioritárias.`
 
   const raw = await callClaude(systemPrompt, userMessage, 2048)
   return parseJSON<AIAnalyticsResponse>(raw)

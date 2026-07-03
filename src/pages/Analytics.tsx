@@ -37,7 +37,7 @@ function computeVolumeByMuscle(
 }
 
 export function Analytics() {
-  const { sessions, analyses, plan, saveAnalysisResult, deleteAnalysisResult, applyAdjustment } = useWorkoutStore()
+  const { sessions, cardioSessions, analyses, plan, saveAnalysisResult, deleteAnalysisResult, applyAdjustment } = useWorkoutStore()
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -59,6 +59,16 @@ export function Analytics() {
     return d >= prevWeekStart && d < weekStart
   })
 
+  const thisWeekCardio = cardioSessions.filter(c => {
+    const d = new Date(c.date)
+    return d >= weekStart && d <= now
+  })
+
+  const prevWeekCardio = cardioSessions.filter(c => {
+    const d = new Date(c.date)
+    return d >= prevWeekStart && d < weekStart
+  })
+
   const volumeData = computeVolumeByMuscle(thisWeekSessions, plan)
   const chartData = Object.entries(volumeData)
     .filter(([, v]) => v > 0)
@@ -76,7 +86,7 @@ export function Analytics() {
     setLoading(true)
     setError('')
     try {
-      const result = await getWeeklyAnalysis(thisWeekSessions, prevWeekSessions, plan)
+      const result = await getWeeklyAnalysis(thisWeekSessions, prevWeekSessions, plan, thisWeekCardio, prevWeekCardio)
       const analysis: WeeklyAnalysis = {
         id: crypto.randomUUID(),
         generatedAt: new Date().toISOString(),
