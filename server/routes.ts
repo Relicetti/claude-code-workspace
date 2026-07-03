@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { pool } from './db.js'
 import { checkPassword, issueToken, setAuthCookie, clearAuthCookie, isAuthenticated, requireAuth } from './auth.js'
-import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan, CardioSession } from '../src/types/index.js'
+import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan, CardioSession, ShapeAssessment } from '../src/types/index.js'
 
 export const router = Router()
 
@@ -186,6 +186,48 @@ router.delete('/cardio/:id', async (req, res) => {
   res.json({ ok: true })
 })
 
+// --- Shape assessments ---
+
+function rowToShape(row: Record<string, unknown>): ShapeAssessment {
+  return {
+    id: row.id as string,
+    date: (row.date as Date).toISOString().split('T')[0],
+    weightKg: Number(row.weight_kg),
+    photos: row.photos as ShapeAssessment['photos'],
+    aiAnalysis: (row.ai_analysis as string) ?? null,
+    createdAt: (row.created_at as Date).toISOString(),
+  }
+}
+
+router.get('/shape', async (req, res) => {
+  const result = await pool.query('SELECT * FROM shape_assessments ORDER BY date DESC, created_at DESC')
+  res.json({ shapeAssessments: result.rows.map(rowToShape) })
+})
+
+router.put('/shape/:id', async (req, res) => {
+  const s = req.body as ShapeAssessment
+  await pool.query(
+    `INSERT INTO shape_assessments (id, date, weight_kg, photos, ai_analysis, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (id) DO UPDATE SET
+       date = $2, weight_kg = $3, photos = $4, ai_analysis = $5, created_at = $6`,
+    [
+      s.id,
+      s.date,
+      s.weightKg,
+      JSON.stringify(s.photos),
+      s.aiAnalysis ?? null,
+      s.createdAt,
+    ],
+  )
+  res.json({ ok: true })
+})
+
+router.delete('/shape/:id', async (req, res) => {
+  await pool.query('DELETE FROM shape_assessments WHERE id = $1', [req.params.id])
+  res.json({ ok: true })
+})
+
 // --- Analyses ---
 
 function rowToAnalysis(row: Record<string, unknown>): WeeklyAnalysis {
@@ -236,10 +278,11 @@ router.delete('/analyses/:id', async (req, res) => {
 // --- Export / Import ---
 
 router.get('/export', async (req, res) => {
-  const [sessionsResult, cardioResult, analysesResult, planResult, currentWorkoutResult] = await Promise.all([
+  const [sessionsResult, cardioResult, analysesResult, shapeResult, planResult, currentWorkoutResult] = await Promise.all([
     pool.query('SELECT * FROM sessions ORDER BY started_at ASC'),
     pool.query('SELECT * FROM cardio_sessions ORDER BY date ASC, created_at ASC'),
     pool.query('SELECT * FROM analyses ORDER BY generated_at DESC'),
+    pool.query('SELECT * FROM shape_assessments ORDER BY date ASC, created_at ASC'),
     pool.query("SELECT value FROM app_state WHERE key = 'plan'"),
     pool.query("SELECT value FROM app_state WHERE key = 'current_workout_id'"),
   ])
@@ -248,6 +291,7 @@ router.get('/export', async (req, res) => {
     sessions: sessionsResult.rows.map(rowToSession),
     cardioSessions: cardioResult.rows.map(rowToCardio),
     analyses: analysesResult.rows.map(rowToAnalysis),
+    shapeAssessments: shapeResult.rows.map(rowToShape),
     plan: planResult.rows[0]?.value ?? null,
     currentWorkoutId: currentWorkoutResult.rows[0]?.value ?? null,
     exportedAt: new Date().toISOString(),
@@ -259,6 +303,7 @@ router.post('/import', async (req, res) => {
     sessions?: WorkoutSession[]
     cardioSessions?: CardioSession[]
     analyses?: WeeklyAnalysis[]
+    shapeAssessments?: ShapeAssessment[]
     plan?: WorkoutPlan
     currentWorkoutId?: string
   }
@@ -266,6 +311,7 @@ router.post('/import', async (req, res) => {
   let sessionsImported = 0
   let cardioImported = 0
   let analysesImported = 0
+  let shapeImported = 0
 
   if (data.sessions) {
     for (const session of data.sessions) {
@@ -339,6 +385,26 @@ router.post('/import', async (req, res) => {
     }
   }
 
+  if (data.shapeAssessments) {
+    for (const s of data.shapeAssessments) {
+      await pool.query(
+        `INSERT INTO shape_assessments (id, date, weight_kg, photos, ai_analysis, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (id) DO UPDATE SET
+           date = $2, weight_kg = $3, photos = $4, ai_analysis = $5, created_at = $6`,
+        [
+          s.id,
+          s.date,
+          s.weightKg,
+          JSON.stringify(s.photos),
+          s.aiAnalysis ?? null,
+          s.createdAt,
+        ],
+      )
+      shapeImported++
+    }
+  }
+
   if (data.plan) {
     await pool.query(
       "INSERT INTO app_state (key, value) VALUES ('plan', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
@@ -353,5 +419,5 @@ router.post('/import', async (req, res) => {
     )
   }
 
-  res.json({ sessions: sessionsImported, cardio: cardioImported, analyses: analysesImported })
+  res.json({ sessions: sessionsImported, cardio: cardioImported, analyses: analysesImported, shape: shapeImported })
 })

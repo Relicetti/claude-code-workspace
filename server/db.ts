@@ -50,5 +50,14 @@ export async function migrate(): Promise<void> {
       notes TEXT,
       created_at TIMESTAMPTZ NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS shape_assessments (
+      id UUID PRIMARY KEY,
+      date DATE NOT NULL,
+      weight_kg NUMERIC NOT NULL,
+      photos JSONB NOT NULL,
+      ai_analysis TEXT,
+      created_at TIMESTAMPTZ NOT NULL
+    );
   `)
 }

@@ -10,7 +10,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DIST_DIR = path.resolve(__dirname, '../dist')
 
 const app = express()
-app.use(express.json({ limit: '5mb' }))
+// Bumped from 5mb to fit shape-check photo uploads (3 compressed JPEGs as base64).
+app.use(express.json({ limit: '20mb' }))
 app.use(cookieParser())
 
 app.use('/api', router)

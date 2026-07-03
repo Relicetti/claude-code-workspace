@@ -93,6 +93,24 @@ export interface CardioSession {
   createdAt: string
 }
 
+// Shape/physique tracking (weekly photo + fasting weight check-ins)
+
+export type BodyPhotoAngle = 'frente' | 'lado' | 'costas'
+
+export interface BodyPhoto {
+  angle: BodyPhotoAngle
+  dataUrl: string
+}
+
+export interface ShapeAssessment {
+  id: string
+  date: string
+  weightKg: number
+  photos: BodyPhoto[]
+  aiAnalysis?: string | null
+  createdAt: string
+}
+
 // Analytics types
 
 export interface WeeklyAnalysis {

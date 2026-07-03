@@ -3,6 +3,7 @@ import type {
   WorkoutSession,
   WorkoutPlan,
   CardioSession,
+  ShapeAssessment,
   AIAlternativesResponse,
   AIAnalyticsResponse,
 } from '@/types'
@@ -10,7 +11,11 @@ import { useWorkoutStore } from '@/store/workoutStore'
 
 const API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY as string | undefined
 
-async function callClaude(systemPrompt: string, userMessage: string, maxTokens = 1024): Promise<string> {
+type MessageContent =
+  | string
+  | ({ type: 'text'; text: string } | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } })[]
+
+async function callClaude(systemPrompt: string, userMessage: MessageContent, maxTokens = 1024): Promise<string> {
   if (!API_KEY) {
     throw new Error('VITE_ANTHROPIC_API_KEY não configurada. Adicione no arquivo .env ou nas variáveis do Railway.')
   }
@@ -253,4 +258,64 @@ Analise o progresso, volume por grupo muscular, tempo de treino, calorias gastas
 
   const raw = await callClaude(systemPrompt, userMessage, 2048)
   return parseJSON<AIAnalyticsResponse>(raw)
+}
+
+const ANGLE_LABELS: Record<ShapeAssessment['photos'][number]['angle'], string> = {
+  frente: 'Frente',
+  lado: 'Lado',
+  costas: 'Costas',
+}
+
+function dataUrlToImageBlock(dataUrl: string) {
+  const match = dataUrl.match(/^data:(image\/[a-z]+);base64,(.+)$/)
+  if (!match) throw new Error('Formato de imagem inválido')
+  const [, mediaType, data] = match
+  return { type: 'image' as const, source: { type: 'base64' as const, media_type: mediaType, data } }
+}
+
+export async function getShapeAnalysis(
+  current: ShapeAssessment,
+  previous: ShapeAssessment | null,
+): Promise<string> {
+  const systemPrompt = `Você é um personal trainer especializado em avaliação física e composição corporal.
+Analise as fotos e o peso em jejum do atleta de forma direta e honesta, comparando com a avaliação anterior quando houver uma.
+Foque em: mudanças visuais de definição muscular, gordura corporal aparente, postura e simetria, e o que a variação de peso sugere.
+Não invente números que não podem ser estimados de fotos (percentual de gordura exato, medidas em cm, etc) — fale em termos qualitativos e comparativos.
+Tom: direto, encorajador mas honesto, como um personal que acompanha de perto e não infla elogio.
+NÃO use JSON. Responda em texto simples em português, 4-6 frases.
+
+Contexto do atleta:
+${getShoulderContext()}`
+
+  const content: (
+    | { type: 'text'; text: string }
+    | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
+  )[] = []
+
+  content.push({
+    type: 'text',
+    text: `Avaliação atual — ${new Date(current.date).toLocaleDateString('pt-BR')}, peso em jejum: ${current.weightKg}kg`,
+  })
+  current.photos.forEach(p => {
+    content.push({ type: 'text', text: `Foto atual (${ANGLE_LABELS[p.angle]}):` })
+    content.push(dataUrlToImageBlock(p.dataUrl))
+  })
+
+  if (previous) {
+    const weightDiff = current.weightKg - previous.weightKg
+    content.push({
+      type: 'text',
+      text: `Avaliação anterior — ${new Date(previous.date).toLocaleDateString('pt-BR')}, peso em jejum: ${previous.weightKg}kg (variação: ${weightDiff >= 0 ? '+' : ''}${weightDiff.toFixed(1)}kg)`,
+    })
+    previous.photos.forEach(p => {
+      content.push({ type: 'text', text: `Foto anterior (${ANGLE_LABELS[p.angle]}):` })
+      content.push(dataUrlToImageBlock(p.dataUrl))
+    })
+  } else {
+    content.push({ type: 'text', text: 'Esta é a primeira avaliação registrada — não há fotos anteriores para comparar.' })
+  }
+
+  content.push({ type: 'text', text: 'Avalie o progresso físico com base nas fotos e no peso em jejum.' })
+
+  return callClaude(systemPrompt, content, 1024)
 }

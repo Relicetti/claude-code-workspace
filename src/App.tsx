@@ -8,6 +8,7 @@ import { Analytics } from '@/pages/Analytics'
 import { PlanEditor } from '@/pages/PlanEditor'
 import { About } from '@/pages/About'
 import { Login } from '@/pages/Login'
+import { Shape } from '@/pages/Shape'
 
 export default function App() {
   const { activeView, authChecked, isAuthenticated, dataLoaded, checkAuth } = useWorkoutStore()
@@ -43,6 +44,7 @@ export default function App() {
         {activeView === 'history' && <History />}
         {activeView === 'progress' && <Progress />}
         {activeView === 'analytics' && <Analytics />}
+        {activeView === 'shape' && <Shape />}
         {activeView === 'about' && <About />}
       </main>
       <BottomNav />

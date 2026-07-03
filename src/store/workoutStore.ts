@@ -8,6 +8,7 @@ import type {
   WorkoutPlan,
   WorkoutDay,
   CardioSession,
+  ShapeAssessment,
 } from '@/types'
 import {
   loadSessions,
@@ -19,6 +20,9 @@ import {
   loadAnalyses,
   saveAnalysis,
   deleteAnalysis as apiDeleteAnalysis,
+  loadShapeAssessments,
+  saveShapeAssessment,
+  deleteShapeAssessment as apiDeleteShapeAssessment,
   loadCustomPlan,
   saveCustomPlan,
   clearCustomPlan,
@@ -62,12 +66,15 @@ interface WorkoutStore {
   // Weekly analyses
   analyses: WeeklyAnalysis[]
 
+  // Weekly shape/physique check-ins (photos + fasting weight)
+  shapeAssessments: ShapeAssessment[]
+
   // Weight suggested for an exercise (from an applied "increase_weight"
   // analysis adjustment), keyed by normalized exercise name
   weightSuggestions: Record<string, number>
 
   // Current view
-  activeView: 'today' | 'history' | 'progress' | 'analytics' | 'plan' | 'about'
+  activeView: 'today' | 'history' | 'progress' | 'analytics' | 'plan' | 'about' | 'shape'
 
   // Actions
   checkAuth: () => Promise<void>
@@ -98,6 +105,11 @@ interface WorkoutStore {
   saveAnalysisResult: (analysis: WeeklyAnalysis) => void
   deleteAnalysisResult: (analysisId: string) => void
   applyAdjustment: (analysisId: string, adjustmentIndex: number) => void
+
+  addShapeAssessment: (entry: Omit<ShapeAssessment, 'id' | 'createdAt'>) => ShapeAssessment
+  updateShapeAssessmentAnalysis: (id: string, aiAnalysis: string) => void
+  deleteShapeAssessmentResult: (id: string) => void
+  getPreviousShapeAssessment: (beforeId: string) => ShapeAssessment | null
 
   setActiveView: (view: WorkoutStore['activeView']) => void
 
@@ -143,6 +155,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
   sessionPaused: false,
   sessionElapsedSeconds: 0,
   analyses: [],
+  shapeAssessments: [],
   weightSuggestions: {},
   activeView: 'today',
 
@@ -177,6 +190,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       sessions: [],
       cardioSessions: [],
       analyses: [],
+      shapeAssessments: [],
       weightSuggestions: {},
       activeSession: null,
     })
@@ -190,10 +204,11 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       ? storedId
       : (plan.workouts[0]?.id ?? null)
 
-    const [sessions, cardioSessions, analyses, weightSuggestions] = await Promise.all([
+    const [sessions, cardioSessions, analyses, shapeAssessments, weightSuggestions] = await Promise.all([
       loadSessions().catch(() => []),
       loadCardioSessions().catch(() => []),
       loadAnalyses().catch(() => []),
+      loadShapeAssessments().catch(() => []),
       loadWeightSuggestions().catch(() => ({})),
     ])
 
@@ -203,6 +218,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       sessions,
       cardioSessions,
       analyses,
+      shapeAssessments,
       weightSuggestions,
       dataLoaded: true,
     })
@@ -468,6 +484,45 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       weightSuggestions: updatedWeightSuggestions,
       analyses: state.analyses.map(a => (a.id === analysisId ? updatedAnalysis : a)),
     }))
+  },
+
+  addShapeAssessment: (entry) => {
+    const assessment: ShapeAssessment = {
+      ...entry,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+    }
+    saveShapeAssessment(assessment).catch(console.error)
+    set(state => ({
+      shapeAssessments: [assessment, ...state.shapeAssessments],
+    }))
+    return assessment
+  },
+
+  updateShapeAssessmentAnalysis: (id, aiAnalysis) => {
+    const { shapeAssessments } = get()
+    const assessment = shapeAssessments.find(a => a.id === id)
+    if (!assessment) return
+    const updated = { ...assessment, aiAnalysis }
+    saveShapeAssessment(updated).catch(console.error)
+    set(state => ({
+      shapeAssessments: state.shapeAssessments.map(a => (a.id === id ? updated : a)),
+    }))
+  },
+
+  deleteShapeAssessmentResult: (id) => {
+    apiDeleteShapeAssessment(id).catch(console.error)
+    set(state => ({
+      shapeAssessments: state.shapeAssessments.filter(a => a.id !== id),
+    }))
+  },
+
+  getPreviousShapeAssessment: (beforeId) => {
+    const { shapeAssessments } = get()
+    const sorted = [...shapeAssessments].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    const idx = sorted.findIndex(a => a.id === beforeId)
+    if (idx === -1) return sorted[0] ?? null
+    return sorted[idx + 1] ?? null
   },
 
   setActiveView: (view) => set({ activeView: view }),
