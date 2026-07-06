@@ -84,7 +84,7 @@ interface WorkoutStore {
 
   startSession: () => void
   pauseResumeSession: () => void
-  finishSession: () => void
+  finishSession: () => Promise<boolean>
   cancelSession: () => void
 
   updateSetRecord: (exerciseId: string, setIndex: number, data: Partial<SetRecord>) => void
@@ -277,9 +277,9 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     }
   },
 
-  finishSession: () => {
+  finishSession: async () => {
     const { activeSession, sessionStartTime, sessionElapsedSeconds, sessions, plan } = get()
-    if (!activeSession) return
+    if (!activeSession) return true
 
     const totalElapsed = sessionStartTime
       ? sessionElapsedSeconds + Math.floor((Date.now() - sessionStartTime) / 1000)
@@ -291,7 +291,22 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       durationSeconds: totalElapsed,
     }
 
-    saveSession(finished).catch(console.error)
+    // Unlike per-set saves (which self-heal on the next update), this is the
+    // terminal write for the session — if it silently drops, the session is
+    // stuck forever with finishedAt still null server-side, which later gets
+    // mistaken for an in-progress workout and "resumed" with a stale timer.
+    // So retry a few times and only clear the active session on success.
+    let saved = false
+    for (let attempt = 0; attempt < 3 && !saved; attempt++) {
+      try {
+        if (attempt > 0) await new Promise(r => setTimeout(r, 500 * attempt))
+        await saveSession(finished)
+        saved = true
+      } catch (err) {
+        console.error(err)
+      }
+    }
+    if (!saved) return false
 
     // Advance to the next workout in the sequence
     const idx = plan.workouts.findIndex(w => w.id === finished.workoutType)
@@ -310,6 +325,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       sessionElapsedSeconds: 0,
       currentWorkoutId: nextWorkout?.id ?? get().currentWorkoutId,
     })
+    return true
   },
 
   cancelSession: () => {

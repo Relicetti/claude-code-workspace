@@ -47,6 +47,7 @@ export function TodayWorkout() {
   const [pendingRestSeconds, setPendingRestSeconds] = useState(0)
   const [substituteFor, setSubstituteFor] = useState<Exercise | null>(null)
   const [finishLoading, setFinishLoading] = useState(false)
+  const [finishError, setFinishError] = useState('')
   const [aiFeedback, setAIFeedback] = useState('')
   const [showFinishedCard, setShowFinishedCard] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
@@ -113,6 +114,7 @@ export function TodayWorkout() {
     if (!activeSession) return
     setShowCaloriesPrompt(false)
     setFinishLoading(true)
+    setFinishError('')
 
     if (caloriesValue !== null) updateSessionCalories(caloriesValue)
 
@@ -125,10 +127,16 @@ export function TodayWorkout() {
       setAIFeedback('')
     }
 
-    finishSession()
+    const saved = await finishSession()
+    setFinishLoading(false)
+
+    if (!saved) {
+      setFinishError('Não conseguimos salvar o treino — confere sua conexão e tenta finalizar de novo.')
+      return
+    }
+
     setFinishedCalories(caloriesValue)
     setCalories(null)
-    setFinishLoading(false)
     setShowFinishedCard(true)
   }
 
@@ -364,6 +372,9 @@ export function TodayWorkout() {
               })}
 
             {/* Finish / cancel */}
+            {finishError && (
+              <p className="text-red-400 text-sm bg-red-950/40 rounded-xl px-3 py-2">{finishError}</p>
+            )}
             <div className="flex gap-3 pt-2">
               <button
                 onClick={cancelSession}
