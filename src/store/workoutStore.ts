@@ -619,7 +619,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
 
   getSessionsInRange: (startDate, endDate) => {
     return get().sessions.filter(s => {
-      const d = new Date(s.date)
+      const d = new Date(s.date + 'T12:00:00')
       return d >= startDate && d <= endDate
     })
   },

@@ -67,23 +67,27 @@ export function Analytics() {
   const prevWeekStart = new Date(weekStart)
   prevWeekStart.setDate(weekStart.getDate() - 7)
 
+  // Sessions store dates as plain "YYYY-MM-DD" strings. Parsing those directly
+  // reads as UTC midnight, which can land on the "wrong side" of a calendar
+  // week boundary computed in local time (e.g. GMT-3) — parse at local noon
+  // instead so a session's day never crosses into a different day.
   const thisWeekSessions = sessions.filter(s => {
-    const d = new Date(s.date)
+    const d = new Date(s.date + 'T12:00:00')
     return d >= weekStart && d <= weekEnd
   })
 
   const prevWeekSessions = sessions.filter(s => {
-    const d = new Date(s.date)
+    const d = new Date(s.date + 'T12:00:00')
     return d >= prevWeekStart && d < weekStart
   })
 
   const thisWeekCardio = cardioSessions.filter(c => {
-    const d = new Date(c.date)
+    const d = new Date(c.date + 'T12:00:00')
     return d >= weekStart && d <= weekEnd
   })
 
   const prevWeekCardio = cardioSessions.filter(c => {
-    const d = new Date(c.date)
+    const d = new Date(c.date + 'T12:00:00')
     return d >= prevWeekStart && d < weekStart
   })
 

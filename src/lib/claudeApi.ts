@@ -152,7 +152,7 @@ NÃO use JSON. Responda em texto simples em português.`
     ? `Duração: ${Math.round(session.durationSeconds / 60)} minutos`
     : ''
 
-  const userMessage = `Sessão: ${session.workoutLabel} — ${new Date(session.date).toLocaleDateString('pt-BR')}
+  const userMessage = `Sessão: ${session.workoutLabel} — ${new Date(session.date + 'T12:00:00').toLocaleDateString('pt-BR')}
 ${duration}
 
 Exercícios:
@@ -181,7 +181,7 @@ function formatCardioSummary(cardioSessions: CardioSession[]): string {
       const minutes = Math.round(c.durationSeconds / 60)
       const distance = c.distanceMeters != null ? `, ${c.distanceMeters}m` : ''
       const calories = c.caloriesBurned != null ? `, ${c.caloriesBurned}kcal` : ''
-      return `  ${label} (${new Date(c.date).toLocaleDateString('pt-BR')}): ${minutes}min${distance}${calories}`
+      return `  ${label} (${new Date(c.date + 'T12:00:00').toLocaleDateString('pt-BR')}): ${minutes}min${distance}${calories}`
     })
     .join('\n')
 }
@@ -235,7 +235,7 @@ ${getShoulderContext()}`
       .join('\n')
     const duration = s.durationSeconds != null ? `${Math.round(s.durationSeconds / 60)}min` : 'duração não registrada'
     const calories = s.caloriesBurned != null ? `, ${s.caloriesBurned}kcal` : ''
-    return `${s.workoutLabel} (${new Date(s.date).toLocaleDateString('pt-BR')}) — ${duration}${calories}:\n${exSummary}`
+    return `${s.workoutLabel} (${new Date(s.date + 'T12:00:00').toLocaleDateString('pt-BR')}) — ${duration}${calories}:\n${exSummary}`
   }).join('\n\n')
 
   const prevSummary = previousWeekSessions.length > 0
@@ -294,7 +294,7 @@ ${getShoulderContext()}`
 
   content.push({
     type: 'text',
-    text: `Avaliação atual — ${new Date(current.date).toLocaleDateString('pt-BR')}, peso em jejum: ${current.weightKg}kg`,
+    text: `Avaliação atual — ${new Date(current.date + 'T12:00:00').toLocaleDateString('pt-BR')}, peso em jejum: ${current.weightKg}kg`,
   })
   current.photos.forEach(p => {
     content.push({ type: 'text', text: `Foto atual (${ANGLE_LABELS[p.angle]}):` })
@@ -305,7 +305,7 @@ ${getShoulderContext()}`
     const weightDiff = current.weightKg - previous.weightKg
     content.push({
       type: 'text',
-      text: `Avaliação anterior — ${new Date(previous.date).toLocaleDateString('pt-BR')}, peso em jejum: ${previous.weightKg}kg (variação: ${weightDiff >= 0 ? '+' : ''}${weightDiff.toFixed(1)}kg)`,
+      text: `Avaliação anterior — ${new Date(previous.date + 'T12:00:00').toLocaleDateString('pt-BR')}, peso em jejum: ${previous.weightKg}kg (variação: ${weightDiff >= 0 ? '+' : ''}${weightDiff.toFixed(1)}kg)`,
     })
     previous.photos.forEach(p => {
       content.push({ type: 'text', text: `Foto anterior (${ANGLE_LABELS[p.angle]}):` })
