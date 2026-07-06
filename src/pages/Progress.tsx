@@ -12,21 +12,28 @@ import { TrendingUp, TrendingDown, Minus as MinusIcon } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
 import type { WorkoutSession } from '@/types'
 
+// The same real-world exercise can carry different exerciseIds across
+// sessions — the plan's own id, a substitute's synthetic id, or an imported
+// history entry's id — so group by name instead, otherwise today's set gets
+// tracked as a "different" exercise from past sessions of the same lift.
+function normalizeExerciseName(name: string): string {
+  return name.trim().toLowerCase()
+}
+
 // Only exercises that actually have a logged set with a registered weight —
 // plan exercises never performed shouldn't show up with an empty chart.
 function getLoggedExercises(sessions: WorkoutSession[]) {
-  const exs: { id: string; name: string }[] = []
+  const byKey = new Map<string, string>()
   sessions.forEach(s => {
     s.exercises.forEach(e => {
       if (e.skipped) return
       const hasLoggedWeight = e.sets.some(st => st.completedAt !== null && st.weight != null)
       if (!hasLoggedWeight) return
-      if (!exs.find(x => x.id === e.exerciseId)) {
-        exs.push({ id: e.exerciseId, name: e.exerciseName })
-      }
+      const key = normalizeExerciseName(e.exerciseName)
+      if (!byKey.has(key)) byKey.set(key, e.exerciseName)
     })
   })
-  return exs
+  return Array.from(byKey.entries()).map(([id, name]) => ({ id, name }))
 }
 
 export function Progress() {
@@ -35,10 +42,10 @@ export function Progress() {
   const [selectedId, setSelectedId] = useState(allExercises[0]?.id ?? '')
 
   const chartData = sessions
-    .filter(s => s.exercises.some(e => e.exerciseId === selectedId && !e.skipped))
+    .filter(s => s.exercises.some(e => normalizeExerciseName(e.exerciseName) === selectedId && !e.skipped))
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
     .map(session => {
-      const ex = session.exercises.find(e => e.exerciseId === selectedId)
+      const ex = session.exercises.find(e => normalizeExerciseName(e.exerciseName) === selectedId)
       const doneSets = ex?.sets.filter(s => s.completedAt !== null) ?? []
       const maxWeight = doneSets.length > 0
         ? Math.max(...doneSets.map(s => s.weight ?? 0))
