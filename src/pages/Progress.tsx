@@ -40,20 +40,14 @@ export function Progress() {
     .map(session => {
       const ex = session.exercises.find(e => e.exerciseId === selectedId)
       const doneSets = ex?.sets.filter(s => s.completedAt !== null) ?? []
-      const avgWeight = doneSets.length > 0
-        ? doneSets.reduce((acc, s) => acc + (s.weight ?? 0), 0) / doneSets.length
-        : 0
       const maxWeight = doneSets.length > 0
         ? Math.max(...doneSets.map(s => s.weight ?? 0))
         : 0
-      const avgReps = doneSets.length > 0
-        ? doneSets.reduce((acc, s) => acc + (s.actualReps ?? 0), 0) / doneSets.length
-        : 0
+      const volume = doneSets.reduce((acc, s) => acc + (s.weight ?? 0) * (s.actualReps ?? 0), 0)
       return {
         date: new Date(session.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
-        avgWeight: parseFloat(avgWeight.toFixed(1)),
         maxWeight,
-        avgReps: parseFloat(avgReps.toFixed(1)),
+        volume,
         sets: doneSets.length,
       }
     })
@@ -61,9 +55,9 @@ export function Progress() {
   // Progress comparison: last two sessions
   const trend =
     chartData.length >= 2
-      ? chartData[chartData.length - 1].avgWeight > chartData[chartData.length - 2].avgWeight
+      ? chartData[chartData.length - 1].maxWeight > chartData[chartData.length - 2].maxWeight
         ? 'up'
-        : chartData[chartData.length - 1].avgWeight < chartData[chartData.length - 2].avgWeight
+        : chartData[chartData.length - 1].maxWeight < chartData[chartData.length - 2].maxWeight
         ? 'down'
         : 'same'
       : null
@@ -103,7 +97,7 @@ export function Progress() {
               {trend === 'up' ? 'Progressão!' : trend === 'down' ? 'Queda de carga' : 'Carga estável'}
             </p>
             <p className="text-xs text-gray-500">
-              Última: {chartData[chartData.length - 1]?.avgWeight}kg · Anterior: {chartData[chartData.length - 2]?.avgWeight}kg
+              Última: {chartData[chartData.length - 1]?.maxWeight}kg · Anterior: {chartData[chartData.length - 2]?.maxWeight}kg
             </p>
           </div>
         </div>
@@ -117,9 +111,9 @@ export function Progress() {
         </div>
       ) : (
         <>
-          {/* Weight chart */}
+          {/* Max weight chart */}
           <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
-            <p className="text-xs text-gray-500 uppercase tracking-wide mb-4">Carga média por sessão (kg)</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wide mb-4">Carga máxima por sessão (kg)</p>
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
@@ -132,11 +126,11 @@ export function Progress() {
                     borderRadius: '12px',
                     color: '#f9fafb',
                   }}
-                  formatter={(value: number) => [`${value}kg`, 'Carga média']}
+                  formatter={(value: number) => [`${value}kg`, 'Carga máxima']}
                 />
                 <Line
                   type="monotone"
-                  dataKey="avgWeight"
+                  dataKey="maxWeight"
                   stroke="#22c55e"
                   strokeWidth={2.5}
                   dot={{ fill: '#22c55e', r: 4 }}
@@ -146,9 +140,9 @@ export function Progress() {
             </ResponsiveContainer>
           </div>
 
-          {/* Reps chart */}
+          {/* Volume chart */}
           <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
-            <p className="text-xs text-gray-500 uppercase tracking-wide mb-4">Reps médias por sessão</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wide mb-4">Volume por sessão (kg)</p>
             <ResponsiveContainer width="100%" height={160}>
               <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
@@ -161,11 +155,11 @@ export function Progress() {
                     borderRadius: '12px',
                     color: '#f9fafb',
                   }}
-                  formatter={(value: number) => [`${value}`, 'Reps médias']}
+                  formatter={(value: number) => [`${value}kg`, 'Volume']}
                 />
                 <Line
                   type="monotone"
-                  dataKey="avgReps"
+                  dataKey="volume"
                   stroke="#60a5fa"
                   strokeWidth={2.5}
                   dot={{ fill: '#60a5fa', r: 4 }}
@@ -181,9 +175,9 @@ export function Progress() {
               {[...chartData].reverse().slice(0, 6).map((d, i) => (
                 <div key={i} className="flex items-center justify-between text-sm">
                   <span className="text-gray-500">{d.date}</span>
-                  <span className="font-mono font-bold text-white">{d.avgWeight}kg</span>
+                  <span className="font-mono font-bold text-white">{d.maxWeight}kg</span>
                   <span className="text-gray-500">{d.sets} séries</span>
-                  <span className="text-gray-400">{d.avgReps} reps</span>
+                  <span className="text-gray-400">{d.volume}kg vol.</span>
                 </div>
               ))}
             </div>
