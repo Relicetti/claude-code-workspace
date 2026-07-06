@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { X, Waves, Footprints, Bike, Zap, Thermometer, MoreHorizontal } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
+import { todayLocalDate } from '@/lib/date'
 import type { CardioType } from '@/types'
 
 const TYPES: { value: CardioType; label: string; icon: typeof Waves }[] = [
@@ -20,7 +21,7 @@ export function CardioModal({ onClose }: Props) {
   const { addCardioSession } = useWorkoutStore()
   const [type, setType] = useState<CardioType>('natacao')
   const [customTypeLabel, setCustomTypeLabel] = useState('')
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [date, setDate] = useState(todayLocalDate())
   const [minutes, setMinutes] = useState('')
   const [distance, setDistance] = useState('')
   const [calories, setCalories] = useState('')

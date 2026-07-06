@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Calendar, Clock, ChevronDown, ChevronUp, Download, Upload, Flame, Trash2, Waves, Footprints, Bike, Zap, Thermometer, MoreHorizontal, MapPin } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
 import { exportData, importData } from '@/lib/storage'
+import { todayLocalDate } from '@/lib/date'
 import type { WorkoutType, WorkoutSession, WorkoutPlan, CardioType } from '@/types'
 
 const CARDIO_ICONS: Record<CardioType, typeof Waves> = {
@@ -68,7 +69,7 @@ export function History() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `treino-backup-${new Date().toISOString().split('T')[0]}.json`
+    a.download = `treino-backup-${todayLocalDate()}.json`
     a.click()
     URL.revokeObjectURL(url)
   }

@@ -36,6 +36,7 @@ import {
   checkAuthenticated,
 } from '@/lib/storage'
 import { defaultWorkoutPlan } from '@/data/workoutPlan'
+import { todayLocalDate } from '@/lib/date'
 
 interface WorkoutStore {
   // Auth
@@ -248,7 +249,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
 
     const session: WorkoutSession = {
       id: crypto.randomUUID(),
-      date: new Date().toISOString().split('T')[0],
+      date: todayLocalDate(),
       workoutType: workout.id,
       workoutLabel: workout.label,
       exercises: buildInitialExercises(workout),

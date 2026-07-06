@@ -4,6 +4,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { useWorkoutStore } from '@/store/workoutStore'
 import { getShapeAnalysis } from '@/lib/claudeApi'
 import { fileToResizedDataUrl } from '@/lib/imageUtils'
+import { todayLocalDate } from '@/lib/date'
 import type { BodyPhotoAngle, BodyPhoto } from '@/types'
 
 const ANGLES: { value: BodyPhotoAngle; label: string }[] = [
@@ -23,7 +24,7 @@ export function Shape() {
 
   const [photos, setPhotos] = useState<Partial<Record<BodyPhotoAngle, string>>>({})
   const [weight, setWeight] = useState('')
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [date, setDate] = useState(todayLocalDate())
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
