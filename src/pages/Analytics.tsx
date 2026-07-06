@@ -41,6 +41,17 @@ function computeVolumeByMuscle(
   return vol
 }
 
+// Monday-based calendar week, so "this week" resets at the start of each
+// week instead of always being a rolling 7-day window.
+function getWeekStart(date: Date): Date {
+  const d = new Date(date)
+  d.setHours(0, 0, 0, 0)
+  const day = d.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  d.setDate(d.getDate() + diff)
+  return d
+}
+
 export function Analytics() {
   const { sessions, cardioSessions, analyses, plan, saveAnalysisResult, deleteAnalysisResult, applyAdjustment } = useWorkoutStore()
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
@@ -49,14 +60,16 @@ export function Analytics() {
   const [expanded, setExpanded] = useState<string | null>(null)
 
   const now = new Date()
-  const weekStart = new Date(now)
-  weekStart.setDate(now.getDate() - 7)
+  const weekStart = getWeekStart(now)
+  const weekEnd = new Date(weekStart)
+  weekEnd.setDate(weekStart.getDate() + 6)
+  weekEnd.setHours(23, 59, 59, 999)
   const prevWeekStart = new Date(weekStart)
   prevWeekStart.setDate(weekStart.getDate() - 7)
 
   const thisWeekSessions = sessions.filter(s => {
     const d = new Date(s.date)
-    return d >= weekStart && d <= now
+    return d >= weekStart && d <= weekEnd
   })
 
   const prevWeekSessions = sessions.filter(s => {
@@ -66,7 +79,7 @@ export function Analytics() {
 
   const thisWeekCardio = cardioSessions.filter(c => {
     const d = new Date(c.date)
-    return d >= weekStart && d <= now
+    return d >= weekStart && d <= weekEnd
   })
 
   const prevWeekCardio = cardioSessions.filter(c => {
@@ -85,7 +98,7 @@ export function Analytics() {
 
   const handleAnalyze = async () => {
     if (thisWeekSessions.length === 0) {
-      setError('Nenhuma sessão nos últimos 7 dias para analisar.')
+      setError('Nenhuma sessão essa semana para analisar.')
       return
     }
     setLoading(true)
@@ -96,7 +109,7 @@ export function Analytics() {
         id: crypto.randomUUID(),
         generatedAt: new Date().toISOString(),
         weekStart: weekStart.toISOString(),
-        weekEnd: now.toISOString(),
+        weekEnd: weekEnd.toISOString(),
         summary: result.summary,
         volumeByMuscle: volumeData,
         adjustments: result.adjustments,
