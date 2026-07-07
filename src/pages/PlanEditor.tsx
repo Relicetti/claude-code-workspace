@@ -10,12 +10,14 @@ import {
   RotateCcw,
   Star,
   Info,
+  Upload,
+  Check,
 } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
 import { NumberStepper } from '@/components/NumberStepper'
 import { SubstituteModal } from '@/components/SubstituteModal'
 import { ALL_MUSCLE_GROUPS, MUSCLE_LABELS } from '@/lib/muscleLabels'
-import type { Exercise, WorkoutDay, MuscleGroup, ExerciseAlternative } from '@/types'
+import type { Exercise, WorkoutDay, WorkoutPlan, MuscleGroup, ExerciseAlternative } from '@/types'
 
 function newExercise(): Exercise {
   return {
@@ -38,12 +40,61 @@ function newWorkout(): WorkoutDay {
 }
 
 export function PlanEditor() {
-  const { plan, currentWorkoutId, updatePlan, resetPlan, setCurrentWorkout, setActiveView } = useWorkoutStore()
+  const {
+    plan,
+    currentWorkoutId,
+    updatePlan,
+    resetPlan,
+    setCurrentWorkout,
+    setActiveView,
+    savedPlans,
+    activePlanId,
+    switchActivePlan,
+    addSavedPlan,
+    deleteSavedPlanResult,
+    renameSavedPlan,
+  } = useWorkoutStore()
   const [expandedWorkout, setExpandedWorkout] = useState<string | null>(plan.workouts[0]?.id ?? null)
   const [aiSwapTarget, setAiSwapTarget] = useState<{ workoutId: string; exercise: Exercise } | null>(null)
   const [showNotesEditor, setShowNotesEditor] = useState(false)
   const [notesDraft, setNotesDraft] = useState(plan.userNotes)
   const [confirmReset, setConfirmReset] = useState(false)
+  const [confirmDeletePlanId, setConfirmDeletePlanId] = useState<string | null>(null)
+  const [previewPlanId, setPreviewPlanId] = useState<string | null>(null)
+  const [pendingUpload, setPendingUpload] = useState<WorkoutPlan | null>(null)
+  const [pendingUploadName, setPendingUploadName] = useState('')
+  const [uploadError, setUploadError] = useState('')
+
+  const handleUploadFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadError('')
+    const reader = new FileReader()
+    reader.onload = ev => {
+      try {
+        const parsed = JSON.parse(ev.target?.result as string)
+        const candidate: WorkoutPlan = Array.isArray(parsed?.plan?.workouts)
+          ? parsed.plan
+          : parsed
+        if (!Array.isArray(candidate?.workouts)) {
+          throw new Error('formato inválido')
+        }
+        setPendingUpload(candidate)
+        setPendingUploadName(file.name.replace(/\.json$/i, ''))
+      } catch {
+        setUploadError('Arquivo inválido — precisa ser um plano exportado (JSON com "workouts").')
+      }
+    }
+    reader.readAsText(file)
+    e.target.value = ''
+  }
+
+  const confirmUpload = () => {
+    if (!pendingUpload || !pendingUploadName.trim()) return
+    addSavedPlan(pendingUploadName.trim(), pendingUpload)
+    setPendingUpload(null)
+    setPendingUploadName('')
+  }
 
   const updateWorkout = (workoutId: string, updater: (w: WorkoutDay) => WorkoutDay) => {
     updatePlan({
@@ -148,6 +199,136 @@ export function PlanEditor() {
             <button onClick={() => setConfirmReset(false)} className="text-xs text-gray-500">Não</button>
           </div>
         )}
+      </div>
+
+      {/* Plan library — switch between saved plans or upload a new one */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-gray-500 uppercase tracking-wide">Meus Planos</p>
+          <label className="flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-300 cursor-pointer transition-colors">
+            <Upload size={13} />
+            Fazer upload de plano
+            <input type="file" accept=".json" onChange={handleUploadFile} className="hidden" />
+          </label>
+        </div>
+
+        {uploadError && (
+          <p className="text-red-400 text-xs bg-red-950/40 rounded-xl px-3 py-2">{uploadError}</p>
+        )}
+
+        {pendingUpload && (
+          <div className="bg-gray-900 border border-brand-700 rounded-2xl p-3 space-y-2">
+            <p className="text-xs text-gray-400">
+              Plano com {pendingUpload.workouts.length} treino{pendingUpload.workouts.length === 1 ? '' : 's'} — dá um nome pra ele:
+            </p>
+            <input
+              value={pendingUploadName}
+              onChange={e => setPendingUploadName(e.target.value)}
+              placeholder="Nome do plano"
+              className="w-full bg-gray-800 text-white text-sm rounded-lg px-3 py-2 border border-gray-700 focus:border-brand-500 outline-none"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={confirmUpload}
+                disabled={!pendingUploadName.trim()}
+                className="flex-1 bg-brand-600 disabled:opacity-40 hover:bg-brand-500 text-white text-sm font-semibold py-2 rounded-lg transition-all"
+              >
+                Salvar plano
+              </button>
+              <button
+                onClick={() => { setPendingUpload(null); setPendingUploadName('') }}
+                className="flex-1 text-gray-400 hover:text-white text-sm py-2"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {savedPlans.map(sp => {
+          const isActive = sp.id === activePlanId
+          const isPreviewing = previewPlanId === sp.id
+
+          return (
+            <div key={sp.id} className={`rounded-2xl border overflow-hidden ${isActive ? 'border-brand-600 bg-brand-950/20' : 'border-gray-800 bg-gray-900'}`}>
+              <div className="flex items-center gap-2 px-3 py-3">
+                <button
+                  className="flex-1 min-w-0 text-left"
+                  onClick={() => setPreviewPlanId(isPreviewing ? null : sp.id)}
+                >
+                  <input
+                    value={sp.name}
+                    onChange={e => renameSavedPlan(sp.id, e.target.value)}
+                    onClick={e => e.stopPropagation()}
+                    className="bg-transparent text-sm font-semibold text-white outline-none min-w-0 w-full truncate"
+                  />
+                  <p className="text-xs text-gray-500 mt-0.5">{sp.plan.workouts.length} treinos</p>
+                </button>
+
+                {isActive ? (
+                  <span className="flex items-center gap-1 text-xs text-brand-400 font-medium shrink-0 bg-brand-950/50 px-2 py-1 rounded-lg">
+                    <Check size={12} />
+                    Ativo
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => switchActivePlan(sp.id)}
+                    className="text-xs text-gray-300 hover:text-brand-400 shrink-0 bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded-lg transition-colors"
+                  >
+                    Ativar
+                  </button>
+                )}
+
+                {!isActive && savedPlans.length > 1 && (
+                  confirmDeletePlanId === sp.id ? (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => { deleteSavedPlanResult(sp.id); setConfirmDeletePlanId(null) }}
+                        className="text-xs text-red-400 font-semibold px-1.5"
+                      >
+                        Excluir
+                      </button>
+                      <button onClick={() => setConfirmDeletePlanId(null)} className="text-xs text-gray-500 px-1.5">
+                        Não
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDeletePlanId(sp.id)}
+                      className="text-gray-600 hover:text-red-400 transition-colors shrink-0 p-1"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )
+                )}
+
+                <button
+                  onClick={() => setPreviewPlanId(isPreviewing ? null : sp.id)}
+                  className="text-gray-500 p-1 shrink-0"
+                >
+                  {isPreviewing ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+              </div>
+
+              {isPreviewing && (
+                <div className="px-3 pb-3 space-y-2 border-t border-gray-800 pt-2">
+                  {isActive ? (
+                    <p className="text-xs text-gray-500">Esse é o plano ativo — edite os treinos dele mais abaixo.</p>
+                  ) : (
+                    sp.plan.workouts.map(w => (
+                      <div key={w.id} className="bg-gray-800/40 rounded-xl p-2.5">
+                        <p className="text-sm font-medium text-white">{w.label}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {w.exercises.map(e => e.name).join(' · ')}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
 
       {/* Shoulder / context notes */}

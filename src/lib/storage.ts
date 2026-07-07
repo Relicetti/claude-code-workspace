@@ -1,4 +1,4 @@
-import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan, CardioSession, ShapeAssessment } from '@/types'
+import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan, CardioSession, ShapeAssessment, SavedPlan } from '@/types'
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`/api${path}`, {
@@ -101,6 +101,30 @@ export async function loadCustomPlan(): Promise<WorkoutPlan | null> {
 
 export async function clearCustomPlan(): Promise<void> {
   await apiFetch('/plan', { method: 'DELETE' })
+}
+
+// --- Saved plans (library of switchable training plans) ---
+
+export async function loadSavedPlans(): Promise<SavedPlan[]> {
+  const { savedPlans } = await apiFetch<{ savedPlans: SavedPlan[] }>('/saved-plans')
+  return savedPlans
+}
+
+export async function saveSavedPlan(plan: SavedPlan): Promise<void> {
+  await apiFetch(`/saved-plans/${plan.id}`, { method: 'PUT', body: JSON.stringify(plan) })
+}
+
+export async function deleteSavedPlan(id: string): Promise<void> {
+  await apiFetch(`/saved-plans/${id}`, { method: 'DELETE' })
+}
+
+export async function loadActivePlanId(): Promise<string | null> {
+  const { id } = await apiFetch<{ id: string | null }>('/active-plan-id')
+  return id
+}
+
+export async function saveActivePlanId(id: string): Promise<void> {
+  await apiFetch('/active-plan-id', { method: 'PUT', body: JSON.stringify({ id }) })
 }
 
 // --- Current workout pointer ---

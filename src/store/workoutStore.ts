@@ -9,6 +9,7 @@ import type {
   WorkoutDay,
   CardioSession,
   ShapeAssessment,
+  SavedPlan,
 } from '@/types'
 import {
   loadSessions,
@@ -31,6 +32,11 @@ import {
   clearCurrentWorkoutId,
   loadWeightSuggestions,
   saveWeightSuggestions,
+  loadSavedPlans,
+  saveSavedPlan,
+  deleteSavedPlan as apiDeleteSavedPlan,
+  loadActivePlanId,
+  saveActivePlanId,
   login as apiLogin,
   logout as apiLogout,
   checkAuthenticated,
@@ -73,6 +79,11 @@ interface WorkoutStore {
   // Weight suggested for an exercise (from an applied "increase_weight"
   // analysis adjustment), keyed by normalized exercise name
   weightSuggestions: Record<string, number>
+
+  // Library of switchable training plans. The active one is mirrored into
+  // `plan`/`currentWorkoutId` above; the rest sit here until switched into.
+  savedPlans: SavedPlan[]
+  activePlanId: string | null
 
   // Current view
   activeView: 'today' | 'history' | 'progress' | 'analytics' | 'plan' | 'about' | 'shape'
@@ -119,6 +130,11 @@ interface WorkoutStore {
   updatePlan: (plan: WorkoutPlan) => void
   resetPlan: () => void
 
+  switchActivePlan: (id: string) => void
+  addSavedPlan: (name: string, plan: WorkoutPlan) => SavedPlan
+  deleteSavedPlanResult: (id: string) => void
+  renameSavedPlan: (id: string, name: string) => void
+
   getSessionsByType: (type: WorkoutType) => WorkoutSession[]
   getLastSessionByType: (type: WorkoutType) => WorkoutSession | null
   getMostRecentSession: () => WorkoutSession | null
@@ -161,6 +177,8 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
   analyses: [],
   shapeAssessments: [],
   weightSuggestions: {},
+  savedPlans: [],
+  activePlanId: null,
   activeView: 'today',
 
   checkAuth: async () => {
@@ -196,6 +214,8 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       analyses: [],
       shapeAssessments: [],
       weightSuggestions: {},
+      savedPlans: [],
+      activePlanId: null,
       activeSession: null,
     })
   },
@@ -208,13 +228,34 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       ? storedId
       : (plan.workouts[0]?.id ?? null)
 
-    const [allSessions, cardioSessions, analyses, shapeAssessments, weightSuggestions] = await Promise.all([
+    const [allSessions, cardioSessions, analyses, shapeAssessments, weightSuggestions, savedPlansRaw, activePlanIdRaw] = await Promise.all([
       loadSessions().catch(() => []),
       loadCardioSessions().catch(() => []),
       loadAnalyses().catch(() => []),
       loadShapeAssessments().catch(() => []),
       loadWeightSuggestions().catch(() => ({})),
+      loadSavedPlans().catch(() => []),
+      loadActivePlanId().catch(() => null),
     ])
+
+    // First time this feature runs for an existing user: wrap their current
+    // plan as the first entry in the saved-plans library instead of leaving
+    // it empty.
+    let savedPlans = savedPlansRaw
+    let activePlanId = activePlanIdRaw && savedPlans.some(p => p.id === activePlanIdRaw) ? activePlanIdRaw : null
+    if (!activePlanId) {
+      const migrated: SavedPlan = {
+        id: crypto.randomUUID(),
+        name: 'Meu Plano',
+        plan,
+        currentWorkoutId,
+        createdAt: new Date().toISOString(),
+      }
+      savedPlans = [...savedPlans, migrated]
+      activePlanId = migrated.id
+      saveSavedPlan(migrated).catch(console.error)
+      saveActivePlanId(migrated.id).catch(console.error)
+    }
 
     // A session with no finishedAt was left running when the app closed/reloaded
     // mid-workout (e.g. a PWA update forcing a reload). Resume the most recent
@@ -233,6 +274,8 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       analyses,
       shapeAssessments,
       weightSuggestions,
+      savedPlans,
+      activePlanId,
       activeSession: resumedSession,
       sessionStartTime: resumedSession ? Date.now() : null,
       sessionPaused: false,
@@ -596,6 +639,63 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     clearCustomPlan().catch(console.error)
     clearCurrentWorkoutId().catch(console.error)
     set({ plan: defaultWorkoutPlan, currentWorkoutId: defaultWorkoutPlan.workouts[0]?.id ?? null })
+  },
+
+  switchActivePlan: (targetId) => {
+    const { plan, currentWorkoutId, savedPlans, activePlanId } = get()
+    const target = savedPlans.find(p => p.id === targetId)
+    if (!target || targetId === activePlanId) return
+
+    // Snapshot the plan we're leaving so its progress (edits, sequence
+    // position) isn't lost when we switch away from it.
+    const outgoing = activePlanId ? { id: activePlanId, plan, currentWorkoutId } : null
+    const updatedSavedPlans = outgoing
+      ? savedPlans.map(p => (p.id === outgoing.id ? { ...p, plan: outgoing.plan, currentWorkoutId: outgoing.currentWorkoutId } : p))
+      : savedPlans
+
+    set({
+      savedPlans: updatedSavedPlans,
+      plan: target.plan,
+      currentWorkoutId: target.currentWorkoutId,
+      activePlanId: targetId,
+    })
+
+    if (outgoing) {
+      const outgoingUpdated = updatedSavedPlans.find(p => p.id === outgoing.id)
+      if (outgoingUpdated) saveSavedPlan(outgoingUpdated).catch(console.error)
+    }
+    saveCustomPlan(target.plan).catch(console.error)
+    saveCurrentWorkoutId(target.currentWorkoutId ?? '').catch(console.error)
+    saveActivePlanId(targetId).catch(console.error)
+  },
+
+  addSavedPlan: (name, planData) => {
+    const newPlan: SavedPlan = {
+      id: crypto.randomUUID(),
+      name,
+      plan: planData,
+      currentWorkoutId: planData.workouts[0]?.id ?? null,
+      createdAt: new Date().toISOString(),
+    }
+    saveSavedPlan(newPlan).catch(console.error)
+    set(state => ({ savedPlans: [...state.savedPlans, newPlan] }))
+    return newPlan
+  },
+
+  deleteSavedPlanResult: (id) => {
+    const { activePlanId } = get()
+    if (id === activePlanId) return
+    apiDeleteSavedPlan(id).catch(console.error)
+    set(state => ({ savedPlans: state.savedPlans.filter(p => p.id !== id) }))
+  },
+
+  renameSavedPlan: (id, name) => {
+    const { savedPlans } = get()
+    const target = savedPlans.find(p => p.id === id)
+    if (!target) return
+    const updated = { ...target, name }
+    saveSavedPlan(updated).catch(console.error)
+    set(state => ({ savedPlans: state.savedPlans.map(p => (p.id === id ? updated : p)) }))
   },
 
   getSessionsByType: (type) => {

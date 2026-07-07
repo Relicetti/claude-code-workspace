@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { pool } from './db.js'
 import { checkPassword, issueToken, setAuthCookie, clearAuthCookie, isAuthenticated, requireAuth } from './auth.js'
-import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan, CardioSession, ShapeAssessment } from '../src/types/index.js'
+import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan, CardioSession, ShapeAssessment, SavedPlan } from '../src/types/index.js'
 
 export const router = Router()
 
@@ -83,6 +83,60 @@ router.put('/weight-suggestions', async (req, res) => {
     "INSERT INTO app_state (key, value) VALUES ('weight_suggestions', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
     [JSON.stringify(suggestions)],
   )
+  res.json({ ok: true })
+})
+
+// --- Saved plans (library of switchable training plans) ---
+
+router.get('/active-plan-id', async (req, res) => {
+  const result = await pool.query("SELECT value FROM app_state WHERE key = 'active_plan_id'")
+  res.json({ id: (result.rows[0]?.value as string) ?? null })
+})
+
+router.put('/active-plan-id', async (req, res) => {
+  const { id } = req.body as { id: string }
+  await pool.query(
+    "INSERT INTO app_state (key, value) VALUES ('active_plan_id', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+    [JSON.stringify(id)],
+  )
+  res.json({ ok: true })
+})
+
+function rowToSavedPlan(row: Record<string, unknown>): SavedPlan {
+  return {
+    id: row.id as string,
+    name: row.name as string,
+    plan: row.plan as WorkoutPlan,
+    currentWorkoutId: (row.current_workout_id as string) ?? null,
+    createdAt: (row.created_at as Date).toISOString(),
+  }
+}
+
+router.get('/saved-plans', async (req, res) => {
+  const result = await pool.query('SELECT * FROM saved_plans ORDER BY created_at ASC')
+  res.json({ savedPlans: result.rows.map(rowToSavedPlan) })
+})
+
+router.put('/saved-plans/:id', async (req, res) => {
+  const p = req.body as SavedPlan
+  await pool.query(
+    `INSERT INTO saved_plans (id, name, plan, current_workout_id, created_at)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (id) DO UPDATE SET
+       name = $2, plan = $3, current_workout_id = $4, created_at = $5`,
+    [
+      p.id,
+      p.name,
+      JSON.stringify(p.plan),
+      p.currentWorkoutId,
+      p.createdAt,
+    ],
+  )
+  res.json({ ok: true })
+})
+
+router.delete('/saved-plans/:id', async (req, res) => {
+  await pool.query('DELETE FROM saved_plans WHERE id = $1', [req.params.id])
   res.json({ ok: true })
 })
 

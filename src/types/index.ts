@@ -39,6 +39,17 @@ export interface WorkoutPlan {
   userNotes: string
 }
 
+// A named, switchable training plan. The currently active one is mirrored
+// into the top-level plan/currentWorkoutId store state; the rest sit here
+// as a library the user can switch into or upload new ones for.
+export interface SavedPlan {
+  id: string
+  name: string
+  plan: WorkoutPlan
+  currentWorkoutId: string | null
+  createdAt: string
+}
+
 // Session tracking types
 
 export interface SetRecord {

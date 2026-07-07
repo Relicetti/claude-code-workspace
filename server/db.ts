@@ -59,5 +59,13 @@ export async function migrate(): Promise<void> {
       ai_analysis TEXT,
       created_at TIMESTAMPTZ NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS saved_plans (
+      id UUID PRIMARY KEY,
+      name TEXT NOT NULL,
+      plan JSONB NOT NULL,
+      current_workout_id TEXT,
+      created_at TIMESTAMPTZ NOT NULL
+    );
   `)
 }
