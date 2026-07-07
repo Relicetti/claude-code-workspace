@@ -68,6 +68,17 @@ export function PlanEditor() {
     updatePlan({ ...plan, workouts })
   }
 
+  const moveExercise = (workoutId: string, exerciseId: string, direction: -1 | 1) => {
+    updateWorkout(workoutId, w => {
+      const idx = w.exercises.findIndex(e => e.id === exerciseId)
+      const targetIdx = idx + direction
+      if (idx === -1 || targetIdx < 0 || targetIdx >= w.exercises.length) return w
+      const exercises = [...w.exercises]
+      ;[exercises[idx], exercises[targetIdx]] = [exercises[targetIdx], exercises[idx]]
+      return { ...w, exercises }
+    })
+  }
+
   const deleteWorkout = (workoutId: string) => {
     updatePlan({ ...plan, workouts: plan.workouts.filter(w => w.id !== workoutId) })
   }
@@ -232,13 +243,17 @@ export function PlanEditor() {
 
               {isExpanded && (
                 <div className="px-3 pb-3 space-y-2 border-t border-gray-800 pt-3">
-                  {workout.exercises.map(exercise => (
+                  {workout.exercises.map((exercise, exerciseIdx) => (
                     <ExerciseEditRow
                       key={exercise.id}
                       exercise={exercise}
                       onChange={updater => updateExercise(workout.id, exercise.id, updater)}
                       onDelete={() => deleteExercise(workout.id, exercise.id)}
                       onRequestAiSwap={() => setAiSwapTarget({ workoutId: workout.id, exercise })}
+                      onMoveUp={() => moveExercise(workout.id, exercise.id, -1)}
+                      onMoveDown={() => moveExercise(workout.id, exercise.id, 1)}
+                      canMoveUp={exerciseIdx > 0}
+                      canMoveDown={exerciseIdx < workout.exercises.length - 1}
                     />
                   ))}
 
@@ -288,11 +303,19 @@ function ExerciseEditRow({
   onChange,
   onDelete,
   onRequestAiSwap,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp,
+  canMoveDown,
 }: {
   exercise: Exercise
   onChange: (updater: (e: Exercise) => Exercise) => void
   onDelete: () => void
   onRequestAiSwap: () => void
+  onMoveUp: () => void
+  onMoveDown: () => void
+  canMoveUp: boolean
+  canMoveDown: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -308,6 +331,22 @@ function ExerciseEditRow({
   return (
     <div className="bg-gray-800/60 rounded-xl p-3 space-y-2">
       <div className="flex items-center gap-2">
+        <div className="flex flex-col shrink-0">
+          <button
+            onClick={onMoveUp}
+            disabled={!canMoveUp}
+            className="text-gray-600 disabled:opacity-20 hover:text-gray-300 p-0.5"
+          >
+            <ChevronsUp size={13} />
+          </button>
+          <button
+            onClick={onMoveDown}
+            disabled={!canMoveDown}
+            className="text-gray-600 disabled:opacity-20 hover:text-gray-300 p-0.5"
+          >
+            <ChevronsDown size={13} />
+          </button>
+        </div>
         <input
           value={exercise.name}
           onChange={e => onChange(ex => ({ ...ex, name: e.target.value }))}
