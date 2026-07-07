@@ -54,7 +54,7 @@ export function PlanEditor() {
     deleteSavedPlanResult,
     renameSavedPlan,
   } = useWorkoutStore()
-  const [expandedWorkout, setExpandedWorkout] = useState<string | null>(plan.workouts[0]?.id ?? null)
+  const [expandedWorkout, setExpandedWorkout] = useState<string | null>(null)
   const [aiSwapTarget, setAiSwapTarget] = useState<{ workoutId: string; exercise: Exercise } | null>(null)
   const [showNotesEditor, setShowNotesEditor] = useState(false)
   const [notesDraft, setNotesDraft] = useState(plan.userNotes)
