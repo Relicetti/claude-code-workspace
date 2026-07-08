@@ -135,15 +135,22 @@ export function Analytics() {
         <span className="text-xs text-gray-500">{thisWeekSessions.length} sessões esta semana</span>
       </div>
 
-      {/* Volume chart */}
+      {/* Volume chart — horizontal bars, since a vertical layout silently
+          drops overlapping X-axis labels once there are more than ~6
+          muscle groups (which is most weeks). */}
       {chartData.length > 0 && (
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
           <p className="text-xs text-gray-500 uppercase tracking-wide mb-4">Volume por grupo muscular (séries)</p>
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={chartData} margin={{ top: 5, right: 10, left: -25, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
-              <XAxis dataKey="muscle" tick={{ fill: '#6b7280', fontSize: 10 }} />
-              <YAxis tick={{ fill: '#6b7280', fontSize: 11 }} />
+          <ResponsiveContainer width="100%" height={Math.max(120, chartData.length * 32)}>
+            <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={false} />
+              <XAxis type="number" tick={{ fill: '#6b7280', fontSize: 11 }} />
+              <YAxis
+                type="category"
+                dataKey="muscle"
+                tick={{ fill: '#d1d5db', fontSize: 11 }}
+                width={80}
+              />
               <Tooltip
                 contentStyle={{
                   backgroundColor: '#111827',
@@ -153,7 +160,7 @@ export function Analytics() {
                 }}
                 formatter={(v: number) => [`${v} séries`, 'Volume']}
               />
-              <Bar dataKey="sets" radius={[6, 6, 0, 0]}>
+              <Bar dataKey="sets" radius={[0, 6, 6, 0]}>
                 {chartData.map((entry, index) => (
                   <Cell
                     key={index}
