@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CheckCircle2, ChevronDown, ChevronUp, ArrowLeftRight, AlertTriangle, Youtube } from 'lucide-react'
+import { CheckCircle2, ChevronDown, ChevronUp, ArrowLeftRight, AlertTriangle, Youtube, Pencil, Check } from 'lucide-react'
 import { NumberStepper } from './NumberStepper'
 import type { ExerciseRecord } from '@/types'
 import type { Exercise } from '@/types'
@@ -8,6 +8,7 @@ interface Props {
   exercise: Exercise
   record: ExerciseRecord
   onSetComplete: (setIndex: number, weight: number, reps: number) => void
+  onSetEdit: (setIndex: number, weight: number, reps: number) => void
   onExerciseComplete: () => void
   onRequestSubstitute: () => void
   isActive: boolean
@@ -18,6 +19,7 @@ export function ExerciseCard({
   exercise,
   record,
   onSetComplete,
+  onSetEdit,
   onExerciseComplete,
   onRequestSubstitute,
   isActive,
@@ -29,6 +31,9 @@ export function ExerciseCard({
   )
   const [weight, setWeight] = useState<number | null>(suggestedWeight ?? null)
   const [reps, setReps] = useState<number | null>(exercise.repsMax)
+  const [editingSetNumber, setEditingSetNumber] = useState<number | null>(null)
+  const [editWeight, setEditWeight] = useState<number | null>(null)
+  const [editReps, setEditReps] = useState<number | null>(null)
 
   const completedSets = record.sets.filter(s => s.completedAt !== null).length
   const totalSets = record.sets.length
@@ -37,6 +42,17 @@ export function ExerciseCard({
   const youtubeSearchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(
     `${exercise.name} execução exercício academia`,
   )}`
+
+  const startEditingSet = (setNumber: number, currentWeight: number | null, currentReps: number | null) => {
+    setEditingSetNumber(setNumber)
+    setEditWeight(currentWeight)
+    setEditReps(currentReps)
+  }
+
+  const confirmSetEdit = (setNumber: number) => {
+    onSetEdit(setNumber - 1, editWeight ?? 0, editReps ?? 0)
+    setEditingSetNumber(null)
+  }
 
   const handleConfirmSet = () => {
     if (currentSetIndex < 0 || currentSetIndex >= totalSets) return
@@ -114,18 +130,40 @@ export function ExerciseCard({
             </div>
           )}
 
-          {/* Set history */}
+          {/* Set history — tap a set to fix it if you filled it wrong */}
           {completedSets > 0 && (
             <div className="space-y-1">
-              {record.sets.filter(s => s.completedAt !== null).map(s => (
-                <div key={s.setNumber} className="flex items-center gap-2 text-sm">
-                  <CheckCircle2 size={14} className="text-brand-400" />
-                  <span className="text-gray-400">Série {s.setNumber}:</span>
-                  <span className="font-mono font-bold text-white">
-                    {s.weight ?? 0}kg × {s.actualReps ?? 0}
-                  </span>
-                </div>
-              ))}
+              {record.sets.filter(s => s.completedAt !== null).map(s => {
+                if (editingSetNumber === s.setNumber) {
+                  return (
+                    <div key={s.setNumber} className="flex items-center gap-2 bg-gray-800/60 rounded-lg p-2">
+                      <span className="text-xs text-gray-400 shrink-0 w-14">Série {s.setNumber}</span>
+                      <NumberStepper value={editWeight} onChange={setEditWeight} step={2.5} min={0} max={500} suffix="kg" size="sm" />
+                      <NumberStepper value={editReps} onChange={setEditReps} step={1} min={1} max={100} size="sm" />
+                      <button
+                        onClick={() => confirmSetEdit(s.setNumber)}
+                        className="shrink-0 bg-brand-600 hover:bg-brand-500 text-white p-1.5 rounded-lg transition-colors"
+                      >
+                        <Check size={14} />
+                      </button>
+                    </div>
+                  )
+                }
+                return (
+                  <button
+                    key={s.setNumber}
+                    onClick={() => startEditingSet(s.setNumber, s.weight, s.actualReps)}
+                    className="w-full flex items-center gap-2 text-sm hover:bg-gray-800/40 rounded-lg px-1 -mx-1 py-0.5 transition-colors"
+                  >
+                    <CheckCircle2 size={14} className="text-brand-400 shrink-0" />
+                    <span className="text-gray-400">Série {s.setNumber}:</span>
+                    <span className="font-mono font-bold text-white">
+                      {s.weight ?? 0}kg × {s.actualReps ?? 0}
+                    </span>
+                    <Pencil size={11} className="text-gray-600 ml-auto shrink-0" />
+                  </button>
+                )
+              })}
             </div>
           )}
 

@@ -82,6 +82,10 @@ export function TodayWorkout() {
     }
   }
 
+  const handleSetEdit = (exerciseId: string, setIndex: number, weight: number, reps: number) => {
+    updateSetRecord(exerciseId, setIndex, { actualReps: reps, weight })
+  }
+
   const handleExerciseComplete = (exerciseId: string) => {
     markExerciseComplete(exerciseId)
   }
@@ -332,6 +336,7 @@ export function TodayWorkout() {
                   isActive={isCardActive && !record.completed && !record.skipped}
                   suggestedWeight={getSuggestedWeight(exercise.id, exercise.name)}
                   onSetComplete={(setIdx, w, r) => handleSetComplete(exercise.id, setIdx, w, r)}
+                  onSetEdit={(setIdx, w, r) => handleSetEdit(exercise.id, setIdx, w, r)}
                   onExerciseComplete={() => handleExerciseComplete(exercise.id)}
                   onRequestSubstitute={() => handleRequestSubstitute(exercise)}
                 />
@@ -364,6 +369,7 @@ export function TodayWorkout() {
                       isActive={!subRecord.completed && !subRecord.skipped}
                       suggestedWeight={getSuggestedWeight(subRecord.exerciseId, subRecord.exerciseName)}
                       onSetComplete={(setIdx, w, r) => handleSetComplete(subRecord.exerciseId, setIdx, w, r)}
+                      onSetEdit={(setIdx, w, r) => handleSetEdit(subRecord.exerciseId, setIdx, w, r)}
                       onExerciseComplete={() => handleExerciseComplete(subRecord.exerciseId)}
                       onRequestSubstitute={() => handleRequestSubstitute(substituteExercise)}
                     />
