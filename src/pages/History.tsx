@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Calendar, Clock, ChevronDown, ChevronUp, Download, Upload, Flame, Trash2, Waves, Footprints, Bike, Zap, Thermometer, MoreHorizontal, MapPin } from 'lucide-react'
+import { Calendar, Clock, ChevronDown, ChevronUp, Download, Upload, Flame, Trash2, Pencil, Waves, Footprints, Bike, Zap, Thermometer, MoreHorizontal, MapPin } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
 import { exportData, importData } from '@/lib/storage'
 import { todayLocalDate } from '@/lib/date'
-import type { WorkoutType, WorkoutSession, WorkoutPlan, CardioType } from '@/types'
+import { CardioModal } from '@/components/CardioModal'
+import type { WorkoutType, WorkoutSession, CardioSession, WorkoutPlan, CardioType } from '@/types'
 
 const CARDIO_ICONS: Record<CardioType, typeof Waves> = {
   natacao: Waves,
@@ -48,12 +49,22 @@ function formatDistance(meters: number): string {
 }
 
 export function History() {
-  const { sessions, cardioSessions, plan, loadFromStorage, deleteSessionResult, deleteCardioSessionResult } = useWorkoutStore()
+  const {
+    sessions,
+    cardioSessions,
+    plan,
+    loadFromStorage,
+    deleteSessionResult,
+    deleteCardioSessionResult,
+    updateHistoricalSession,
+  } = useWorkoutStore()
   const [tab, setTab] = useState<'strength' | 'cardio'>('strength')
   const [filter, setFilter] = useState<WorkoutType | 'all'>('all')
   const [expanded, setExpanded] = useState<string | null>(null)
   const [importError, setImportError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
+  const [editingCardio, setEditingCardio] = useState<CardioSession | null>(null)
 
   const filters = buildFilters(plan, sessions)
 
@@ -161,6 +172,7 @@ export function History() {
 
           {filtered.map(session => {
             const isExpanded = expanded === session.id
+            const isEditing = editingSessionId === session.id
             const completedExercises = session.exercises.filter(e => e.completed && !e.skipped).length
             const date = new Date(session.date + 'T12:00:00')
 
@@ -223,6 +235,15 @@ export function History() {
                   ) : (
                     <div className="flex items-center gap-3 shrink-0 pl-2">
                       <button
+                        onClick={() => {
+                          setEditingSessionId(isEditing ? null : session.id)
+                          setExpanded(session.id)
+                        }}
+                        className={`transition-colors ${isEditing ? 'text-brand-400' : 'text-gray-600 hover:text-gray-300'}`}
+                      >
+                        <Pencil size={15} />
+                      </button>
+                      <button
                         onClick={() => setConfirmDelete(session.id)}
                         className="text-gray-600 hover:text-red-400 transition-colors"
                       >
@@ -237,6 +258,33 @@ export function History() {
 
                 {isExpanded && (
                   <div className="px-4 pb-4 space-y-3 border-t border-gray-800 pt-3">
+                    {isEditing && (
+                      <div className="bg-gray-800/60 rounded-xl p-3 grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Data</p>
+                          <input
+                            type="date"
+                            value={session.date}
+                            onChange={e => updateHistoricalSession(session.id, s => ({ ...s, date: e.target.value }))}
+                            className="w-full bg-gray-900 text-white rounded-lg px-2.5 py-1.5 text-sm border border-gray-700 focus:border-brand-500 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Calorias</p>
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            value={session.caloriesBurned ?? ''}
+                            onChange={e => updateHistoricalSession(session.id, s => ({
+                              ...s,
+                              caloriesBurned: e.target.value === '' ? null : Number(e.target.value),
+                            }))}
+                            className="w-full bg-gray-900 text-white rounded-lg px-2.5 py-1.5 text-sm border border-gray-700 focus:border-brand-500 outline-none"
+                          />
+                        </div>
+                      </div>
+                    )}
+
                     {session.aiFeedback && (
                       <div className="bg-gray-800/60 rounded-xl p-3">
                         <p className="text-xs text-brand-400 font-medium mb-1">Feedback IA</p>
@@ -251,9 +299,41 @@ export function History() {
                           <p className="text-sm font-medium text-gray-300 mb-1">{ex.exerciseName}</p>
                           <div className="flex flex-wrap gap-2">
                             {completedSets.map(s => (
-                              <span key={s.setNumber} className="text-xs bg-gray-800 text-gray-300 font-mono px-2 py-1 rounded-lg">
-                                {s.weight ?? 0}kg×{s.actualReps ?? 0}
-                              </span>
+                              isEditing ? (
+                                <div key={s.setNumber} className="flex items-center gap-1 bg-gray-800 rounded-lg px-2 py-1">
+                                  <input
+                                    type="number"
+                                    inputMode="decimal"
+                                    value={s.weight ?? 0}
+                                    onChange={e => updateHistoricalSession(session.id, sess => ({
+                                      ...sess,
+                                      exercises: sess.exercises.map(e2 => e2.exerciseId !== ex.exerciseId ? e2 : {
+                                        ...e2,
+                                        sets: e2.sets.map(st => st.setNumber !== s.setNumber ? st : { ...st, weight: Number(e.target.value) }),
+                                      }),
+                                    }))}
+                                    className="w-12 bg-gray-900 text-white text-xs font-mono rounded px-1 py-0.5 border border-gray-700 focus:border-brand-500 outline-none"
+                                  />
+                                  <span className="text-xs text-gray-500">kg×</span>
+                                  <input
+                                    type="number"
+                                    inputMode="numeric"
+                                    value={s.actualReps ?? 0}
+                                    onChange={e => updateHistoricalSession(session.id, sess => ({
+                                      ...sess,
+                                      exercises: sess.exercises.map(e2 => e2.exerciseId !== ex.exerciseId ? e2 : {
+                                        ...e2,
+                                        sets: e2.sets.map(st => st.setNumber !== s.setNumber ? st : { ...st, actualReps: Number(e.target.value) }),
+                                      }),
+                                    }))}
+                                    className="w-10 bg-gray-900 text-white text-xs font-mono rounded px-1 py-0.5 border border-gray-700 focus:border-brand-500 outline-none"
+                                  />
+                                </div>
+                              ) : (
+                                <span key={s.setNumber} className="text-xs bg-gray-800 text-gray-300 font-mono px-2 py-1 rounded-lg">
+                                  {s.weight ?? 0}kg×{s.actualReps ?? 0}
+                                </span>
+                              )
                             ))}
                           </div>
                         </div>
@@ -336,18 +416,30 @@ export function History() {
                       </button>
                     </div>
                   ) : (
-                    <button
-                      onClick={() => setConfirmDelete(c.id)}
-                      className="text-gray-600 hover:text-red-400 transition-colors shrink-0 pl-2"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <div className="flex items-center gap-3 shrink-0 pl-2">
+                      <button
+                        onClick={() => setEditingCardio(c)}
+                        className="text-gray-600 hover:text-gray-300 transition-colors"
+                      >
+                        <Pencil size={15} />
+                      </button>
+                      <button
+                        onClick={() => setConfirmDelete(c.id)}
+                        className="text-gray-600 hover:text-red-400 transition-colors"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
             )
           })}
         </>
+      )}
+
+      {editingCardio && (
+        <CardioModal existing={editingCardio} onClose={() => setEditingCardio(null)} />
       )}
     </div>
   )

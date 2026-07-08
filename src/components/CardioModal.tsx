@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { X, Waves, Footprints, Bike, Zap, Thermometer, MoreHorizontal } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
 import { todayLocalDate } from '@/lib/date'
-import type { CardioType } from '@/types'
+import type { CardioSession, CardioType } from '@/types'
 
 const TYPES: { value: CardioType; label: string; icon: typeof Waves }[] = [
   { value: 'natacao', label: 'Natação', icon: Waves },
@@ -15,23 +15,24 @@ const TYPES: { value: CardioType; label: string; icon: typeof Waves }[] = [
 
 interface Props {
   onClose: () => void
+  existing?: CardioSession
 }
 
-export function CardioModal({ onClose }: Props) {
-  const { addCardioSession } = useWorkoutStore()
-  const [type, setType] = useState<CardioType>('natacao')
-  const [customTypeLabel, setCustomTypeLabel] = useState('')
-  const [date, setDate] = useState(todayLocalDate())
-  const [minutes, setMinutes] = useState('')
-  const [distance, setDistance] = useState('')
-  const [calories, setCalories] = useState('')
-  const [notes, setNotes] = useState('')
+export function CardioModal({ onClose, existing }: Props) {
+  const { addCardioSession, updateCardioSessionResult } = useWorkoutStore()
+  const [type, setType] = useState<CardioType>(existing?.type ?? 'natacao')
+  const [customTypeLabel, setCustomTypeLabel] = useState(existing?.customTypeLabel ?? '')
+  const [date, setDate] = useState(existing?.date ?? todayLocalDate())
+  const [minutes, setMinutes] = useState(existing ? String(existing.durationSeconds / 60) : '')
+  const [distance, setDistance] = useState(existing?.distanceMeters != null ? String(existing.distanceMeters) : '')
+  const [calories, setCalories] = useState(existing?.caloriesBurned != null ? String(existing.caloriesBurned) : '')
+  const [notes, setNotes] = useState(existing?.notes ?? '')
 
   const canSave = minutes.trim() !== '' && Number(minutes) > 0
 
   const handleSave = () => {
     if (!canSave) return
-    addCardioSession({
+    const data = {
       date,
       type,
       customTypeLabel: type === 'outro' ? customTypeLabel.trim() || undefined : undefined,
@@ -39,7 +40,12 @@ export function CardioModal({ onClose }: Props) {
       distanceMeters: distance.trim() !== '' ? Number(distance) : null,
       caloriesBurned: calories.trim() !== '' ? Number(calories) : null,
       notes: notes.trim() || undefined,
-    })
+    }
+    if (existing) {
+      updateCardioSessionResult(existing.id, data)
+    } else {
+      addCardioSession(data)
+    }
     onClose()
   }
 
@@ -47,7 +53,7 @@ export function CardioModal({ onClose }: Props) {
     <div className="fixed inset-0 bg-gray-950/90 flex items-end sm:items-center justify-center z-50 p-4">
       <div className="bg-gray-900 rounded-2xl border border-gray-700 w-full max-w-sm max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-4 border-b border-gray-800">
-          <p className="font-semibold text-white text-sm">Registrar cardio</p>
+          <p className="font-semibold text-white text-sm">{existing ? 'Editar cardio' : 'Registrar cardio'}</p>
           <button onClick={onClose} className="text-gray-500 hover:text-white p-1">
             <X size={20} />
           </button>
@@ -156,7 +162,7 @@ export function CardioModal({ onClose }: Props) {
             disabled={!canSave}
             className="w-full bg-brand-600 disabled:opacity-40 hover:bg-brand-500 text-white font-semibold py-3 rounded-xl transition-all"
           >
-            Salvar
+            {existing ? 'Salvar alterações' : 'Salvar'}
           </button>
         </div>
       </div>

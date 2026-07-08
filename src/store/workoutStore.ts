@@ -110,8 +110,10 @@ interface WorkoutStore {
   updateAIFeedback: (feedback: string) => void
   updateSessionCalories: (calories: number | null) => void
   deleteSessionResult: (sessionId: string) => void
+  updateHistoricalSession: (sessionId: string, updater: (s: WorkoutSession) => WorkoutSession) => void
 
   addCardioSession: (entry: Omit<CardioSession, 'id' | 'createdAt'>) => void
+  updateCardioSessionResult: (id: string, updates: Partial<Omit<CardioSession, 'id' | 'createdAt'>>) => void
   deleteCardioSessionResult: (id: string) => void
 
   saveAnalysisResult: (analysis: WeeklyAnalysis) => void
@@ -489,6 +491,17 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     }))
   },
 
+  updateHistoricalSession: (sessionId, updater) => {
+    const { sessions } = get()
+    const target = sessions.find(s => s.id === sessionId)
+    if (!target) return
+    const updated = updater(target)
+    saveSession(updated).catch(console.error)
+    set(state => ({
+      sessions: state.sessions.map(s => (s.id === sessionId ? updated : s)),
+    }))
+  },
+
   addCardioSession: (entry) => {
     const session: CardioSession = {
       ...entry,
@@ -498,6 +511,17 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     saveCardioSession(session).catch(console.error)
     set(state => ({
       cardioSessions: [session, ...state.cardioSessions],
+    }))
+  },
+
+  updateCardioSessionResult: (id, updates) => {
+    const { cardioSessions } = get()
+    const target = cardioSessions.find(c => c.id === id)
+    if (!target) return
+    const updated = { ...target, ...updates }
+    saveCardioSession(updated).catch(console.error)
+    set(state => ({
+      cardioSessions: state.cardioSessions.map(c => (c.id === id ? updated : c)),
     }))
   },
 
