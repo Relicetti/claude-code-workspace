@@ -67,5 +67,11 @@ export async function migrate(): Promise<void> {
       current_workout_id TEXT,
       created_at TIMESTAMPTZ NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      endpoint TEXT PRIMARY KEY,
+      subscription JSONB NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL
+    );
   `)
 }

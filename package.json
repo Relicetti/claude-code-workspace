@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:server": "tsx watch server/index.ts",
-    "build": "tsc -b && tsc -p tsconfig.server.json && vite build",
+    "build": "tsc -b && tsc -p tsconfig.server.json && tsc -p tsconfig.sw.json && vite build",
     "start": "tsx server/index.ts",
     "lint": "eslint .",
     "preview": "vite preview --port $PORT --host"
@@ -23,6 +23,7 @@
     "react-dom": "^19.0.0",
     "recharts": "^2.15.0",
     "tsx": "^4.22.4",
+    "web-push": "^3.6.7",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
@@ -33,6 +34,7 @@
     "@types/pg": "^8.20.0",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
+    "@types/web-push": "^3.6.4",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",

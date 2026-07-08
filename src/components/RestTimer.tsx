@@ -1,5 +1,7 @@
-import { Pause, Play, Plus, Minus, X } from 'lucide-react'
+import { useState } from 'react'
+import { Pause, Play, Plus, Minus, X, Bell } from 'lucide-react'
 import type { useRestTimer } from '@/hooks/useRestTimer'
+import { isPushSupported, getPushPermission, enablePushNotifications } from '@/lib/push'
 
 interface Props {
   timer: ReturnType<typeof useRestTimer>
@@ -8,6 +10,12 @@ interface Props {
 
 export function RestTimer({ timer, onClose }: Props) {
   const { remaining, total, running, pause, resume, adjust, reset } = timer
+  const [permission, setPermission] = useState(getPushPermission())
+
+  const handleEnableNotifications = async () => {
+    const granted = await enablePushNotifications()
+    setPermission(granted ? 'granted' : getPushPermission())
+  }
 
   const progress = total > 0 ? (remaining / total) * 100 : 0
   const mins = Math.floor(remaining / 60)
@@ -25,6 +33,16 @@ export function RestTimer({ timer, onClose }: Props) {
             <X size={20} />
           </button>
         </div>
+
+        {isPushSupported() && permission !== 'granted' && (
+          <button
+            onClick={handleEnableNotifications}
+            className="flex items-center justify-center gap-2 w-full bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-2 rounded-lg text-sm font-medium transition-colors mb-4"
+          >
+            <Bell size={14} />
+            Ativar notificação de fim de descanso
+          </button>
+        )}
 
         {/* Circular progress */}
         <div className="relative inline-flex items-center justify-center mb-6">

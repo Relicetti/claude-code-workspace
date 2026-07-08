@@ -24,6 +24,7 @@ App web mobile-first para registrar treinos de academia com assistente de IA.
 - **Histórico completo**: todas as sessões com filtro por tipo de treino
 - **Gráficos de progresso**: evolução de carga/reps por exercício
 - **Analytics semanal**: análise de volume e sugestões de ajuste no plano
+- **Notificação de fim de descanso**: som + notificação push, chega mesmo com a tela apagada ou o app em segundo plano (PWA instalado no iPhone, iOS 16.4+)
 - **Dados sincronizados**: tudo fica salvo num banco Postgres, não no navegador — funciona igual não importa como você abra o app (Safari, ícone instalado, PC)
 - **Acesso protegido por senha**: já que os dados ficam num servidor acessível pela internet
 
@@ -47,6 +48,10 @@ Edite o `.env` e preencha:
 - `DATABASE_URL` — string de conexão do Postgres criado acima
 - `APP_JWT_SECRET` — qualquer string aleatória longa
 - `APP_PASSWORD` — a senha que você vai usar pra entrar no app
+- `VITE_VAPID_PUBLIC_KEY` e `VAPID_PRIVATE_KEY` — par de chaves pra notificação push do timer de descanso. Gere com:
+  ```bash
+  npx web-push generate-vapid-keys
+  ```
 
 ### 3. Instalar e rodar
 ```bash
@@ -77,9 +82,16 @@ VITE_ANTHROPIC_API_KEY=sk-ant-...sua-chave...
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 APP_JWT_SECRET=uma-string-aleatoria-bem-longa
 APP_PASSWORD=a-senha-que-voce-vai-usar-pra-entrar
+VITE_VAPID_PUBLIC_KEY=chave-publica-gerada-com-web-push
+VAPID_PRIVATE_KEY=chave-privada-gerada-com-web-push
 ```
 O valor `${{Postgres.DATABASE_URL}}` referencia automaticamente o banco criado no Passo 1
 (ajuste o nome `Postgres` caso tenha renomeado o serviço do banco).
+
+As chaves VAPID (`VITE_VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`) são as mesmas geradas no
+Passo 2 acima — gere um único par e reaproveite tanto local quanto no Railway.
+Sem elas, a notificação push do timer de descanso fica desativada (o app funciona
+normal, só sem esse recurso).
 
 ### Passo 4 — Deploy automático
 O Railway detecta o `Dockerfile` e builda. As tabelas do banco são criadas

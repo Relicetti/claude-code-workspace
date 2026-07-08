@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { scheduleRestDoneNotification, cancelRestDoneNotification } from '@/lib/push'
 
 interface RestTimerState {
   remaining: number
@@ -30,6 +31,14 @@ export function useRestTimer(): RestTimerState {
   const audioCtxRef = useRef<AudioContext | null>(null)
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null)
   const firedDoneRef = useRef(false)
+  const scheduleIdRef = useRef<string | null>(null)
+
+  const cancelScheduledPush = useCallback(() => {
+    if (scheduleIdRef.current) {
+      cancelRestDoneNotification(scheduleIdRef.current)
+      scheduleIdRef.current = null
+    }
+  }, [])
 
   const playDone = useCallback(() => {
     try {
@@ -88,12 +97,15 @@ export function useRestTimer(): RestTimerState {
       setRunning(false)
       endTimestampRef.current = null
       releaseWakeLock()
+      // The local timer caught it in time — no need for the server's push
+      // to also arrive (it exists only to cover the screen-off/backgrounded case).
+      cancelScheduledPush()
       if (!firedDoneRef.current) {
         firedDoneRef.current = true
         playDone()
       }
     }
-  }, [clearInt, playDone, releaseWakeLock])
+  }, [clearInt, playDone, releaseWakeLock, cancelScheduledPush])
 
   const start = useCallback(
     (seconds: number) => {
@@ -105,6 +117,8 @@ export function useRestTimer(): RestTimerState {
       setRunning(true)
       requestWakeLock()
       intervalRef.current = setInterval(tick, 1000)
+      scheduleIdRef.current = crypto.randomUUID()
+      scheduleRestDoneNotification(scheduleIdRef.current, seconds)
     },
     [clearInt, tick, requestWakeLock],
   )
@@ -118,11 +132,14 @@ export function useRestTimer(): RestTimerState {
     clearInt()
     setRunning(false)
     releaseWakeLock()
-  }, [clearInt, releaseWakeLock])
+    cancelScheduledPush()
+  }, [clearInt, releaseWakeLock, cancelScheduledPush])
 
   const resume = useCallback(() => {
     setRemaining(current => {
       endTimestampRef.current = Date.now() + current * 1000
+      scheduleIdRef.current = crypto.randomUUID()
+      scheduleRestDoneNotification(scheduleIdRef.current, current)
       return current
     })
     firedDoneRef.current = false
@@ -136,6 +153,9 @@ export function useRestTimer(): RestTimerState {
       const next = Math.max(0, prev + delta)
       if (endTimestampRef.current !== null) {
         endTimestampRef.current = Date.now() + next * 1000
+        if (scheduleIdRef.current) {
+          scheduleRestDoneNotification(scheduleIdRef.current, next)
+        }
       }
       return next
     })
@@ -149,7 +169,8 @@ export function useRestTimer(): RestTimerState {
     endTimestampRef.current = null
     firedDoneRef.current = false
     releaseWakeLock()
-  }, [clearInt, releaseWakeLock])
+    cancelScheduledPush()
+  }, [clearInt, releaseWakeLock, cancelScheduledPush])
 
   // Catch up immediately when the screen/app comes back into view —
   // setInterval ticks are throttled or fully paused while backgrounded,

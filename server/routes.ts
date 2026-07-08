@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { pool } from './db.js'
 import { checkPassword, issueToken, setAuthCookie, clearAuthCookie, isAuthenticated, requireAuth } from './auth.js'
+import { scheduleRestDoneNotification, cancelScheduledNotification } from './push.js'
 import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan, CardioSession, ShapeAssessment, SavedPlan } from '../src/types/index.js'
 
 export const router = Router()
@@ -326,6 +327,45 @@ router.put('/analyses/:id', async (req, res) => {
 
 router.delete('/analyses/:id', async (req, res) => {
   await pool.query('DELETE FROM analyses WHERE id = $1', [req.params.id])
+  res.json({ ok: true })
+})
+
+// --- Push notifications (rest timer done, works even with the screen off) ---
+
+router.post('/push/subscribe', async (req, res) => {
+  const subscription = req.body as { endpoint: string }
+  if (!subscription?.endpoint) {
+    res.status(400).json({ error: 'assinatura inválida' })
+    return
+  }
+  await pool.query(
+    `INSERT INTO push_subscriptions (endpoint, subscription, created_at)
+     VALUES ($1, $2, now())
+     ON CONFLICT (endpoint) DO UPDATE SET subscription = $2`,
+    [subscription.endpoint, JSON.stringify(subscription)],
+  )
+  res.json({ ok: true })
+})
+
+router.post('/push/unsubscribe', async (req, res) => {
+  const { endpoint } = req.body as { endpoint: string }
+  await pool.query('DELETE FROM push_subscriptions WHERE endpoint = $1', [endpoint])
+  res.json({ ok: true })
+})
+
+router.post('/push/schedule-rest-done', (req, res) => {
+  const { scheduleId, seconds } = req.body as { scheduleId: string; seconds: number }
+  if (!scheduleId || !seconds || seconds <= 0) {
+    res.status(400).json({ error: 'scheduleId e seconds são obrigatórios' })
+    return
+  }
+  scheduleRestDoneNotification(scheduleId, seconds)
+  res.json({ ok: true })
+})
+
+router.post('/push/cancel-scheduled', (req, res) => {
+  const { scheduleId } = req.body as { scheduleId: string }
+  if (scheduleId) cancelScheduledNotification(scheduleId)
   res.json({ ok: true })
 })
 
