@@ -17,6 +17,10 @@ class SignalParams:
     w_no_supply: float = 1.0
     threshold_long: float = 2.0
     threshold_short: float = -2.0
+    # execução: stop-loss/take-profit em múltiplos de ATR; None = desligado
+    # (ficam aqui para entrarem no grid search do walk-forward junto com o resto)
+    stop_atr: float | None = None
+    take_atr: float | None = None
 
 
 def _zscore(series: pd.Series, window: int = 100) -> pd.Series:

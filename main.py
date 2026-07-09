@@ -14,12 +14,22 @@ from backtest import walk_forward
 from metrics import summarize
 
 
+def parse_atr_list(arg: str) -> list:
+    """'none,2,3' -> [None, 2.0, 3.0]"""
+    return [None if tok.strip().lower() in ("none", "off") else float(tok)
+            for tok in arg.split(",")]
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--csv", type=str, default=None, help="usar CSV local em vez de buscar da API")
     parser.add_argument("--since_days", type=int, default=730)
     parser.add_argument("--train_days", type=int, default=180)
     parser.add_argument("--test_days", type=int, default=30)
+    parser.add_argument("--stop_atr", type=str, default="none",
+                        help="stops em múltiplos de ATR p/ o grid, ex: '2,3' ou 'none,2' (none = sem stop)")
+    parser.add_argument("--take_atr", type=str, default="none",
+                        help="alvos em múltiplos de ATR p/ o grid, ex: '3,5' ou 'none,3' (none = sem alvo)")
     args = parser.parse_args()
 
     if args.csv:
@@ -39,6 +49,8 @@ def main():
         "w_no_supply": [0.5, 1.0],
         "threshold_long": [1.5, 2.0, 2.5],
         "threshold_short": [-2.5, -2.0, -1.5],
+        "stop_atr": parse_atr_list(args.stop_atr),
+        "take_atr": parse_atr_list(args.take_atr),
     }
 
     train_size = args.train_days * 24

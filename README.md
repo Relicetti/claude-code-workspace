@@ -24,7 +24,31 @@ python main.py
 
 # rodadas seguintes: usa o CSV salvo (mais rápido para iterar)
 python main.py --csv btc_usdt_1h.csv --train_days 180 --test_days 30
+
+# com stop-loss/take-profit no grid (múltiplos de ATR; "none" = sem stop)
+python main.py --csv btc_usdt_1h.csv --stop_atr none,2,3 --take_atr none,3,5
 ```
+
+## Stop-loss / Take-profit
+
+Stops e alvos são expressos em **múltiplos de ATR** (adaptam ao regime de volatilidade)
+e entram no grid search do walk-forward como qualquer outro parâmetro — incluir `none`
+na lista deixa o otimizador decidir se vale a pena usar stop naquela janela.
+
+Premissas da simulação (deliberadamente conservadoras):
+
+- Entrada/troca de posição executa ao fechamento do candle anterior (mesma convenção
+  do backtest sem stops); o stop/alvo usa o ATR do candle de entrada (sem look-ahead).
+- Se stop e alvo caberiam no mesmo candle, assume-se que o **stop bateu primeiro**.
+- Gap além do stop sai no pior preço (abertura do candle), não no stop teórico;
+  gap além do alvo sai no próprio alvo (não credita o gap favorável).
+- Depois de sair por stop/alvo, só reentra quando o sinal **mudar de valor** — evita
+  reentrada imediata no mesmo sinal que acabou de estopar.
+- Taxa é cobrada em cada mudança de posição e em cada saída por stop/alvo.
+
+Atenção: cada valor extra de `--stop_atr`/`--take_atr` multiplica o grid (e o caminho
+com stops é um loop candle a candle, mais lento que o vetorizado). Comece com poucas
+opções, ex.: `--stop_atr none,2 --take_atr none,3`.
 
 ## Pontos importantes
 
@@ -64,7 +88,7 @@ pytest tests/ -v
 
 ## Próximo passo depois da validação
 
-Se (e só se) os números out-of-sample forem sólidos: adicionar stop-loss/take-profit
-explícitos (esse backtest atual assume que a posição vira só quando o sinal muda —
-não tem stop), position sizing, e testar em outros pares/timeframes antes de
-sequer pensar em automação de execução.
+Se (e só se) os números out-of-sample forem sólidos: adicionar position sizing
+(risco fixo por trade / volatility targeting) e testar em outros pares/timeframes
+antes de sequer pensar em automação de execução. Stop-loss/take-profit já estão
+implementados (seção acima).
