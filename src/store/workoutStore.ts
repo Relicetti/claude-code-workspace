@@ -37,6 +37,7 @@ import {
   deleteSavedPlan as apiDeleteSavedPlan,
   loadActivePlanId,
   saveActivePlanId,
+  clearActivePlanId,
   login as apiLogin,
   logout as apiLogout,
   checkSession,
@@ -711,10 +712,35 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
   },
 
   deleteSavedPlanResult: (id) => {
-    const { activePlanId } = get()
-    if (id === activePlanId) return
+    const { activePlanId, savedPlans } = get()
     apiDeleteSavedPlan(id).catch(console.error)
-    set(state => ({ savedPlans: state.savedPlans.filter(p => p.id !== id) }))
+    const remaining = savedPlans.filter(p => p.id !== id)
+
+    if (id !== activePlanId) {
+      set({ savedPlans: remaining })
+      return
+    }
+
+    // The active plan was deleted — promote another saved plan if one is
+    // left, otherwise fall back to the built-in default so there's always
+    // something active.
+    const next = remaining[0]
+    if (next) {
+      set({ savedPlans: remaining, plan: next.plan, currentWorkoutId: next.currentWorkoutId, activePlanId: next.id })
+      saveCustomPlan(next.plan).catch(console.error)
+      saveCurrentWorkoutId(next.currentWorkoutId ?? '').catch(console.error)
+      saveActivePlanId(next.id).catch(console.error)
+    } else {
+      set({
+        savedPlans: remaining,
+        plan: defaultWorkoutPlan,
+        currentWorkoutId: defaultWorkoutPlan.workouts[0]?.id ?? null,
+        activePlanId: null,
+      })
+      clearCustomPlan().catch(console.error)
+      clearCurrentWorkoutId().catch(console.error)
+      clearActivePlanId().catch(console.error)
+    }
   },
 
   renameSavedPlan: (id, name) => {

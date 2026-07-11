@@ -137,6 +137,10 @@ export async function saveActivePlanId(id: string): Promise<void> {
   await apiFetch('/active-plan-id', { method: 'PUT', body: JSON.stringify({ id }) })
 }
 
+export async function clearActivePlanId(): Promise<void> {
+  await apiFetch('/active-plan-id', { method: 'DELETE' })
+}
+
 // --- Current workout pointer ---
 
 export async function saveCurrentWorkoutId(id: string): Promise<void> {

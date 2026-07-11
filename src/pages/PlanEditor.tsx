@@ -376,27 +376,26 @@ export function PlanEditor() {
                   </button>
                 )}
 
-                {!isActive && savedPlans.length > 1 && (
-                  confirmDeletePlanId === sp.id ? (
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        onClick={() => { deleteSavedPlanResult(sp.id); setConfirmDeletePlanId(null) }}
-                        className="text-xs text-red-400 font-semibold px-1.5"
-                      >
-                        Excluir
-                      </button>
-                      <button onClick={() => setConfirmDeletePlanId(null)} className="text-xs text-gray-500 px-1.5">
-                        Não
-                      </button>
-                    </div>
-                  ) : (
+                {confirmDeletePlanId === sp.id ? (
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <button
-                      onClick={() => setConfirmDeletePlanId(sp.id)}
-                      className="text-gray-600 hover:text-red-400 transition-colors shrink-0 p-1"
+                      onClick={() => { deleteSavedPlanResult(sp.id); setConfirmDeletePlanId(null) }}
+                      className="text-xs text-red-400 font-semibold px-1.5"
                     >
-                      <Trash2 size={14} />
+                      Excluir
                     </button>
-                  )
+                    <button onClick={() => setConfirmDeletePlanId(null)} className="text-xs text-gray-500 px-1.5">
+                      Não
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmDeletePlanId(sp.id)}
+                    className="text-gray-600 hover:text-red-400 transition-colors shrink-0 p-1"
+                    title={isActive ? 'Excluir (troca automática pra outro plano)' : 'Excluir'}
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 )}
 
                 <button

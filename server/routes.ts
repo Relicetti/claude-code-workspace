@@ -138,6 +138,11 @@ router.put('/active-plan-id', async (req, res) => {
   res.json({ ok: true })
 })
 
+router.delete('/active-plan-id', async (req, res) => {
+  await pool.query("DELETE FROM app_state WHERE user_id = $1 AND key = 'active_plan_id'", [res.locals.userId])
+  res.json({ ok: true })
+})
+
 function rowToSavedPlan(row: Record<string, unknown>): SavedPlan {
   return {
     id: row.id as string,
