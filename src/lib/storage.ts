@@ -1,4 +1,4 @@
-import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan, CardioSession, ShapeAssessment, SavedPlan } from '@/types'
+import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan, CardioSession, ShapeAssessment, SavedPlan, AdminUser } from '@/types'
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`/api${path}`, {
@@ -23,9 +23,19 @@ export async function logout(): Promise<void> {
   await apiFetch('/logout', { method: 'POST' })
 }
 
-export async function checkAuthenticated(): Promise<boolean> {
-  const { authenticated } = await apiFetch<{ authenticated: boolean }>('/session')
-  return authenticated
+export async function checkSession(): Promise<{ authenticated: boolean; isAdmin: boolean }> {
+  return apiFetch<{ authenticated: boolean; isAdmin: boolean }>('/session')
+}
+
+// --- Admin: user management ---
+
+export async function loadUsers(): Promise<AdminUser[]> {
+  const { users } = await apiFetch<{ users: AdminUser[] }>('/admin/users')
+  return users
+}
+
+export async function createUser(username: string, password: string): Promise<void> {
+  await apiFetch('/admin/users', { method: 'POST', body: JSON.stringify({ username, password }) })
 }
 
 // --- Sessions ---

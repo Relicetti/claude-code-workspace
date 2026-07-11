@@ -13,8 +13,18 @@ export async function migrate(): Promise<void> {
       id SERIAL PRIMARY KEY,
       username TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
+      is_admin BOOLEAN NOT NULL DEFAULT false,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false;
+
+    -- The account created before admin roles existed (or the first one ever
+    -- created) becomes the admin, so there's always someone who can create
+    -- new accounts from the app itself instead of needing DB access.
+    UPDATE users SET is_admin = true
+      WHERE id = (SELECT MIN(id) FROM users)
+      AND NOT EXISTS (SELECT 1 FROM users WHERE is_admin = true);
 
     CREATE TABLE IF NOT EXISTS sessions (
       id UUID PRIMARY KEY,

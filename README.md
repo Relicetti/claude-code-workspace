@@ -66,13 +66,14 @@ Acesse `http://localhost:5173`.
 
 ### 4. Criar uma conta
 O app é multi-usuário: cada pessoa tem seu próprio login e seus dados ficam
-completamente isolados dos de outras contas. Não existe cadastro pela tela —
-contas são criadas rodando o script abaixo, uma vez para cada pessoa:
+completamente isolados dos de outras contas. A primeira conta criada vira
+automaticamente admin, herda qualquer dado que já existisse no banco antes
+do app virar multi-usuário, e pode criar as contas seguintes direto pelo
+app (tela **Sobre** → "Gerenciar usuários"). Pra criar essa primeira conta
+(ou por linha de comando, se preferir):
 ```bash
 npm run create-user -- <usuario> <senha>
 ```
-A primeira conta criada herda automaticamente qualquer dado que já existisse
-no banco antes do app virar multi-usuário (treinos, histórico, etc.).
 
 ## Deploy no Railway
 
@@ -107,14 +108,16 @@ automaticamente na primeira vez que o servidor sobe. Cada push pra branch
 configurada dispara um novo deploy.
 
 ### Passo 5 — Criar as contas
-Com o serviço no ar, rode o script de criação de usuário apontando pro banco
-do Railway (pegue a `DATABASE_URL` pública em **Postgres → Connect → Public
-Network** e use como `DATABASE_URL` local só para rodar o comando):
+Com o serviço no ar, rode o script de criação de usuário uma vez, apontando
+pro banco do Railway (pegue a `DATABASE_URL` pública em **Postgres → Connect
+→ Public Network** e use como `DATABASE_URL` local só para rodar o comando):
 ```bash
 DATABASE_URL="a-url-publica-do-postgres" npm run create-user -- <usuario> <senha>
 ```
-Repita uma vez para cada pessoa. A primeira conta criada herda automaticamente
-os dados que já existiam no banco antes do multi-usuário.
+Essa primeira conta vira admin automaticamente e herda os dados que já
+existiam no banco antes do multi-usuário. As contas seguintes não precisam
+mais do script — dá pra criar direto pelo app, na tela **Sobre** → "Gerenciar
+usuários" (só aparece pra quem é admin).
 
 ### PWA no iPhone
 1. Acesse a URL do app no Safari do iPhone

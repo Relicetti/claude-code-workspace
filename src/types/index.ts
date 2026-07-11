@@ -50,6 +50,14 @@ export interface SavedPlan {
   createdAt: string
 }
 
+// Account info shown to an admin in the user management section
+export interface AdminUser {
+  id: number
+  username: string
+  isAdmin: boolean
+  createdAt: string
+}
+
 // Session tracking types
 
 export interface SetRecord {

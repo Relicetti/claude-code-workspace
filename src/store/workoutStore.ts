@@ -39,7 +39,7 @@ import {
   saveActivePlanId,
   login as apiLogin,
   logout as apiLogout,
-  checkAuthenticated,
+  checkSession,
 } from '@/lib/storage'
 import { defaultWorkoutPlan } from '@/data/workoutPlan'
 import { todayLocalDate } from '@/lib/date'
@@ -48,6 +48,7 @@ interface WorkoutStore {
   // Auth
   authChecked: boolean
   isAuthenticated: boolean
+  isAdmin: boolean
   dataLoaded: boolean
 
   // Active workout plan (custom if edited, else default)
@@ -167,6 +168,7 @@ function buildInitialExercises(workout: WorkoutDay): ExerciseRecord[] {
 export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
   authChecked: false,
   isAuthenticated: false,
+  isAdmin: false,
   dataLoaded: false,
   plan: defaultWorkoutPlan,
   currentWorkoutId: null,
@@ -185,18 +187,19 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
 
   checkAuth: async () => {
     try {
-      const authenticated = await checkAuthenticated()
-      set({ isAuthenticated: authenticated, authChecked: true })
+      const { authenticated, isAdmin } = await checkSession()
+      set({ isAuthenticated: authenticated, isAdmin, authChecked: true })
       if (authenticated) await get().loadFromStorage()
     } catch {
-      set({ isAuthenticated: false, authChecked: true })
+      set({ isAuthenticated: false, isAdmin: false, authChecked: true })
     }
   },
 
   login: async (username, password) => {
     try {
       await apiLogin(username, password)
-      set({ isAuthenticated: true })
+      const { isAdmin } = await checkSession()
+      set({ isAuthenticated: true, isAdmin })
       await get().loadFromStorage()
       return true
     } catch {
@@ -208,6 +211,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     await apiLogout().catch(() => {})
     set({
       isAuthenticated: false,
+      isAdmin: false,
       dataLoaded: false,
       plan: defaultWorkoutPlan,
       currentWorkoutId: null,

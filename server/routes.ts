@@ -1,6 +1,7 @@
 import { Router } from 'express'
+import bcrypt from 'bcryptjs'
 import { pool } from './db.js'
-import { checkCredentials, issueToken, setAuthCookie, clearAuthCookie, isAuthenticated, requireAuth } from './auth.js'
+import { checkCredentials, issueToken, setAuthCookie, clearAuthCookie, getSessionInfo, requireAuth, requireAdmin } from './auth.js'
 import { scheduleRestDoneNotification, cancelScheduledNotification } from './push.js'
 import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan, CardioSession, ShapeAssessment, SavedPlan } from '../src/types/index.js'
 
@@ -15,7 +16,7 @@ router.post('/login', async (req, res) => {
     res.status(401).json({ error: 'usuário ou senha incorretos' })
     return
   }
-  setAuthCookie(res, issueToken(user.id, user.username))
+  setAuthCookie(res, issueToken(user.id, user.username, user.isAdmin))
   res.json({ ok: true })
 })
 
@@ -25,10 +26,43 @@ router.post('/logout', (req, res) => {
 })
 
 router.get('/session', (req, res) => {
-  res.json({ authenticated: isAuthenticated(req) })
+  res.json(getSessionInfo(req))
 })
 
 router.use(requireAuth)
+
+// --- Admin: user management ---
+
+router.get('/admin/users', requireAdmin, async (req, res) => {
+  const result = await pool.query('SELECT id, username, is_admin, created_at FROM users ORDER BY created_at ASC')
+  res.json({
+    users: result.rows.map(r => ({
+      id: r.id as number,
+      username: r.username as string,
+      isAdmin: r.is_admin as boolean,
+      createdAt: (r.created_at as Date).toISOString(),
+    })),
+  })
+})
+
+router.post('/admin/users', requireAdmin, async (req, res) => {
+  const { username, password } = req.body as { username?: string; password?: string }
+  if (!username?.trim() || !password) {
+    res.status(400).json({ error: 'usuário e senha são obrigatórios' })
+    return
+  }
+  const passwordHash = await bcrypt.hash(password, 10)
+  try {
+    await pool.query('INSERT INTO users (username, password_hash) VALUES ($1, $2)', [username.trim(), passwordHash])
+    res.json({ ok: true })
+  } catch (err) {
+    if ((err as { code?: string }).code === '23505') {
+      res.status(409).json({ error: 'esse nome de usuário já existe' })
+      return
+    }
+    throw err
+  }
+})
 
 // --- Plan ---
 

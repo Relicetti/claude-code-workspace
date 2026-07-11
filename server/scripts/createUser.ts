@@ -29,14 +29,14 @@ async function main() {
 
   const passwordHash = await bcrypt.hash(password, 10)
   const { rows } = await pool.query(
-    'INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id',
-    [username, passwordHash],
+    'INSERT INTO users (username, password_hash, is_admin) VALUES ($1, $2, $3) RETURNING id',
+    [username, passwordHash, isFirstUser],
   )
   const userId = rows[0].id as number
   console.log(`Usuário "${username}" criado (id ${userId}).`)
 
   if (isFirstUser) {
-    console.log('Primeiro usuário da base — migrando dados existentes pra essa conta...')
+    console.log('Primeiro usuário da base — virou admin e herdou os dados existentes...')
     for (const table of USER_SCOPED_TABLES) {
       const result = await pool.query(`UPDATE ${table} SET user_id = $1 WHERE user_id IS NULL`, [userId])
       console.log(`  ${table}: ${result.rowCount} linha(s) migrada(s)`)
