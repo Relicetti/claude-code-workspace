@@ -8,11 +8,13 @@
     "dev:server": "tsx watch server/index.ts",
     "build": "tsc -b && tsc -p tsconfig.server.json && tsc -p tsconfig.sw.json && vite build",
     "start": "tsx server/index.ts",
+    "create-user": "tsx --env-file=.env server/scripts/createUser.ts",
     "lint": "eslint .",
     "preview": "vite preview --port $PORT --host"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.54.0",
+    "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
@@ -27,6 +29,7 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",

@@ -13,10 +13,10 @@ interface PushPayload {
   body: string
 }
 
-async function sendToAllSubscriptions(payload: PushPayload): Promise<void> {
+async function sendToUserSubscriptions(userId: number, payload: PushPayload): Promise<void> {
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return
 
-  const result = await pool.query('SELECT endpoint, subscription FROM push_subscriptions')
+  const result = await pool.query('SELECT endpoint, subscription FROM push_subscriptions WHERE user_id = $1', [userId])
   await Promise.all(
     result.rows.map(async row => {
       try {
@@ -36,14 +36,14 @@ async function sendToAllSubscriptions(payload: PushPayload): Promise<void> {
 
 // In-memory scheduling is fine here: rest timers are a couple minutes at
 // most, and losing a scheduled notification on a redeploy mid-rest is an
-// acceptable edge case for a single-user app.
+// acceptable edge case for this app's scale.
 const scheduled = new Map<string, ReturnType<typeof setTimeout>>()
 
-export function scheduleRestDoneNotification(scheduleId: string, seconds: number): void {
+export function scheduleRestDoneNotification(scheduleId: string, seconds: number, userId: number): void {
   cancelScheduledNotification(scheduleId)
   const timeout = setTimeout(() => {
     scheduled.delete(scheduleId)
-    sendToAllSubscriptions({ title: 'Descanso acabou!', body: 'Hora da próxima série 💪' }).catch(console.error)
+    sendToUserSubscriptions(userId, { title: 'Descanso acabou!', body: 'Hora da próxima série 💪' }).catch(console.error)
   }, seconds * 1000)
   scheduled.set(scheduleId, timeout)
 }

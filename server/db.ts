@@ -9,6 +9,13 @@ export const pool = new Pool({
 
 export async function migrate(): Promise<void> {
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
     CREATE TABLE IF NOT EXISTS sessions (
       id UUID PRIMARY KEY,
       date DATE NOT NULL,
@@ -73,5 +80,24 @@ export async function migrate(): Promise<void> {
       subscription JSONB NOT NULL,
       created_at TIMESTAMPTZ NOT NULL
     );
+
+    -- Multi-user support: each table gets a user_id so accounts are fully
+    -- isolated. Nullable at the schema level (existing rows predate this and
+    -- get backfilled by server/scripts/createUser.ts, run once per account);
+    -- application code always writes/filters by user_id going forward.
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id);
+    ALTER TABLE analyses ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id);
+    ALTER TABLE cardio_sessions ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id);
+    ALTER TABLE shape_assessments ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id);
+    ALTER TABLE saved_plans ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id);
+    ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id);
+
+    -- app_state was keyed by "key" alone (one row per key, shared globally);
+    -- now keyed by (user_id, key) so each account has its own plan/current
+    -- workout/etc. A unique index (rather than a NOT NULL composite PK)
+    -- tolerates the transient NULL user_id on pre-existing rows.
+    ALTER TABLE app_state ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id);
+    ALTER TABLE app_state DROP CONSTRAINT IF EXISTS app_state_pkey;
+    CREATE UNIQUE INDEX IF NOT EXISTS app_state_user_key_idx ON app_state(user_id, key);
   `)
 }

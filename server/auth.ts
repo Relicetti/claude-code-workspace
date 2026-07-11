@@ -1,23 +1,30 @@
 import jwt from 'jsonwebtoken'
+import bcrypt from 'bcryptjs'
 import type { Request, Response, NextFunction } from 'express'
+import { pool } from './db.js'
 
 const JWT_SECRET = process.env.APP_JWT_SECRET
-const APP_PASSWORD = process.env.APP_PASSWORD
 const COOKIE_NAME = 'workout_auth'
 
 if (!JWT_SECRET) {
   throw new Error('APP_JWT_SECRET não configurada. Defina uma string aleatória longa nas variáveis de ambiente.')
 }
-if (!APP_PASSWORD) {
-  throw new Error('APP_PASSWORD não configurada. Defina a senha de acesso ao app nas variáveis de ambiente.')
+
+interface AuthTokenPayload {
+  sub: number
+  username: string
 }
 
-export function checkPassword(password: string): boolean {
-  return password === APP_PASSWORD
+export async function checkCredentials(username: string, password: string): Promise<{ id: number; username: string } | null> {
+  const result = await pool.query('SELECT id, username, password_hash FROM users WHERE username = $1', [username])
+  const user = result.rows[0] as { id: number; username: string; password_hash: string } | undefined
+  if (!user) return null
+  const valid = await bcrypt.compare(password, user.password_hash)
+  return valid ? { id: user.id, username: user.username } : null
 }
 
-export function issueToken(): string {
-  return jwt.sign({ sub: 'app-user' }, JWT_SECRET!, { expiresIn: '180d' })
+export function issueToken(userId: number, username: string): string {
+  return jwt.sign({ sub: userId, username }, JWT_SECRET!, { expiresIn: '180d' })
 }
 
 export function setAuthCookie(res: Response, token: string): void {
@@ -33,21 +40,27 @@ export function clearAuthCookie(res: Response): void {
   res.clearCookie(COOKIE_NAME)
 }
 
-export function isAuthenticated(req: Request): boolean {
+function getUserFromRequest(req: Request): AuthTokenPayload | null {
   const token = req.cookies?.[COOKIE_NAME]
-  if (!token) return false
+  if (!token) return null
   try {
-    jwt.verify(token, JWT_SECRET!)
-    return true
+    return jwt.verify(token, JWT_SECRET!) as unknown as AuthTokenPayload
   } catch {
-    return false
+    return null
   }
 }
 
+export function isAuthenticated(req: Request): boolean {
+  return getUserFromRequest(req) !== null
+}
+
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
-  if (!isAuthenticated(req)) {
+  const user = getUserFromRequest(req)
+  if (!user) {
     res.status(401).json({ error: 'not authenticated' })
     return
   }
+  res.locals.userId = user.sub
+  res.locals.username = user.username
   next()
 }

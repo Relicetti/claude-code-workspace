@@ -90,7 +90,7 @@ interface WorkoutStore {
 
   // Actions
   checkAuth: () => Promise<void>
-  login: (password: string) => Promise<boolean>
+  login: (username: string, password: string) => Promise<boolean>
   logout: () => Promise<void>
   loadFromStorage: () => Promise<void>
 
@@ -193,9 +193,9 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     }
   },
 
-  login: async (password) => {
+  login: async (username, password) => {
     try {
-      await apiLogin(password)
+      await apiLogin(username, password)
       set({ isAuthenticated: true })
       await get().loadFromStorage()
       return true

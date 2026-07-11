@@ -15,8 +15,8 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 
 // --- Auth ---
 
-export async function login(password: string): Promise<void> {
-  await apiFetch('/login', { method: 'POST', body: JSON.stringify({ password }) })
+export async function login(username: string, password: string): Promise<void> {
+  await apiFetch('/login', { method: 'POST', body: JSON.stringify({ username, password }) })
 }
 
 export async function logout(): Promise<void> {

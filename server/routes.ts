@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { pool } from './db.js'
-import { checkPassword, issueToken, setAuthCookie, clearAuthCookie, isAuthenticated, requireAuth } from './auth.js'
+import { checkCredentials, issueToken, setAuthCookie, clearAuthCookie, isAuthenticated, requireAuth } from './auth.js'
 import { scheduleRestDoneNotification, cancelScheduledNotification } from './push.js'
 import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan, CardioSession, ShapeAssessment, SavedPlan } from '../src/types/index.js'
 
@@ -8,13 +8,14 @@ export const router = Router()
 
 // --- Auth ---
 
-router.post('/login', (req, res) => {
-  const { password } = req.body as { password?: string }
-  if (!password || !checkPassword(password)) {
-    res.status(401).json({ error: 'senha incorreta' })
+router.post('/login', async (req, res) => {
+  const { username, password } = req.body as { username?: string; password?: string }
+  const user = username && password ? await checkCredentials(username, password) : null
+  if (!user) {
+    res.status(401).json({ error: 'usuário ou senha incorretos' })
     return
   }
-  setAuthCookie(res, issueToken())
+  setAuthCookie(res, issueToken(user.id, user.username))
   res.json({ ok: true })
 })
 
@@ -32,57 +33,57 @@ router.use(requireAuth)
 // --- Plan ---
 
 router.get('/plan', async (req, res) => {
-  const result = await pool.query("SELECT value FROM app_state WHERE key = 'plan'")
+  const result = await pool.query("SELECT value FROM app_state WHERE user_id = $1 AND key = 'plan'", [res.locals.userId])
   res.json({ plan: (result.rows[0]?.value as WorkoutPlan) ?? null })
 })
 
 router.put('/plan', async (req, res) => {
   const { plan } = req.body as { plan: WorkoutPlan }
   await pool.query(
-    "INSERT INTO app_state (key, value) VALUES ('plan', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
-    [JSON.stringify(plan)],
+    "INSERT INTO app_state (user_id, key, value) VALUES ($1, 'plan', $2) ON CONFLICT (user_id, key) DO UPDATE SET value = $2",
+    [res.locals.userId, JSON.stringify(plan)],
   )
   res.json({ ok: true })
 })
 
 router.delete('/plan', async (req, res) => {
-  await pool.query("DELETE FROM app_state WHERE key = 'plan'")
+  await pool.query("DELETE FROM app_state WHERE user_id = $1 AND key = 'plan'", [res.locals.userId])
   res.json({ ok: true })
 })
 
 // --- Current workout ---
 
 router.get('/current-workout', async (req, res) => {
-  const result = await pool.query("SELECT value FROM app_state WHERE key = 'current_workout_id'")
+  const result = await pool.query("SELECT value FROM app_state WHERE user_id = $1 AND key = 'current_workout_id'", [res.locals.userId])
   res.json({ id: (result.rows[0]?.value as string) ?? null })
 })
 
 router.put('/current-workout', async (req, res) => {
   const { id } = req.body as { id: string }
   await pool.query(
-    "INSERT INTO app_state (key, value) VALUES ('current_workout_id', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
-    [JSON.stringify(id)],
+    "INSERT INTO app_state (user_id, key, value) VALUES ($1, 'current_workout_id', $2) ON CONFLICT (user_id, key) DO UPDATE SET value = $2",
+    [res.locals.userId, JSON.stringify(id)],
   )
   res.json({ ok: true })
 })
 
 router.delete('/current-workout', async (req, res) => {
-  await pool.query("DELETE FROM app_state WHERE key = 'current_workout_id'")
+  await pool.query("DELETE FROM app_state WHERE user_id = $1 AND key = 'current_workout_id'", [res.locals.userId])
   res.json({ ok: true })
 })
 
 // --- Weight suggestions (from applied "increase_weight" analysis adjustments) ---
 
 router.get('/weight-suggestions', async (req, res) => {
-  const result = await pool.query("SELECT value FROM app_state WHERE key = 'weight_suggestions'")
+  const result = await pool.query("SELECT value FROM app_state WHERE user_id = $1 AND key = 'weight_suggestions'", [res.locals.userId])
   res.json({ suggestions: (result.rows[0]?.value as Record<string, number>) ?? {} })
 })
 
 router.put('/weight-suggestions', async (req, res) => {
   const { suggestions } = req.body as { suggestions: Record<string, number> }
   await pool.query(
-    "INSERT INTO app_state (key, value) VALUES ('weight_suggestions', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
-    [JSON.stringify(suggestions)],
+    "INSERT INTO app_state (user_id, key, value) VALUES ($1, 'weight_suggestions', $2) ON CONFLICT (user_id, key) DO UPDATE SET value = $2",
+    [res.locals.userId, JSON.stringify(suggestions)],
   )
   res.json({ ok: true })
 })
@@ -90,15 +91,15 @@ router.put('/weight-suggestions', async (req, res) => {
 // --- Saved plans (library of switchable training plans) ---
 
 router.get('/active-plan-id', async (req, res) => {
-  const result = await pool.query("SELECT value FROM app_state WHERE key = 'active_plan_id'")
+  const result = await pool.query("SELECT value FROM app_state WHERE user_id = $1 AND key = 'active_plan_id'", [res.locals.userId])
   res.json({ id: (result.rows[0]?.value as string) ?? null })
 })
 
 router.put('/active-plan-id', async (req, res) => {
   const { id } = req.body as { id: string }
   await pool.query(
-    "INSERT INTO app_state (key, value) VALUES ('active_plan_id', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
-    [JSON.stringify(id)],
+    "INSERT INTO app_state (user_id, key, value) VALUES ($1, 'active_plan_id', $2) ON CONFLICT (user_id, key) DO UPDATE SET value = $2",
+    [res.locals.userId, JSON.stringify(id)],
   )
   res.json({ ok: true })
 })
@@ -114,19 +115,20 @@ function rowToSavedPlan(row: Record<string, unknown>): SavedPlan {
 }
 
 router.get('/saved-plans', async (req, res) => {
-  const result = await pool.query('SELECT * FROM saved_plans ORDER BY created_at ASC')
+  const result = await pool.query('SELECT * FROM saved_plans WHERE user_id = $1 ORDER BY created_at ASC', [res.locals.userId])
   res.json({ savedPlans: result.rows.map(rowToSavedPlan) })
 })
 
 router.put('/saved-plans/:id', async (req, res) => {
   const p = req.body as SavedPlan
   await pool.query(
-    `INSERT INTO saved_plans (id, name, plan, current_workout_id, created_at)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO saved_plans (id, user_id, name, plan, current_workout_id, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6)
      ON CONFLICT (id) DO UPDATE SET
-       name = $2, plan = $3, current_workout_id = $4, created_at = $5`,
+       name = $3, plan = $4, current_workout_id = $5, created_at = $6`,
     [
       p.id,
+      res.locals.userId,
       p.name,
       JSON.stringify(p.plan),
       p.currentWorkoutId,
@@ -137,7 +139,7 @@ router.put('/saved-plans/:id', async (req, res) => {
 })
 
 router.delete('/saved-plans/:id', async (req, res) => {
-  await pool.query('DELETE FROM saved_plans WHERE id = $1', [req.params.id])
+  await pool.query('DELETE FROM saved_plans WHERE id = $1 AND user_id = $2', [req.params.id, res.locals.userId])
   res.json({ ok: true })
 })
 
@@ -159,20 +161,21 @@ function rowToSession(row: Record<string, unknown>): WorkoutSession {
 }
 
 router.get('/sessions', async (req, res) => {
-  const result = await pool.query('SELECT * FROM sessions ORDER BY started_at ASC')
+  const result = await pool.query('SELECT * FROM sessions WHERE user_id = $1 ORDER BY started_at ASC', [res.locals.userId])
   res.json({ sessions: result.rows.map(rowToSession) })
 })
 
 router.put('/sessions/:id', async (req, res) => {
   const session = req.body as WorkoutSession
   await pool.query(
-    `INSERT INTO sessions (id, date, workout_type, workout_label, started_at, finished_at, duration_seconds, ai_feedback, exercises, calories_burned)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `INSERT INTO sessions (id, user_id, date, workout_type, workout_label, started_at, finished_at, duration_seconds, ai_feedback, exercises, calories_burned)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      ON CONFLICT (id) DO UPDATE SET
-       date = $2, workout_type = $3, workout_label = $4, started_at = $5,
-       finished_at = $6, duration_seconds = $7, ai_feedback = $8, exercises = $9, calories_burned = $10`,
+       date = $3, workout_type = $4, workout_label = $5, started_at = $6,
+       finished_at = $7, duration_seconds = $8, ai_feedback = $9, exercises = $10, calories_burned = $11`,
     [
       session.id,
+      res.locals.userId,
       session.date,
       session.workoutType,
       session.workoutLabel,
@@ -188,7 +191,7 @@ router.put('/sessions/:id', async (req, res) => {
 })
 
 router.delete('/sessions/:id', async (req, res) => {
-  await pool.query('DELETE FROM sessions WHERE id = $1', [req.params.id])
+  await pool.query('DELETE FROM sessions WHERE id = $1 AND user_id = $2', [req.params.id, res.locals.userId])
   res.json({ ok: true })
 })
 
@@ -209,20 +212,21 @@ function rowToCardio(row: Record<string, unknown>): CardioSession {
 }
 
 router.get('/cardio', async (req, res) => {
-  const result = await pool.query('SELECT * FROM cardio_sessions ORDER BY date DESC, created_at DESC')
+  const result = await pool.query('SELECT * FROM cardio_sessions WHERE user_id = $1 ORDER BY date DESC, created_at DESC', [res.locals.userId])
   res.json({ cardioSessions: result.rows.map(rowToCardio) })
 })
 
 router.put('/cardio/:id', async (req, res) => {
   const c = req.body as CardioSession
   await pool.query(
-    `INSERT INTO cardio_sessions (id, date, type, custom_type_label, duration_seconds, distance_meters, calories_burned, notes, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `INSERT INTO cardio_sessions (id, user_id, date, type, custom_type_label, duration_seconds, distance_meters, calories_burned, notes, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      ON CONFLICT (id) DO UPDATE SET
-       date = $2, type = $3, custom_type_label = $4, duration_seconds = $5,
-       distance_meters = $6, calories_burned = $7, notes = $8, created_at = $9`,
+       date = $3, type = $4, custom_type_label = $5, duration_seconds = $6,
+       distance_meters = $7, calories_burned = $8, notes = $9, created_at = $10`,
     [
       c.id,
+      res.locals.userId,
       c.date,
       c.type,
       c.customTypeLabel ?? null,
@@ -237,7 +241,7 @@ router.put('/cardio/:id', async (req, res) => {
 })
 
 router.delete('/cardio/:id', async (req, res) => {
-  await pool.query('DELETE FROM cardio_sessions WHERE id = $1', [req.params.id])
+  await pool.query('DELETE FROM cardio_sessions WHERE id = $1 AND user_id = $2', [req.params.id, res.locals.userId])
   res.json({ ok: true })
 })
 
@@ -255,19 +259,20 @@ function rowToShape(row: Record<string, unknown>): ShapeAssessment {
 }
 
 router.get('/shape', async (req, res) => {
-  const result = await pool.query('SELECT * FROM shape_assessments ORDER BY date DESC, created_at DESC')
+  const result = await pool.query('SELECT * FROM shape_assessments WHERE user_id = $1 ORDER BY date DESC, created_at DESC', [res.locals.userId])
   res.json({ shapeAssessments: result.rows.map(rowToShape) })
 })
 
 router.put('/shape/:id', async (req, res) => {
   const s = req.body as ShapeAssessment
   await pool.query(
-    `INSERT INTO shape_assessments (id, date, weight_kg, photos, ai_analysis, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO shape_assessments (id, user_id, date, weight_kg, photos, ai_analysis, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      ON CONFLICT (id) DO UPDATE SET
-       date = $2, weight_kg = $3, photos = $4, ai_analysis = $5, created_at = $6`,
+       date = $3, weight_kg = $4, photos = $5, ai_analysis = $6, created_at = $7`,
     [
       s.id,
+      res.locals.userId,
       s.date,
       s.weightKg,
       JSON.stringify(s.photos),
@@ -279,7 +284,7 @@ router.put('/shape/:id', async (req, res) => {
 })
 
 router.delete('/shape/:id', async (req, res) => {
-  await pool.query('DELETE FROM shape_assessments WHERE id = $1', [req.params.id])
+  await pool.query('DELETE FROM shape_assessments WHERE id = $1 AND user_id = $2', [req.params.id, res.locals.userId])
   res.json({ ok: true })
 })
 
@@ -299,20 +304,21 @@ function rowToAnalysis(row: Record<string, unknown>): WeeklyAnalysis {
 }
 
 router.get('/analyses', async (req, res) => {
-  const result = await pool.query('SELECT * FROM analyses ORDER BY generated_at DESC')
+  const result = await pool.query('SELECT * FROM analyses WHERE user_id = $1 ORDER BY generated_at DESC', [res.locals.userId])
   res.json({ analyses: result.rows.map(rowToAnalysis) })
 })
 
 router.put('/analyses/:id', async (req, res) => {
   const analysis = req.body as WeeklyAnalysis
   await pool.query(
-    `INSERT INTO analyses (id, generated_at, week_start, week_end, summary, volume_by_muscle, adjustments, applied)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `INSERT INTO analyses (id, user_id, generated_at, week_start, week_end, summary, volume_by_muscle, adjustments, applied)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      ON CONFLICT (id) DO UPDATE SET
-       generated_at = $2, week_start = $3, week_end = $4, summary = $5,
-       volume_by_muscle = $6, adjustments = $7, applied = $8`,
+       generated_at = $3, week_start = $4, week_end = $5, summary = $6,
+       volume_by_muscle = $7, adjustments = $8, applied = $9`,
     [
       analysis.id,
+      res.locals.userId,
       analysis.generatedAt,
       analysis.weekStart,
       analysis.weekEnd,
@@ -326,7 +332,7 @@ router.put('/analyses/:id', async (req, res) => {
 })
 
 router.delete('/analyses/:id', async (req, res) => {
-  await pool.query('DELETE FROM analyses WHERE id = $1', [req.params.id])
+  await pool.query('DELETE FROM analyses WHERE id = $1 AND user_id = $2', [req.params.id, res.locals.userId])
   res.json({ ok: true })
 })
 
@@ -339,17 +345,17 @@ router.post('/push/subscribe', async (req, res) => {
     return
   }
   await pool.query(
-    `INSERT INTO push_subscriptions (endpoint, subscription, created_at)
-     VALUES ($1, $2, now())
-     ON CONFLICT (endpoint) DO UPDATE SET subscription = $2`,
-    [subscription.endpoint, JSON.stringify(subscription)],
+    `INSERT INTO push_subscriptions (endpoint, user_id, subscription, created_at)
+     VALUES ($1, $2, $3, now())
+     ON CONFLICT (endpoint) DO UPDATE SET user_id = $2, subscription = $3`,
+    [subscription.endpoint, res.locals.userId, JSON.stringify(subscription)],
   )
   res.json({ ok: true })
 })
 
 router.post('/push/unsubscribe', async (req, res) => {
   const { endpoint } = req.body as { endpoint: string }
-  await pool.query('DELETE FROM push_subscriptions WHERE endpoint = $1', [endpoint])
+  await pool.query('DELETE FROM push_subscriptions WHERE endpoint = $1 AND user_id = $2', [endpoint, res.locals.userId])
   res.json({ ok: true })
 })
 
@@ -359,7 +365,7 @@ router.post('/push/schedule-rest-done', (req, res) => {
     res.status(400).json({ error: 'scheduleId e seconds são obrigatórios' })
     return
   }
-  scheduleRestDoneNotification(scheduleId, seconds)
+  scheduleRestDoneNotification(scheduleId, seconds, res.locals.userId as number)
   res.json({ ok: true })
 })
 
@@ -372,13 +378,14 @@ router.post('/push/cancel-scheduled', (req, res) => {
 // --- Export / Import ---
 
 router.get('/export', async (req, res) => {
+  const userId = res.locals.userId
   const [sessionsResult, cardioResult, analysesResult, shapeResult, planResult, currentWorkoutResult] = await Promise.all([
-    pool.query('SELECT * FROM sessions ORDER BY started_at ASC'),
-    pool.query('SELECT * FROM cardio_sessions ORDER BY date ASC, created_at ASC'),
-    pool.query('SELECT * FROM analyses ORDER BY generated_at DESC'),
-    pool.query('SELECT * FROM shape_assessments ORDER BY date ASC, created_at ASC'),
-    pool.query("SELECT value FROM app_state WHERE key = 'plan'"),
-    pool.query("SELECT value FROM app_state WHERE key = 'current_workout_id'"),
+    pool.query('SELECT * FROM sessions WHERE user_id = $1 ORDER BY started_at ASC', [userId]),
+    pool.query('SELECT * FROM cardio_sessions WHERE user_id = $1 ORDER BY date ASC, created_at ASC', [userId]),
+    pool.query('SELECT * FROM analyses WHERE user_id = $1 ORDER BY generated_at DESC', [userId]),
+    pool.query('SELECT * FROM shape_assessments WHERE user_id = $1 ORDER BY date ASC, created_at ASC', [userId]),
+    pool.query("SELECT value FROM app_state WHERE user_id = $1 AND key = 'plan'", [userId]),
+    pool.query("SELECT value FROM app_state WHERE user_id = $1 AND key = 'current_workout_id'", [userId]),
   ])
 
   res.json({
@@ -393,6 +400,7 @@ router.get('/export', async (req, res) => {
 })
 
 router.post('/import', async (req, res) => {
+  const userId = res.locals.userId
   const data = req.body as {
     sessions?: WorkoutSession[]
     cardioSessions?: CardioSession[]
@@ -410,13 +418,14 @@ router.post('/import', async (req, res) => {
   if (data.sessions) {
     for (const session of data.sessions) {
       await pool.query(
-        `INSERT INTO sessions (id, date, workout_type, workout_label, started_at, finished_at, duration_seconds, ai_feedback, exercises, calories_burned)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        `INSERT INTO sessions (id, user_id, date, workout_type, workout_label, started_at, finished_at, duration_seconds, ai_feedback, exercises, calories_burned)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          ON CONFLICT (id) DO UPDATE SET
-           date = $2, workout_type = $3, workout_label = $4, started_at = $5,
-           finished_at = $6, duration_seconds = $7, ai_feedback = $8, exercises = $9, calories_burned = $10`,
+           date = $3, workout_type = $4, workout_label = $5, started_at = $6,
+           finished_at = $7, duration_seconds = $8, ai_feedback = $9, exercises = $10, calories_burned = $11`,
         [
           session.id,
+          userId,
           session.date,
           session.workoutType,
           session.workoutLabel,
@@ -435,13 +444,14 @@ router.post('/import', async (req, res) => {
   if (data.cardioSessions) {
     for (const c of data.cardioSessions) {
       await pool.query(
-        `INSERT INTO cardio_sessions (id, date, type, custom_type_label, duration_seconds, distance_meters, calories_burned, notes, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `INSERT INTO cardio_sessions (id, user_id, date, type, custom_type_label, duration_seconds, distance_meters, calories_burned, notes, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          ON CONFLICT (id) DO UPDATE SET
-           date = $2, type = $3, custom_type_label = $4, duration_seconds = $5,
-           distance_meters = $6, calories_burned = $7, notes = $8, created_at = $9`,
+           date = $3, type = $4, custom_type_label = $5, duration_seconds = $6,
+           distance_meters = $7, calories_burned = $8, notes = $9, created_at = $10`,
         [
           c.id,
+          userId,
           c.date,
           c.type,
           c.customTypeLabel ?? null,
@@ -459,13 +469,14 @@ router.post('/import', async (req, res) => {
   if (data.analyses) {
     for (const analysis of data.analyses) {
       await pool.query(
-        `INSERT INTO analyses (id, generated_at, week_start, week_end, summary, volume_by_muscle, adjustments, applied)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `INSERT INTO analyses (id, user_id, generated_at, week_start, week_end, summary, volume_by_muscle, adjustments, applied)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT (id) DO UPDATE SET
-           generated_at = $2, week_start = $3, week_end = $4, summary = $5,
-           volume_by_muscle = $6, adjustments = $7, applied = $8`,
+           generated_at = $3, week_start = $4, week_end = $5, summary = $6,
+           volume_by_muscle = $7, adjustments = $8, applied = $9`,
         [
           analysis.id,
+          userId,
           analysis.generatedAt,
           analysis.weekStart,
           analysis.weekEnd,
@@ -482,12 +493,13 @@ router.post('/import', async (req, res) => {
   if (data.shapeAssessments) {
     for (const s of data.shapeAssessments) {
       await pool.query(
-        `INSERT INTO shape_assessments (id, date, weight_kg, photos, ai_analysis, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO shape_assessments (id, user_id, date, weight_kg, photos, ai_analysis, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (id) DO UPDATE SET
-           date = $2, weight_kg = $3, photos = $4, ai_analysis = $5, created_at = $6`,
+           date = $3, weight_kg = $4, photos = $5, ai_analysis = $6, created_at = $7`,
         [
           s.id,
+          userId,
           s.date,
           s.weightKg,
           JSON.stringify(s.photos),
@@ -501,15 +513,15 @@ router.post('/import', async (req, res) => {
 
   if (data.plan) {
     await pool.query(
-      "INSERT INTO app_state (key, value) VALUES ('plan', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
-      [JSON.stringify(data.plan)],
+      "INSERT INTO app_state (user_id, key, value) VALUES ($1, 'plan', $2) ON CONFLICT (user_id, key) DO UPDATE SET value = $2",
+      [userId, JSON.stringify(data.plan)],
     )
   }
 
   if (data.currentWorkoutId) {
     await pool.query(
-      "INSERT INTO app_state (key, value) VALUES ('current_workout_id', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
-      [JSON.stringify(data.currentWorkoutId)],
+      "INSERT INTO app_state (user_id, key, value) VALUES ($1, 'current_workout_id', $2) ON CONFLICT (user_id, key) DO UPDATE SET value = $2",
+      [userId, JSON.stringify(data.currentWorkoutId)],
     )
   }
 

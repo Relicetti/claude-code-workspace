@@ -47,7 +47,6 @@ Edite o `.env` e preencha:
 - `VITE_ANTHROPIC_API_KEY` — sua API key da Anthropic
 - `DATABASE_URL` — string de conexão do Postgres criado acima
 - `APP_JWT_SECRET` — qualquer string aleatória longa
-- `APP_PASSWORD` — a senha que você vai usar pra entrar no app
 - `VITE_VAPID_PUBLIC_KEY` e `VAPID_PRIVATE_KEY` — par de chaves pra notificação push do timer de descanso. Gere com:
   ```bash
   npx web-push generate-vapid-keys
@@ -65,6 +64,16 @@ npm run dev
 ```
 Acesse `http://localhost:5173`.
 
+### 4. Criar uma conta
+O app é multi-usuário: cada pessoa tem seu próprio login e seus dados ficam
+completamente isolados dos de outras contas. Não existe cadastro pela tela —
+contas são criadas rodando o script abaixo, uma vez para cada pessoa:
+```bash
+npm run create-user -- <usuario> <senha>
+```
+A primeira conta criada herda automaticamente qualquer dado que já existisse
+no banco antes do app virar multi-usuário (treinos, histórico, etc.).
+
 ## Deploy no Railway
 
 ### Passo 1 — Banco de dados
@@ -81,7 +90,6 @@ No serviço do **app** (não no do Postgres), vá em **Variables** e adicione:
 VITE_ANTHROPIC_API_KEY=sk-ant-...sua-chave...
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 APP_JWT_SECRET=uma-string-aleatoria-bem-longa
-APP_PASSWORD=a-senha-que-voce-vai-usar-pra-entrar
 VITE_VAPID_PUBLIC_KEY=chave-publica-gerada-com-web-push
 VAPID_PRIVATE_KEY=chave-privada-gerada-com-web-push
 ```
@@ -97,6 +105,16 @@ normal, só sem esse recurso).
 O Railway detecta o `Dockerfile` e builda. As tabelas do banco são criadas
 automaticamente na primeira vez que o servidor sobe. Cada push pra branch
 configurada dispara um novo deploy.
+
+### Passo 5 — Criar as contas
+Com o serviço no ar, rode o script de criação de usuário apontando pro banco
+do Railway (pegue a `DATABASE_URL` pública em **Postgres → Connect → Public
+Network** e use como `DATABASE_URL` local só para rodar o comando):
+```bash
+DATABASE_URL="a-url-publica-do-postgres" npm run create-user -- <usuario> <senha>
+```
+Repita uma vez para cada pessoa. A primeira conta criada herda automaticamente
+os dados que já existiam no banco antes do multi-usuário.
 
 ### PWA no iPhone
 1. Acesse a URL do app no Safari do iPhone
