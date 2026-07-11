@@ -6,6 +6,7 @@ import type {
   ShapeAssessment,
   AIAlternativesResponse,
   AIAnalyticsResponse,
+  MuscleGroup,
 } from '@/types'
 import { useWorkoutStore } from '@/store/workoutStore'
 
@@ -258,6 +259,97 @@ Analise o progresso, volume por grupo muscular, tempo de treino, calorias gastas
 
   const raw = await callClaude(systemPrompt, userMessage, 2048)
   return parseJSON<AIAnalyticsResponse>(raw)
+}
+
+const VALID_MUSCLE_GROUPS: MuscleGroup[] = [
+  'peito', 'costas', 'ombro', 'triceps', 'biceps', 'quadriceps',
+  'posterior', 'adutora', 'abdutora', 'panturrilha', 'abdomen', 'trapezio',
+]
+
+export interface GeneratePlanInput {
+  goals: string
+  daysPerWeek: number
+  painLimitations: string
+}
+
+// The AI's JSON is trusted for content but not for the mechanical bits
+// (unique ids, valid enum values) that the rest of the app relies on —
+// sanitize those rather than risk broken keys/reorder logic downstream.
+function sanitizeGeneratedPlan(raw: WorkoutPlan): WorkoutPlan {
+  const usedWorkoutIds = new Set<string>()
+  const workouts = (raw.workouts ?? []).map((w, wIdx) => {
+    let id = typeof w.id === 'string' && w.id.trim() ? w.id.trim() : `w_${wIdx}`
+    while (usedWorkoutIds.has(id)) id = `${id}_${crypto.randomUUID().slice(0, 4)}`
+    usedWorkoutIds.add(id)
+
+    const usedExerciseIds = new Set<string>()
+    const exercises = (w.exercises ?? []).map((e, eIdx) => {
+      let exId = typeof e.id === 'string' && e.id.trim() ? e.id.trim() : `ex_${wIdx}_${eIdx}`
+      while (usedExerciseIds.has(exId)) exId = `${exId}_${crypto.randomUUID().slice(0, 4)}`
+      usedExerciseIds.add(exId)
+
+      const muscleGroups = Array.isArray(e.muscleGroups)
+        ? e.muscleGroups.filter((m): m is MuscleGroup => VALID_MUSCLE_GROUPS.includes(m))
+        : []
+
+      return {
+        ...e,
+        id: exId,
+        muscleGroups,
+        sets: Number(e.sets) || 3,
+        repsMin: Number(e.repsMin) || 8,
+        repsMax: Number(e.repsMax) || 12,
+        restSeconds: Number(e.restSeconds) || 60,
+      }
+    })
+
+    return { ...w, id, exercises }
+  })
+
+  return { workouts, userNotes: typeof raw.userNotes === 'string' ? raw.userNotes : '' }
+}
+
+export async function generateWorkoutPlan(input: GeneratePlanInput): Promise<WorkoutPlan> {
+  const systemPrompt = `Você é um personal trainer especializado em montar planos de treino de musculação para academia.
+Responda APENAS com JSON válido, sem texto adicional antes ou depois.
+Formato exigido (siga EXATAMENTE esta estrutura):
+{
+  "workouts": [
+    {
+      "id": "identificador curto, ex: a, b, upper-a",
+      "label": "Nome do treino, ex: Treino A — Peito e Tríceps",
+      "exercises": [
+        {
+          "id": "identificador-unico-kebab-case",
+          "name": "Nome do exercício",
+          "muscleGroups": ["peito"],
+          "sets": 3,
+          "repsMin": 8,
+          "repsMax": 12,
+          "restSeconds": 90,
+          "intensityTechnique": null,
+          "notes": null
+        }
+      ]
+    }
+  ],
+  "userNotes": "Texto resumindo dores/limitações do atleta, para orientar futuras substituições de exercício"
+}
+
+"muscleGroups" só pode usar estes valores: ${VALID_MUSCLE_GROUPS.join(', ')}.
+"intensityTechnique" e "notes" são opcionais (use null se não houver) — quando fizer sentido, pode sugerir técnicas como "Dropset na última série", "Rest-pause", "Bi-set com [outro exercício]".
+
+Monte um plano completo e balanceado entre grupos musculares, adequado ao número de dias por semana e ao objetivo informado. Se houver dores/limitações, EVITE rigorosamente exercícios que as agravem e explique a restrição em "userNotes" pra guiar decisões futuras.`
+
+  const userMessage = `Objetivo do atleta: ${input.goals}
+Dias de treino por semana: ${input.daysPerWeek}
+Dores/limitações: ${input.painLimitations.trim() || 'Nenhuma informada'}
+
+Monte um plano de treino completo pra esse atleta, dividido em ${input.daysPerWeek} treino${input.daysPerWeek === 1 ? '' : 's'}.`
+
+  const raw = await callClaude(systemPrompt, userMessage, 4096)
+  const parsed = parseJSON<WorkoutPlan>(raw)
+  return sanitizeGeneratedPlan(parsed)
 }
 
 const ANGLE_LABELS: Record<ShapeAssessment['photos'][number]['angle'], string> = {

@@ -12,11 +12,14 @@ import {
   Info,
   Upload,
   Check,
+  Wand2,
+  Loader2,
 } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
 import { NumberStepper } from '@/components/NumberStepper'
 import { SubstituteModal } from '@/components/SubstituteModal'
 import { ALL_MUSCLE_GROUPS, MUSCLE_LABELS } from '@/lib/muscleLabels'
+import { generateWorkoutPlan } from '@/lib/claudeApi'
 import type { Exercise, WorkoutDay, WorkoutPlan, MuscleGroup, ExerciseAlternative } from '@/types'
 
 function newExercise(): Exercise {
@@ -37,6 +40,14 @@ function newWorkout(): WorkoutDay {
     label: 'Novo treino',
     exercises: [],
   }
+}
+
+const ADVANCED_TECHNIQUES = ['Dropset', 'Rest-pause', 'Bi-set/Super-set', 'Reps forçadas/negativas']
+
+function toggleTechnique(current: string | undefined, technique: string): string | undefined {
+  const parts = (current ?? '').split(',').map(s => s.trim()).filter(Boolean)
+  const next = parts.includes(technique) ? parts.filter(p => p !== technique) : [...parts, technique]
+  return next.length > 0 ? next.join(', ') : undefined
 }
 
 export function PlanEditor() {
@@ -64,6 +75,12 @@ export function PlanEditor() {
   const [pendingUpload, setPendingUpload] = useState<WorkoutPlan | null>(null)
   const [pendingUploadName, setPendingUploadName] = useState('')
   const [uploadError, setUploadError] = useState('')
+  const [showAiGenerator, setShowAiGenerator] = useState(false)
+  const [aiGoals, setAiGoals] = useState('')
+  const [aiDays, setAiDays] = useState(4)
+  const [aiPain, setAiPain] = useState('')
+  const [aiGenerating, setAiGenerating] = useState(false)
+  const [aiGenError, setAiGenError] = useState('')
 
   const handleUploadFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -94,6 +111,28 @@ export function PlanEditor() {
     addSavedPlan(pendingUploadName.trim(), pendingUpload)
     setPendingUpload(null)
     setPendingUploadName('')
+  }
+
+  const handleGeneratePlan = async () => {
+    if (!aiGoals.trim() || aiGenerating) return
+    setAiGenerating(true)
+    setAiGenError('')
+    try {
+      const generated = await generateWorkoutPlan({
+        goals: aiGoals.trim(),
+        daysPerWeek: aiDays,
+        painLimitations: aiPain.trim(),
+      })
+      setPendingUpload(generated)
+      setPendingUploadName(`Plano IA — ${aiGoals.trim().slice(0, 30)}`)
+      setShowAiGenerator(false)
+      setAiGoals('')
+      setAiPain('')
+    } catch (err) {
+      setAiGenError(err instanceof Error ? err.message : 'Erro ao gerar plano')
+    } finally {
+      setAiGenerating(false)
+    }
   }
 
   const updateWorkout = (workoutId: string, updater: (w: WorkoutDay) => WorkoutDay) => {
@@ -201,16 +240,74 @@ export function PlanEditor() {
         )}
       </div>
 
-      {/* Plan library — switch between saved plans or upload a new one */}
+      {/* Plan library — switch between saved plans, upload a new one, or generate one with AI */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <p className="text-xs text-gray-500 uppercase tracking-wide">Meus Planos</p>
-          <label className="flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-300 cursor-pointer transition-colors">
-            <Upload size={13} />
-            Fazer upload de plano
-            <input type="file" accept=".json" onChange={handleUploadFile} className="hidden" />
-          </label>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowAiGenerator(v => !v)}
+              className="flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-300 transition-colors"
+            >
+              <Wand2 size={13} />
+              Gerar plano com IA
+            </button>
+            <label className="flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-300 cursor-pointer transition-colors">
+              <Upload size={13} />
+              Fazer upload de plano
+              <input type="file" accept=".json" onChange={handleUploadFile} className="hidden" />
+            </label>
+          </div>
         </div>
+
+        {showAiGenerator && (
+          <div className="bg-gray-900 border border-brand-700 rounded-2xl p-3 space-y-2.5">
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Objetivo</p>
+              <textarea
+                value={aiGoals}
+                onChange={e => setAiGoals(e.target.value)}
+                placeholder="Ex: hipertrofia, foco em pernas e costas"
+                rows={2}
+                className="w-full bg-gray-800 text-white text-sm rounded-lg px-3 py-2 border border-gray-700 focus:border-brand-500 outline-none resize-none"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-gray-500 shrink-0">Dias de treino por semana</p>
+              <NumberStepper value={aiDays} onChange={setAiDays} min={1} max={7} size="sm" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Dores / limitações (opcional)</p>
+              <textarea
+                value={aiPain}
+                onChange={e => setAiPain(e.target.value)}
+                placeholder="Ex: dor no ombro direito ao levantar acima da cabeça"
+                rows={2}
+                className="w-full bg-gray-800 text-white text-sm rounded-lg px-3 py-2 border border-gray-700 focus:border-brand-500 outline-none resize-none"
+              />
+            </div>
+
+            {aiGenError && <p className="text-red-400 text-xs">{aiGenError}</p>}
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleGeneratePlan}
+                disabled={!aiGoals.trim() || aiGenerating}
+                className="flex-1 flex items-center justify-center gap-2 bg-brand-600 disabled:opacity-40 hover:bg-brand-500 text-white text-sm font-semibold py-2 rounded-lg transition-all"
+              >
+                {aiGenerating ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
+                {aiGenerating ? 'Gerando...' : 'Gerar plano'}
+              </button>
+              <button
+                onClick={() => { setShowAiGenerator(false); setAiGenError('') }}
+                disabled={aiGenerating}
+                className="flex-1 text-gray-400 hover:text-white text-sm py-2 disabled:opacity-40"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
 
         {uploadError && (
           <p className="text-red-400 text-xs bg-red-950/40 rounded-xl px-3 py-2">{uploadError}</p>
@@ -625,8 +722,28 @@ function ExerciseEditRow({
             Envolve ombro anterior (risco para lesão)
           </label>
 
+          <div>
+            <p className="text-xs text-gray-500 mb-1.5">Técnica avançada</p>
+            <div className="flex flex-wrap gap-1.5">
+              {ADVANCED_TECHNIQUES.map(t => {
+                const active = (exercise.intensityTechnique ?? '').split(',').map(s => s.trim()).includes(t)
+                return (
+                  <button
+                    key={t}
+                    onClick={() => onChange(ex => ({ ...ex, intensityTechnique: toggleTechnique(ex.intensityTechnique, t) }))}
+                    className={`text-xs px-2 py-1 rounded-lg transition-colors ${
+                      active ? 'bg-amber-600 text-white' : 'bg-gray-900 text-gray-500 hover:bg-gray-700'
+                    }`}
+                  >
+                    {t}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
           <input
-            placeholder="Técnica de intensidade (ex: dropset na última série)"
+            placeholder="Detalhe da técnica (ex: só na última série)"
             value={exercise.intensityTechnique ?? ''}
             onChange={e => onChange(ex => ({ ...ex, intensityTechnique: e.target.value || undefined }))}
             className="w-full bg-gray-900 text-gray-300 text-xs rounded-lg px-2.5 py-2 border border-gray-700 focus:border-brand-500 outline-none"
