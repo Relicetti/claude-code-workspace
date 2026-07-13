@@ -49,16 +49,17 @@ export function NumberStepper({
 
   const textSize = size === 'lg' ? 'text-3xl' : 'text-xl'
   const btnSize = size === 'lg' ? 'w-11 h-11' : 'w-9 h-9'
+  const valueMinWidth = size === 'lg' ? 'min-w-[80px]' : 'min-w-[44px]'
 
   return (
     <div className="flex items-center gap-2">
       <button
         onClick={handleDec}
-        className={`${btnSize} rounded-xl bg-gray-800 hover:bg-gray-700 flex items-center justify-center text-gray-300 active:scale-95 transition-all`}
+        className={`${btnSize} rounded-xl bg-gray-800 hover:bg-gray-700 flex items-center justify-center text-gray-300 active:scale-95 transition-all shrink-0`}
       >
         <Minus size={size === 'lg' ? 20 : 16} />
       </button>
-      <div className="min-w-[80px] text-center">
+      <div className={`${valueMinWidth} text-center`}>
         {editing ? (
           <input
             type="number"
@@ -85,7 +86,7 @@ export function NumberStepper({
       </div>
       <button
         onClick={handleInc}
-        className={`${btnSize} rounded-xl bg-gray-800 hover:bg-gray-700 flex items-center justify-center text-gray-300 active:scale-95 transition-all`}
+        className={`${btnSize} rounded-xl bg-gray-800 hover:bg-gray-700 flex items-center justify-center text-gray-300 active:scale-95 transition-all shrink-0`}
       >
         <Plus size={size === 'lg' ? 20 : 16} />
       </button>

@@ -658,7 +658,7 @@ function ExerciseEditRow({
             size="sm"
           />
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-xs text-gray-500">Reps</span>
           <NumberStepper
             value={exercise.repsMin}
