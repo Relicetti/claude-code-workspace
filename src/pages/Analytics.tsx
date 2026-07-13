@@ -14,11 +14,24 @@ const ADJUSTMENT_LABELS: Record<string, string> = {
   rest_exercise: '⏸ Descansar exercício',
 }
 
+interface MuscleVolume {
+  direct: number
+  indirect: number
+}
+
+// A compound lift's sets count fully toward its primary muscle (first in the
+// list) and as "indirect" volume toward whatever else it also works — e.g.
+// supino reto is direct chest work, but only indirect tríceps/ombro work, so
+// it shouldn't inflate those the same as an exercise that actually targets them.
 function computeVolumeByMuscle(
   sessions: ReturnType<typeof useWorkoutStore.getState>['sessions'],
   plan: WorkoutPlan,
-): Record<string, number> {
-  const vol: Record<string, number> = {}
+): Record<string, MuscleVolume> {
+  const vol: Record<string, MuscleVolume> = {}
+  const add = (muscle: string, key: keyof MuscleVolume, amount: number) => {
+    if (!vol[muscle]) vol[muscle] = { direct: 0, indirect: 0 }
+    vol[muscle][key] += amount
+  }
 
   sessions.forEach(session => {
     session.exercises.forEach(ex => {
@@ -30,13 +43,11 @@ function computeVolumeByMuscle(
       const workout = plan.workouts.find(w => w.id === session.workoutType)
       const planEx = workout?.exercises.find(e => e.id === ex.exerciseId)
       const muscleGroups = ex.muscleGroups ?? planEx?.muscleGroups
-      // Only the primary muscle (first in the list) counts — a compound
-      // lift like supino also touching tríceps/ombro shouldn't inflate
-      // their volume the same as an exercise that actually targets them.
-      const primaryMuscle = muscleGroups?.[0]
-      if (!primaryMuscle) return
+      if (!muscleGroups || muscleGroups.length === 0) return
       const completedSets = ex.sets.filter(s => s.completedAt !== null).length
-      vol[primaryMuscle] = (vol[primaryMuscle] ?? 0) + completedSets
+      const [primary, ...secondary] = muscleGroups
+      add(primary, 'direct', completedSets)
+      secondary.forEach(m => add(m, 'indirect', completedSets))
     })
   })
 
@@ -94,13 +105,20 @@ export function Analytics() {
   })
 
   const volumeData = computeVolumeByMuscle(thisWeekSessions, plan)
+  const totalVolumeData = Object.fromEntries(
+    Object.entries(volumeData).map(([key, v]) => [key, v.direct + v.indirect]),
+  )
   const chartData = Object.entries(volumeData)
-    .filter(([, v]) => v > 0)
-    .sort(([, a], [, b]) => b - a)
-    .map(([key, value]) => ({
+    .map(([key, v]) => ({
       muscle: (MUSCLE_LABELS as Record<string, string>)[key] ?? key,
-      sets: value,
+      direct: v.direct,
+      indirect: v.indirect,
+      total: v.direct + v.indirect,
     }))
+    .filter(d => d.total > 0)
+    .sort((a, b) => b.total - a.total)
+
+  const colorForTotal = (total: number) => (total < 10 ? '#ef4444' : total > 20 ? '#f59e0b' : '#22c55e')
 
   const handleAnalyze = async () => {
     if (thisWeekSessions.length === 0) {
@@ -117,7 +135,7 @@ export function Analytics() {
         weekStart: weekStart.toISOString(),
         weekEnd: weekEnd.toISOString(),
         summary: result.summary,
-        volumeByMuscle: volumeData,
+        volumeByMuscle: totalVolumeData,
         adjustments: result.adjustments,
         applied: new Array(result.adjustments.length).fill(false),
       }
@@ -160,19 +178,25 @@ export function Analytics() {
                   borderRadius: '12px',
                   color: '#f9fafb',
                 }}
-                formatter={(v: number) => [`${v} séries`, 'Volume']}
+                formatter={(v: number, name: string) => [`${v} séries`, name]}
               />
-              <Bar dataKey="sets" radius={[0, 6, 6, 0]}>
+              <Bar dataKey="direct" name="Direto" stackId="vol">
                 {chartData.map((entry, index) => (
-                  <Cell
-                    key={index}
-                    fill={entry.sets < 10 ? '#ef4444' : entry.sets > 20 ? '#f59e0b' : '#22c55e'}
-                  />
+                  <Cell key={index} fill={colorForTotal(entry.total)} />
+                ))}
+              </Bar>
+              <Bar dataKey="indirect" name="Indireto" stackId="vol" radius={[0, 6, 6, 0]}>
+                {chartData.map((entry, index) => (
+                  <Cell key={index} fill={colorForTotal(entry.total)} fillOpacity={0.35} />
                 ))}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-          <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+          <div className="flex items-center gap-4 mt-2 text-xs text-gray-500 flex-wrap">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-400 inline-block" /> Sólido = direto</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-400/40 inline-block" /> Claro = indireto</span>
+          </div>
+          <div className="flex items-center gap-4 mt-1.5 text-xs text-gray-500">
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> {'<'}10 séries</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-brand-500 inline-block" /> 10-20</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-500 inline-block" /> {'>'}20</span>
