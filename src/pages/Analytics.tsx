@@ -30,11 +30,13 @@ function computeVolumeByMuscle(
       const workout = plan.workouts.find(w => w.id === session.workoutType)
       const planEx = workout?.exercises.find(e => e.id === ex.exerciseId)
       const muscleGroups = ex.muscleGroups ?? planEx?.muscleGroups
-      if (!muscleGroups) return
+      // Only the primary muscle (first in the list) counts — a compound
+      // lift like supino also touching tríceps/ombro shouldn't inflate
+      // their volume the same as an exercise that actually targets them.
+      const primaryMuscle = muscleGroups?.[0]
+      if (!primaryMuscle) return
       const completedSets = ex.sets.filter(s => s.completedAt !== null).length
-      muscleGroups.forEach(m => {
-        vol[m] = (vol[m] ?? 0) + completedSets
-      })
+      vol[primaryMuscle] = (vol[primaryMuscle] ?? 0) + completedSets
     })
   })
 
