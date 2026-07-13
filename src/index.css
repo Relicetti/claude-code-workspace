@@ -14,8 +14,10 @@
     overscroll-behavior: none;
   }
 
-  /* iOS safe areas */
+  /* iOS safe areas — status bar is "black-translucent" (transparent), so
+     content scrolls right under the clock/battery icons without this. */
   body {
+    padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
   }
 }

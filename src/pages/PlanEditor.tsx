@@ -627,7 +627,7 @@ function ExerciseEditRow({
         <input
           value={exercise.name}
           onChange={e => onChange(ex => ({ ...ex, name: e.target.value }))}
-          className="flex-1 min-w-0 bg-gray-900 text-white text-sm font-medium rounded-lg px-2.5 py-1.5 border border-gray-700 focus:border-brand-500 outline-none"
+          className="flex-1 min-w-0 bg-gray-900 text-white text-sm font-medium rounded-lg px-2.5 py-1.5 border border-gray-700 focus:border-brand-500 outline-none truncate"
         />
         <button
           onClick={onRequestAiSwap}
