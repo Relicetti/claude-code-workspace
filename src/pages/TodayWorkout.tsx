@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Play, Pause, CheckCircle2, Loader2, ChevronDown, ChevronUp, ListChecks, Flame, HeartPulse } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
 import { ExerciseCard } from '@/components/ExerciseCard'
@@ -44,7 +44,6 @@ export function TodayWorkout() {
   const restTimer = useRestTimer()
 
   const [showRestTimer, setShowRestTimer] = useState(false)
-  const [pendingRestSeconds, setPendingRestSeconds] = useState(0)
   const [substituteFor, setSubstituteFor] = useState<Exercise | null>(null)
   const [finishLoading, setFinishLoading] = useState(false)
   const [finishError, setFinishError] = useState('')
@@ -59,12 +58,6 @@ export function TodayWorkout() {
   const isSessionActive = !!activeSession
   const isRunning = isSessionActive && sessionStartTime !== null && !sessionPaused
 
-  useEffect(() => {
-    if (showRestTimer && pendingRestSeconds > 0) {
-      restTimer.start(pendingRestSeconds)
-    }
-  }, [showRestTimer])
-
   const handleSetComplete = (exerciseId: string, setIndex: number, weight: number, reps: number) => {
     updateSetRecord(exerciseId, setIndex, {
       actualReps: reps,
@@ -77,7 +70,7 @@ export function TodayWorkout() {
     const record = activeSession?.exercises.find(e => e.exerciseId === exerciseId)
     const restSeconds = record?.restSeconds ?? currentWorkout?.exercises.find(e => e.id === exerciseId)?.restSeconds
     if (restSeconds) {
-      setPendingRestSeconds(restSeconds)
+      restTimer.start(restSeconds)
       setShowRestTimer(true)
     }
   }
@@ -415,6 +408,17 @@ export function TodayWorkout() {
           timer={restTimer}
           onClose={() => setShowRestTimer(false)}
         />
+      )}
+
+      {/* Minimized rest timer keeps counting in the background (sound/push
+          still fire when it ends) — this chip brings the popup back up. */}
+      {!showRestTimer && restTimer.remaining > 0 && (
+        <button
+          onClick={() => setShowRestTimer(true)}
+          className="fixed bottom-20 right-4 z-40 flex items-center gap-2 bg-brand-600 hover:bg-brand-500 text-white text-sm font-mono font-bold px-4 py-2.5 rounded-full shadow-lg tabular-nums transition-colors"
+        >
+          {String(Math.floor(restTimer.remaining / 60)).padStart(2, '0')}:{String(restTimer.remaining % 60).padStart(2, '0')}
+        </button>
       )}
 
       {substituteFor && (

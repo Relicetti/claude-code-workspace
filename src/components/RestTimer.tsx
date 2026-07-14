@@ -29,7 +29,7 @@ export function RestTimer({ timer, onClose }: Props) {
       <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-xs text-center border border-gray-700">
         <div className="flex justify-between items-center mb-4">
           <span className="text-gray-400 text-sm font-medium uppercase tracking-wide">Descanso</span>
-          <button onClick={() => { reset(); onClose() }} className="text-gray-500 hover:text-white">
+          <button onClick={onClose} className="text-gray-500 hover:text-white" title="Minimizar (o descanso continua contando)">
             <X size={20} />
           </button>
         </div>
