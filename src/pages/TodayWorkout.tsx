@@ -47,6 +47,8 @@ export function TodayWorkout() {
   const [substituteFor, setSubstituteFor] = useState<Exercise | null>(null)
   const [finishLoading, setFinishLoading] = useState(false)
   const [finishError, setFinishError] = useState('')
+  const [cancelLoading, setCancelLoading] = useState(false)
+  const [cancelError, setCancelError] = useState('')
   const [aiFeedback, setAIFeedback] = useState('')
   const [showFinishedCard, setShowFinishedCard] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
@@ -135,6 +137,16 @@ export function TodayWorkout() {
     setFinishedCalories(caloriesValue)
     setCalories(null)
     setShowFinishedCard(true)
+  }
+
+  const handleCancel = async () => {
+    setCancelLoading(true)
+    setCancelError('')
+    const cancelled = await cancelSession()
+    setCancelLoading(false)
+    if (!cancelled) {
+      setCancelError('Não conseguimos cancelar — confere sua conexão e tenta de novo.')
+    }
   }
 
   const completedCount = activeSession
@@ -374,12 +386,16 @@ export function TodayWorkout() {
             {finishError && (
               <p className="text-red-400 text-sm bg-red-950/40 rounded-xl px-3 py-2">{finishError}</p>
             )}
+            {cancelError && (
+              <p className="text-red-400 text-sm bg-red-950/40 rounded-xl px-3 py-2">{cancelError}</p>
+            )}
             <div className="flex gap-3 pt-2">
               <button
-                onClick={cancelSession}
-                className="flex-1 border border-gray-700 text-gray-400 hover:text-white hover:border-gray-600 font-medium py-3 rounded-xl transition-all text-sm"
+                onClick={handleCancel}
+                disabled={cancelLoading}
+                className="flex-1 border border-gray-700 text-gray-400 hover:text-white hover:border-gray-600 disabled:opacity-60 font-medium py-3 rounded-xl transition-all text-sm flex items-center justify-center gap-2"
               >
-                Cancelar
+                {cancelLoading ? <Loader2 size={16} className="animate-spin" /> : 'Cancelar'}
               </button>
               <button
                 onClick={() => setShowCaloriesPrompt(true)}

@@ -99,7 +99,7 @@ interface WorkoutStore {
   startSession: () => void
   pauseResumeSession: () => void
   finishSession: () => Promise<boolean>
-  cancelSession: () => void
+  cancelSession: () => Promise<boolean>
 
   updateSetRecord: (exerciseId: string, setIndex: number, data: Partial<SetRecord>) => void
   markExerciseComplete: (exerciseId: string) => void
@@ -379,13 +379,26 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     return true
   },
 
-  cancelSession: () => {
+  cancelSession: async () => {
     const { activeSession } = get()
     // Sets are saved incrementally as they're confirmed, so a cancelled
-    // session may already have a row persisted with finishedAt still null —
-    // delete it so it doesn't linger and get mistaken for a resumable session.
+    // session may already have a row persisted with finishedAt still null.
+    // Delete it so it doesn't linger and get mistaken for a resumable
+    // session — same failure mode as finishSession, so same fix: retry a
+    // few times and only clear the active session once the delete is
+    // actually confirmed, instead of clearing the screen and hoping.
     if (activeSession) {
-      apiDeleteSession(activeSession.id).catch(console.error)
+      let deleted = false
+      for (let attempt = 0; attempt < 3 && !deleted; attempt++) {
+        try {
+          if (attempt > 0) await new Promise(r => setTimeout(r, 500 * attempt))
+          await apiDeleteSession(activeSession.id)
+          deleted = true
+        } catch (err) {
+          console.error(err)
+        }
+      }
+      if (!deleted) return false
     }
     set({
       activeSession: null,
@@ -393,6 +406,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       sessionPaused: false,
       sessionElapsedSeconds: 0,
     })
+    return true
   },
 
   updateSetRecord: (exerciseId, setIndex, data) => {
