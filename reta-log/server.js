@@ -34,6 +34,15 @@ async function initDb() {
       data TEXT NOT NULL
     )
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS bio_offset (
+      id INTEGER PRIMARY KEY,
+      value REAL NOT NULL
+    )
+  `);
+  await pool.query(
+    `INSERT INTO bio_offset (id, value) VALUES (1, 5.5) ON CONFLICT (id) DO NOTHING`
+  );
 }
 
 const app = express();
@@ -85,6 +94,23 @@ app.post("/api/photos/:id", async (req, res) => {
 
 app.delete("/api/photos/:id", async (req, res) => {
   await pool.query("DELETE FROM photos WHERE id = $1", [req.params.id]);
+  res.json({ ok: true });
+});
+
+app.get("/api/bio/offset", async (req, res) => {
+  const { rows } = await pool.query("SELECT value FROM bio_offset WHERE id = 1");
+  res.json({ offset: rows[0]?.value ?? 5.5 });
+});
+
+app.post("/api/bio/offset", async (req, res) => {
+  const { offset } = req.body;
+  if (typeof offset !== "number" || Number.isNaN(offset)) {
+    return res.status(400).json({ error: "offset inválido" });
+  }
+  await pool.query(
+    `INSERT INTO bio_offset (id, value) VALUES (1, $1) ON CONFLICT (id) DO UPDATE SET value = $1`,
+    [offset]
+  );
   res.json({ ok: true });
 });
 

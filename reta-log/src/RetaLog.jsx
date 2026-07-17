@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Camera, Plus, TrendingDown, TrendingUp, Minus, ChevronDown, ChevronUp, X, Ruler, Weight, Syringe, Pencil } from "lucide-react";
+import { toISODate, formatDateLabel, makeId } from "./utils";
 
 // ---- cliente da API (backend) ----------------------------------------------------------
 //
@@ -47,6 +48,13 @@ async function apiSavePhoto(id, value) {
 async function apiDeletePhoto(id) {
   const res = await fetch(`/api/photos/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`DELETE /api/photos/${id} ${res.status}`);
+}
+
+async function apiGetBioOffset() {
+  const res = await fetch("/api/bio/offset");
+  if (!res.ok) throw new Error(`GET /api/bio/offset ${res.status}`);
+  const data = await res.json();
+  return data.offset;
 }
 
 // ---- migração de dados antigos do localStorage -----------------------------------------
@@ -149,15 +157,6 @@ async function migrateLocalToBackendIfNeeded(currentEntries) {
 
 // ---- funções auxiliares ----------------------------------------------------------
 
-function toISODate(d) {
-  return d.toISOString().slice(0, 10);
-}
-
-function formatDateLabel(iso) {
-  const d = new Date(iso + "T00:00:00");
-  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-}
-
 function pad3(n) {
   return String(n).padStart(3, "0");
 }
@@ -182,11 +181,6 @@ function resizeImage(file, maxWidth = 480) {
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
-}
-
-function makeId() {
-  // timestamp + sufixo aleatório evita colisão de id em criações rápidas
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
 function blankDraft(dose) {
@@ -216,6 +210,7 @@ export default function RetaLog() {
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [showGallery, setShowGallery] = useState(false);
+  const [bioOffset, setBioOffset] = useState(null);
   const [expanded, setExpanded] = useState(null);
   const [saving, setSaving] = useState(false);
   const [photoCache, setPhotoCache] = useState({}); // id -> dataURL, carregado sob demanda
@@ -237,6 +232,7 @@ export default function RetaLog() {
         setError(`Não consegui carregar os registros (detalhe técnico: ${err?.message || err}).`);
       }
     })();
+    apiGetBioOffset().then(setBioOffset).catch(() => {});
   }, []);
 
   // Busca a foto de uma entrada só quando ela é expandida, e guarda em
@@ -596,7 +592,7 @@ export default function RetaLog() {
             {showBio && (
               <>
                 <div style={styles.fieldGrid}>
-                  <Field label="% GORDURA">
+                  <Field label="% GORDURA (BALANÇA)">
                     <input
                       type="text"
                       inputMode="decimal"
@@ -605,6 +601,11 @@ export default function RetaLog() {
                       style={styles.input}
                       placeholder="0,0"
                     />
+                    {bioOffset != null && draft.bodyFatPct && !Number.isNaN(parseFloat(draft.bodyFatPct.replace(",", "."))) && (
+                      <div style={styles.bioCorrectedHint}>
+                        CORRIGIDO: {(parseFloat(draft.bodyFatPct.replace(",", ".")) - bioOffset).toFixed(1)}%
+                      </div>
+                    )}
                   </Field>
                   <Field label="GORDURA (KG)">
                     <input
@@ -697,7 +698,12 @@ export default function RetaLog() {
               {isOpen && (
                 <div style={styles.logEntryBody}>
                   {e.hip != null && <div style={styles.logDetailLine}>QUADRIL: {e.hip.toFixed(1)} cm</div>}
-                  {e.bodyFatPct != null && <div style={styles.logDetailLine}>% GORDURA: {e.bodyFatPct.toFixed(1)}%</div>}
+                  {e.bodyFatPct != null && (
+                    <div style={styles.logDetailLine}>
+                      % GORDURA: {e.bodyFatPct.toFixed(1)}%
+                      {bioOffset != null && ` (corrigido: ${(e.bodyFatPct - bioOffset).toFixed(1)}%)`}
+                    </div>
+                  )}
                   {e.bodyFatKg != null && <div style={styles.logDetailLine}>GORDURA: {e.bodyFatKg.toFixed(1)} kg</div>}
                   {e.muscleKg != null && <div style={styles.logDetailLine}>MÚSC. ESQUELÉTICO: {e.muscleKg.toFixed(1)} kg</div>}
                   {e.visceralFat != null && <div style={styles.logDetailLine}>GORDURA VISCERAL: {e.visceralFat}</div>}
@@ -1102,6 +1108,13 @@ const styles = {
     color: "#6b7a99",
     letterSpacing: 0.5,
     marginBottom: 4,
+  },
+  bioCorrectedHint: {
+    fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: 10,
+    color: "#c08fd9",
+    letterSpacing: 0.5,
+    marginTop: 4,
   },
   input: {
     width: "100%",
