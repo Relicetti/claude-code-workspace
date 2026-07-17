@@ -16,8 +16,27 @@ import type { WorkoutSession } from '@/types'
 // sessions — the plan's own id, a substitute's synthetic id, or an imported
 // history entry's id — so group by name instead, otherwise today's set gets
 // tracked as a "different" exercise from past sessions of the same lift.
+//
+// Plan rewrites (e.g. switching to a coach's PPL plan) also renamed a few
+// exercises that are the same real movement — grouping by exact name alone
+// splits their history right at the switch. Canonicalize known renames so
+// they keep merging; only exercises confirmed to be the same movement are
+// listed here, not just similarly-named ones (e.g. "Rosca scott" and "Rosca
+// direta" are different lifts and are deliberately NOT merged).
+const EXERCISE_NAME_ALIASES: Record<string, string> = {
+  'supino reto barra/máquina': 'supino reto máquina',
+  'elevação lateral': 'elevação lateral máquina',
+  'stiff/levantamento romeno': 'stiff máquina/polia',
+  'crucifixo/peck deck': 'peck deck',
+  'rosca alternada/martelo': 'rosca martelo polia',
+  'face pull / rear delt': 'face pull',
+  'remada baixa cabo': 'remada máquina baixa',
+  'puxada frente/barra fixa': 'puxada frente pegada aberta',
+}
+
 function normalizeExerciseName(name: string): string {
-  return name.trim().toLowerCase()
+  const key = name.trim().toLowerCase()
+  return EXERCISE_NAME_ALIASES[key] ?? key
 }
 
 // Only exercises that actually have a logged set with a registered weight —
