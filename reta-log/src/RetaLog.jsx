@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { Camera, Plus, TrendingDown, TrendingUp, Minus, ChevronDown, ChevronUp, X, Ruler, Weight, Syringe } from "lucide-react";
+import { Camera, Plus, TrendingDown, TrendingUp, Minus, ChevronDown, ChevronUp, X, Ruler, Weight, Syringe, Pencil } from "lucide-react";
 import { toISODate, formatDateLabel, makeId } from "./utils";
 
 // ---- cliente da API (backend) ----------------------------------------------------------
@@ -183,6 +183,26 @@ function resizeImage(file, maxWidth = 480) {
   });
 }
 
+function blankDraft(dose) {
+  return {
+    date: toISODate(new Date()),
+    dose: dose ?? "2.5",
+    weight: "",
+    waist: "",
+    hip: "",
+    bodyFatPct: "",
+    bodyFatKg: "",
+    muscleKg: "",
+    visceralFat: "",
+    notes: "",
+    photo: null,
+  };
+}
+
+function numToStr(n) {
+  return n != null ? String(n) : "";
+}
+
 // ---- componente principal -----------------------------------------------------
 
 export default function RetaLog() {
@@ -196,21 +216,10 @@ export default function RetaLog() {
   const [photoCache, setPhotoCache] = useState({}); // id -> dataURL, carregado sob demanda
   const [photoLoadingId, setPhotoLoadingId] = useState(null);
   const [showBio, setShowBio] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const fileInputRef = useRef(null);
 
-  const [draft, setDraft] = useState({
-    date: toISODate(new Date()),
-    dose: "2.5",
-    weight: "",
-    waist: "",
-    hip: "",
-    bodyFatPct: "",
-    bodyFatKg: "",
-    muscleKg: "",
-    visceralFat: "",
-    notes: "",
-    photo: null,
-  });
+  const [draft, setDraft] = useState(blankDraft());
 
   useEffect(() => {
     (async () => {
@@ -248,6 +257,47 @@ export default function RetaLog() {
     }
   };
 
+  const openNewForm = () => {
+    setEditingId(null);
+    setDraft(blankDraft(draft.dose));
+    setShowBio(false);
+    setShowForm(true);
+  };
+
+  // Abre o formulário pré-preenchido com os dados de uma entrada já
+  // existente — útil pra completar bioimpedância em entradas antigas que
+  // foram criadas antes desses campos existirem.
+  const startEdit = async (entry) => {
+    setEditingId(entry.id);
+    let photo = photoCache[entry.id] ?? null;
+    if (entry.hasPhoto && !photo) {
+      try {
+        const res = await apiGetPhoto(entry.id);
+        photo = res?.value ?? null;
+        if (photo) setPhotoCache((c) => ({ ...c, [entry.id]: photo }));
+      } catch {
+        // se a foto não carregar, segue a edição sem ela
+      }
+    }
+    setDraft({
+      date: entry.date,
+      dose: entry.dose ?? "2.5",
+      weight: numToStr(entry.weight),
+      waist: numToStr(entry.waist),
+      hip: numToStr(entry.hip),
+      bodyFatPct: numToStr(entry.bodyFatPct),
+      bodyFatKg: numToStr(entry.bodyFatKg),
+      muscleKg: numToStr(entry.muscleKg),
+      visceralFat: numToStr(entry.visceralFat),
+      notes: entry.notes ?? "",
+      photo,
+    });
+    setShowBio(
+      entry.bodyFatPct != null || entry.bodyFatKg != null || entry.muscleKg != null || entry.visceralFat != null
+    );
+    setShowForm(true);
+  };
+
   // Bug 2 corrigido: limpa o valor do input de arquivo no final, assim
   // selecionar a mesma foto de novo (ex: refazer a mesma imagem) dispara onChange.
   const handlePhoto = async (e) => {
@@ -269,7 +319,7 @@ export default function RetaLog() {
       return;
     }
     setSaving(true);
-    const id = makeId();
+    const id = editingId ?? makeId();
     const hasPhoto = !!draft.photo;
 
     try {
@@ -293,25 +343,16 @@ export default function RetaLog() {
         hasPhoto,
       };
       await apiSaveEntry(meta);
-      const nextEntries = [...entries, meta].sort((a, b) => a.date.localeCompare(b.date));
+      const nextEntries = (
+        editingId ? entries.map((e) => (e.id === id ? meta : e)) : [...entries, meta]
+      ).sort((a, b) => a.date.localeCompare(b.date));
 
       if (hasPhoto) setPhotoCache((c) => ({ ...c, [id]: draft.photo }));
       setEntries(nextEntries);
       setError(null);
-      setDraft({
-        date: toISODate(new Date()),
-        dose: draft.dose,
-        weight: "",
-        waist: "",
-        hip: "",
-        bodyFatPct: "",
-        bodyFatKg: "",
-        muscleKg: "",
-        visceralFat: "",
-        notes: "",
-        photo: null,
-      });
+      setDraft(blankDraft(draft.dose));
       setShowBio(false);
+      setEditingId(null);
       setShowForm(false);
     } catch (err) {
       if (hasPhoto) {
@@ -464,7 +505,7 @@ export default function RetaLog() {
               GALERIA DE FOTOS
             </button>
           )}
-          <button style={styles.addButton} onClick={() => setShowForm(true)}>
+          <button style={styles.addButton} onClick={openNewForm}>
             <Plus size={16} strokeWidth={2.5} />
             NOVA ENTRADA — {pad3(sorted.length + 1)}
           </button>
@@ -472,8 +513,18 @@ export default function RetaLog() {
       ) : (
         <div style={styles.formPanel}>
           <div style={styles.panelHeader}>
-            <span>NOVA ENTRADA — {pad3(sorted.length + 1)}</span>
-            <button style={styles.iconBtn} onClick={() => setShowForm(false)}>
+            <span>
+              {editingId
+                ? `EDITAR ENTRADA — ${pad3(sorted.findIndex((e) => e.id === editingId) + 1)}`
+                : `NOVA ENTRADA — ${pad3(sorted.length + 1)}`}
+            </span>
+            <button
+              style={styles.iconBtn}
+              onClick={() => {
+                setShowForm(false);
+                setEditingId(null);
+              }}
+            >
               <X size={14} />
             </button>
           </div>
@@ -612,7 +663,7 @@ export default function RetaLog() {
           </Field>
 
           <button style={styles.submitButton} onClick={submit} disabled={saving}>
-            {saving ? "SALVANDO…" : "REGISTRAR ENTRADA"}
+            {saving ? "SALVANDO…" : editingId ? "SALVAR ALTERAÇÕES" : "REGISTRAR ENTRADA"}
           </button>
         </div>
       )}
@@ -663,9 +714,15 @@ export default function RetaLog() {
                   {e.hasPhoto && !photoCache[e.id] && photoLoadingId === e.id && (
                     <div style={styles.logDetailLine}>CARREGANDO FOTO&hellip;</div>
                   )}
-                  <button style={styles.deleteButton} onClick={() => remove(e.id)}>
-                    REMOVER ENTRADA
-                  </button>
+                  <div style={styles.entryActions}>
+                    <button style={styles.editButton} onClick={() => startEdit(e)}>
+                      <Pencil size={11} />
+                      EDITAR
+                    </button>
+                    <button style={styles.deleteButton} onClick={() => remove(e.id)}>
+                      REMOVER ENTRADA
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -1142,6 +1199,20 @@ const styles = {
   },
   logDetailLine: { marginBottom: 6, lineHeight: 1.5 },
   logPhoto: { width: "100%", borderRadius: 2, marginTop: 4, marginBottom: 8, border: "1px solid #2c3a52" },
+  entryActions: { display: "flex", gap: 8 },
+  editButton: {
+    display: "flex",
+    alignItems: "center",
+    gap: 5,
+    background: "none",
+    border: "1px solid #3d5a80",
+    color: "#7fb3d5",
+    borderRadius: 2,
+    padding: "6px 10px",
+    fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: 10,
+    cursor: "pointer",
+  },
   deleteButton: {
     background: "none",
     border: "1px solid #c05746",
