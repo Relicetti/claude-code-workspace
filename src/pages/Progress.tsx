@@ -27,8 +27,6 @@ const EXERCISE_NAME_ALIASES: Record<string, string> = {
   'supino reto barra/máquina': 'supino reto máquina',
   'elevação lateral': 'elevação lateral máquina',
   'stiff/levantamento romeno': 'stiff máquina/polia',
-  'crucifixo/peck deck': 'peck deck',
-  'fly machine (peck deck)': 'peck deck',
   'rosca alternada/martelo': 'rosca martelo polia',
   'face pull / rear delt': 'face pull',
   'remada baixa cabo': 'remada máquina baixa',
@@ -36,8 +34,17 @@ const EXERCISE_NAME_ALIASES: Record<string, string> = {
   'leg press': 'leg press 45°',
 }
 
+// "Crucifixo" and "peck deck" are the same movement under every equipment
+// brand/variant a gym might have (Hammer Strength, machine, cabo, etc.) —
+// unlike e.g. "supino", where different variants (reto/inclinado/declinado)
+// are genuinely different lifts, any name mentioning either of these two
+// words is safely the same exercise, so match by keyword instead of having
+// to list every substitution name someone might pick at the gym.
+const PECK_DECK_KEYWORDS = ['crucifixo', 'peck deck', 'peckdeck']
+
 function normalizeExerciseName(name: string): string {
   const key = name.trim().toLowerCase()
+  if (PECK_DECK_KEYWORDS.some(k => key.includes(k))) return 'peck deck'
   return EXERCISE_NAME_ALIASES[key] ?? key
 }
 
