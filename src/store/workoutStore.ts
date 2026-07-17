@@ -146,6 +146,21 @@ interface WorkoutStore {
   getSuggestedWeight: (exerciseId: string, exerciseName: string) => number | null
 }
 
+// Incremental saves (a set confirmed, an exercise marked done) fire without
+// being awaited, so a slow one can otherwise land at the server *after* the
+// final "finish" save and silently overwrite finishedAt back to null —
+// resurrecting a session the user already saw finish. Routing every save
+// through this chain forces them to hit the server in the order they were
+// issued, so nothing queued before finishSession's save can ever complete
+// after it.
+let sessionSaveQueue: Promise<unknown> = Promise.resolve()
+
+function queueSaveSession(session: WorkoutSession): Promise<void> {
+  const result = sessionSaveQueue.catch(() => {}).then(() => saveSession(session))
+  sessionSaveQueue = result.catch(() => {})
+  return result
+}
+
 function buildInitialExercises(workout: WorkoutDay): ExerciseRecord[] {
   return workout.exercises.map(ex => ({
     exerciseId: ex.id,
@@ -351,7 +366,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     for (let attempt = 0; attempt < 3 && !saved; attempt++) {
       try {
         if (attempt > 0) await new Promise(r => setTimeout(r, 500 * attempt))
-        await saveSession(finished)
+        await queueSaveSession(finished)
         saved = true
       } catch (err) {
         console.error(err)
@@ -392,6 +407,10 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       for (let attempt = 0; attempt < 3 && !deleted; attempt++) {
         try {
           if (attempt > 0) await new Promise(r => setTimeout(r, 500 * attempt))
+          // Wait for any already-queued incremental save to finish first —
+          // otherwise it can land after this delete and re-insert the row
+          // via its upsert, resurrecting the session we just cancelled.
+          await sessionSaveQueue.catch(() => {})
           await apiDeleteSession(activeSession.id)
           deleted = true
         } catch (err) {
@@ -421,7 +440,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
 
     const updated = { ...activeSession, exercises }
     set({ activeSession: updated })
-    saveSession(updated).catch(console.error)
+    queueSaveSession(updated).catch(console.error)
   },
 
   markExerciseComplete: (exerciseId) => {
@@ -434,7 +453,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
 
     const updated = { ...activeSession, exercises }
     set({ activeSession: updated })
-    saveSession(updated).catch(console.error)
+    queueSaveSession(updated).catch(console.error)
   },
 
   skipExercise: (exerciseId, reason) => {
@@ -449,7 +468,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
 
     const updated = { ...activeSession, exercises }
     set({ activeSession: updated })
-    saveSession(updated).catch(console.error)
+    queueSaveSession(updated).catch(console.error)
   },
 
   addSubstituteExercise: (originalExerciseId, substitute, reason) => {
@@ -484,7 +503,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
 
     const updated = { ...activeSession, exercises }
     set({ activeSession: updated })
-    saveSession(updated).catch(console.error)
+    queueSaveSession(updated).catch(console.error)
   },
 
   updateAIFeedback: (feedback) => {
@@ -492,7 +511,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     if (!activeSession) return
     const updated = { ...activeSession, aiFeedback: feedback }
     set({ activeSession: updated })
-    saveSession(updated).catch(console.error)
+    queueSaveSession(updated).catch(console.error)
   },
 
   updateSessionCalories: (calories) => {
@@ -500,7 +519,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     if (!activeSession) return
     const updated = { ...activeSession, caloriesBurned: calories }
     set({ activeSession: updated })
-    saveSession(updated).catch(console.error)
+    queueSaveSession(updated).catch(console.error)
   },
 
   deleteSessionResult: (sessionId) => {
@@ -515,7 +534,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     const target = sessions.find(s => s.id === sessionId)
     if (!target) return
     const updated = updater(target)
-    saveSession(updated).catch(console.error)
+    queueSaveSession(updated).catch(console.error)
     set(state => ({
       sessions: state.sessions.map(s => (s.id === sessionId ? updated : s)),
     }))
