@@ -28,10 +28,12 @@ const EXERCISE_NAME_ALIASES: Record<string, string> = {
   'elevação lateral': 'elevação lateral máquina',
   'stiff/levantamento romeno': 'stiff máquina/polia',
   'crucifixo/peck deck': 'peck deck',
+  'fly machine (peck deck)': 'peck deck',
   'rosca alternada/martelo': 'rosca martelo polia',
   'face pull / rear delt': 'face pull',
   'remada baixa cabo': 'remada máquina baixa',
   'puxada frente/barra fixa': 'puxada frente pegada aberta',
+  'leg press': 'leg press 45°',
 }
 
 function normalizeExerciseName(name: string): string {
