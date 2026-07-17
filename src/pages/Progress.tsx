@@ -73,7 +73,11 @@ export function Progress() {
     .filter(s => s.exercises.some(e => normalizeExerciseName(e.exerciseName) === selectedId && !e.skipped))
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
     .map(session => {
-      const ex = session.exercises.find(e => normalizeExerciseName(e.exerciseName) === selectedId)
+      // A substituted exercise doesn't remove the original record — it stays
+      // in the array marked skipped, alongside the new one with the actual
+      // logged sets. Without excluding it here, .find() can grab that empty
+      // skipped placeholder instead of the substitute that has real data.
+      const ex = session.exercises.find(e => normalizeExerciseName(e.exerciseName) === selectedId && !e.skipped)
       const doneSets = ex?.sets.filter(s => s.completedAt !== null) ?? []
       const maxWeight = doneSets.length > 0
         ? Math.max(...doneSets.map(s => s.weight ?? 0))
