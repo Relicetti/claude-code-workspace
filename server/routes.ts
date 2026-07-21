@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs'
 import { pool } from './db.js'
 import { checkCredentials, issueToken, setAuthCookie, clearAuthCookie, getSessionInfo, requireAuth, requireAdmin } from './auth.js'
 import { scheduleRestDoneNotification, cancelScheduledNotification } from './push.js'
-import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan, CardioSession, ShapeAssessment, SavedPlan } from '../src/types/index.js'
+import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan, CardioSession, ShapeAssessment, SavedPlan, BodyMeasurement } from '../src/types/index.js'
 
 export const router = Router()
 
@@ -327,6 +327,76 @@ router.delete('/shape/:id', async (req, res) => {
   res.json({ ok: true })
 })
 
+// --- Body measurements (perímetros) ---
+
+function rowToMeasurement(row: Record<string, unknown>): BodyMeasurement {
+  const num = (v: unknown) => (v == null ? undefined : Number(v))
+  return {
+    id: row.id as string,
+    date: (row.date as Date).toISOString().split('T')[0],
+    fasting: row.fasting as boolean,
+    neck: num(row.neck),
+    shoulders: num(row.shoulders),
+    chest: num(row.chest),
+    relaxedArm: num(row.relaxed_arm),
+    flexedArm: num(row.flexed_arm),
+    thigh: num(row.thigh),
+    calf: num(row.calf),
+    weight: num(row.weight),
+    waist: num(row.waist),
+    abdomen: num(row.abdomen),
+    hip: num(row.hip),
+    notes: (row.notes as string) ?? undefined,
+    createdAt: (row.created_at as Date).toISOString(),
+  }
+}
+
+router.get('/body-measurements', async (req, res) => {
+  const result = await pool.query(
+    'SELECT * FROM body_measurements WHERE user_id = $1 ORDER BY date DESC, created_at DESC',
+    [res.locals.userId],
+  )
+  res.json({ bodyMeasurements: result.rows.map(rowToMeasurement) })
+})
+
+router.put('/body-measurements/:id', async (req, res) => {
+  const m = req.body as BodyMeasurement
+  await pool.query(
+    `INSERT INTO body_measurements
+       (id, user_id, date, fasting, neck, shoulders, chest, relaxed_arm, flexed_arm, thigh, calf, weight, waist, abdomen, hip, notes, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+     ON CONFLICT (id) DO UPDATE SET
+       date = $3, fasting = $4, neck = $5, shoulders = $6, chest = $7, relaxed_arm = $8,
+       flexed_arm = $9, thigh = $10, calf = $11, weight = $12, waist = $13, abdomen = $14,
+       hip = $15, notes = $16, created_at = $17`,
+    [
+      m.id,
+      res.locals.userId,
+      m.date,
+      m.fasting,
+      m.neck ?? null,
+      m.shoulders ?? null,
+      m.chest ?? null,
+      m.relaxedArm ?? null,
+      m.flexedArm ?? null,
+      m.thigh ?? null,
+      m.calf ?? null,
+      m.weight ?? null,
+      m.waist ?? null,
+      m.abdomen ?? null,
+      m.hip ?? null,
+      m.notes ?? null,
+      m.createdAt,
+    ],
+  )
+  res.json({ ok: true })
+})
+
+router.delete('/body-measurements/:id', async (req, res) => {
+  await pool.query('DELETE FROM body_measurements WHERE id = $1 AND user_id = $2', [req.params.id, res.locals.userId])
+  res.json({ ok: true })
+})
+
 // --- Analyses ---
 
 function rowToAnalysis(row: Record<string, unknown>): WeeklyAnalysis {
@@ -418,11 +488,12 @@ router.post('/push/cancel-scheduled', (req, res) => {
 
 router.get('/export', async (req, res) => {
   const userId = res.locals.userId
-  const [sessionsResult, cardioResult, analysesResult, shapeResult, planResult, currentWorkoutResult] = await Promise.all([
+  const [sessionsResult, cardioResult, analysesResult, shapeResult, measurementsResult, planResult, currentWorkoutResult] = await Promise.all([
     pool.query('SELECT * FROM sessions WHERE user_id = $1 ORDER BY started_at ASC', [userId]),
     pool.query('SELECT * FROM cardio_sessions WHERE user_id = $1 ORDER BY date ASC, created_at ASC', [userId]),
     pool.query('SELECT * FROM analyses WHERE user_id = $1 ORDER BY generated_at DESC', [userId]),
     pool.query('SELECT * FROM shape_assessments WHERE user_id = $1 ORDER BY date ASC, created_at ASC', [userId]),
+    pool.query('SELECT * FROM body_measurements WHERE user_id = $1 ORDER BY date ASC, created_at ASC', [userId]),
     pool.query("SELECT value FROM app_state WHERE user_id = $1 AND key = 'plan'", [userId]),
     pool.query("SELECT value FROM app_state WHERE user_id = $1 AND key = 'current_workout_id'", [userId]),
   ])
@@ -432,6 +503,7 @@ router.get('/export', async (req, res) => {
     cardioSessions: cardioResult.rows.map(rowToCardio),
     analyses: analysesResult.rows.map(rowToAnalysis),
     shapeAssessments: shapeResult.rows.map(rowToShape),
+    bodyMeasurements: measurementsResult.rows.map(rowToMeasurement),
     plan: planResult.rows[0]?.value ?? null,
     currentWorkoutId: currentWorkoutResult.rows[0]?.value ?? null,
     exportedAt: new Date().toISOString(),
@@ -445,6 +517,7 @@ router.post('/import', async (req, res) => {
     cardioSessions?: CardioSession[]
     analyses?: WeeklyAnalysis[]
     shapeAssessments?: ShapeAssessment[]
+    bodyMeasurements?: BodyMeasurement[]
     plan?: WorkoutPlan
     currentWorkoutId?: string
   }
@@ -453,6 +526,7 @@ router.post('/import', async (req, res) => {
   let cardioImported = 0
   let analysesImported = 0
   let shapeImported = 0
+  let measurementsImported = 0
 
   if (data.sessions) {
     for (const session of data.sessions) {
@@ -550,6 +624,40 @@ router.post('/import', async (req, res) => {
     }
   }
 
+  if (data.bodyMeasurements) {
+    for (const m of data.bodyMeasurements) {
+      await pool.query(
+        `INSERT INTO body_measurements
+           (id, user_id, date, fasting, neck, shoulders, chest, relaxed_arm, flexed_arm, thigh, calf, weight, waist, abdomen, hip, notes, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+         ON CONFLICT (id) DO UPDATE SET
+           date = $3, fasting = $4, neck = $5, shoulders = $6, chest = $7, relaxed_arm = $8,
+           flexed_arm = $9, thigh = $10, calf = $11, weight = $12, waist = $13, abdomen = $14,
+           hip = $15, notes = $16, created_at = $17`,
+        [
+          m.id,
+          userId,
+          m.date,
+          m.fasting,
+          m.neck ?? null,
+          m.shoulders ?? null,
+          m.chest ?? null,
+          m.relaxedArm ?? null,
+          m.flexedArm ?? null,
+          m.thigh ?? null,
+          m.calf ?? null,
+          m.weight ?? null,
+          m.waist ?? null,
+          m.abdomen ?? null,
+          m.hip ?? null,
+          m.notes ?? null,
+          m.createdAt,
+        ],
+      )
+      measurementsImported++
+    }
+  }
+
   if (data.plan) {
     await pool.query(
       "INSERT INTO app_state (user_id, key, value) VALUES ($1, 'plan', $2) ON CONFLICT (user_id, key) DO UPDATE SET value = $2",
@@ -564,5 +672,5 @@ router.post('/import', async (req, res) => {
     )
   }
 
-  res.json({ sessions: sessionsImported, cardio: cardioImported, analyses: analysesImported, shape: shapeImported })
+  res.json({ sessions: sessionsImported, cardio: cardioImported, analyses: analysesImported, shape: shapeImported, measurements: measurementsImported })
 })

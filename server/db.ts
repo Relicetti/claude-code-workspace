@@ -77,6 +77,26 @@ export async function migrate(): Promise<void> {
       created_at TIMESTAMPTZ NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS body_measurements (
+      id UUID PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id),
+      date DATE NOT NULL,
+      fasting BOOLEAN NOT NULL DEFAULT false,
+      neck NUMERIC,
+      shoulders NUMERIC,
+      chest NUMERIC,
+      relaxed_arm NUMERIC,
+      flexed_arm NUMERIC,
+      thigh NUMERIC,
+      calf NUMERIC,
+      weight NUMERIC,
+      waist NUMERIC,
+      abdomen NUMERIC,
+      hip NUMERIC,
+      notes TEXT,
+      created_at TIMESTAMPTZ NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS saved_plans (
       id UUID PRIMARY KEY,
       name TEXT NOT NULL,

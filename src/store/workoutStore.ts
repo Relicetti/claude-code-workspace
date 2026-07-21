@@ -9,6 +9,7 @@ import type {
   WorkoutDay,
   CardioSession,
   ShapeAssessment,
+  BodyMeasurement,
   SavedPlan,
 } from '@/types'
 import {
@@ -24,6 +25,9 @@ import {
   loadShapeAssessments,
   saveShapeAssessment,
   deleteShapeAssessment as apiDeleteShapeAssessment,
+  loadBodyMeasurements,
+  saveBodyMeasurement,
+  deleteBodyMeasurement as apiDeleteBodyMeasurement,
   loadCustomPlan,
   saveCustomPlan,
   clearCustomPlan,
@@ -78,6 +82,9 @@ interface WorkoutStore {
   // Weekly shape/physique check-ins (photos + fasting weight)
   shapeAssessments: ShapeAssessment[]
 
+  // Monthly body measurement (perímetros) check-ins
+  bodyMeasurements: BodyMeasurement[]
+
   // Weight suggested for an exercise (from an applied "increase_weight"
   // analysis adjustment), keyed by normalized exercise name
   weightSuggestions: Record<string, number>
@@ -126,6 +133,11 @@ interface WorkoutStore {
   updateShapeAssessmentAnalysis: (id: string, aiAnalysis: string) => void
   deleteShapeAssessmentResult: (id: string) => void
   getPreviousShapeAssessment: (beforeId: string) => ShapeAssessment | null
+
+  addBodyMeasurement: (entry: Omit<BodyMeasurement, 'id' | 'createdAt'>) => BodyMeasurement
+  updateBodyMeasurementResult: (id: string, updates: Partial<Omit<BodyMeasurement, 'id' | 'createdAt'>>) => void
+  deleteBodyMeasurementResult: (id: string) => void
+  getPreviousBodyMeasurement: (beforeId: string) => BodyMeasurement | null
 
   setActiveView: (view: WorkoutStore['activeView']) => void
 
@@ -196,6 +208,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
   sessionElapsedSeconds: 0,
   analyses: [],
   shapeAssessments: [],
+  bodyMeasurements: [],
   weightSuggestions: {},
   savedPlans: [],
   activePlanId: null,
@@ -235,6 +248,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       cardioSessions: [],
       analyses: [],
       shapeAssessments: [],
+      bodyMeasurements: [],
       weightSuggestions: {},
       savedPlans: [],
       activePlanId: null,
@@ -250,11 +264,12 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       ? storedId
       : (plan.workouts[0]?.id ?? null)
 
-    const [allSessions, cardioSessions, analyses, shapeAssessments, weightSuggestions, savedPlansRaw, activePlanIdRaw] = await Promise.all([
+    const [allSessions, cardioSessions, analyses, shapeAssessments, bodyMeasurements, weightSuggestions, savedPlansRaw, activePlanIdRaw] = await Promise.all([
       loadSessions().catch(() => []),
       loadCardioSessions().catch(() => []),
       loadAnalyses().catch(() => []),
       loadShapeAssessments().catch(() => []),
+      loadBodyMeasurements().catch(() => []),
       loadWeightSuggestions().catch(() => ({})),
       loadSavedPlans().catch(() => []),
       loadActivePlanId().catch(() => null),
@@ -295,6 +310,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       cardioSessions,
       analyses,
       shapeAssessments,
+      bodyMeasurements,
       weightSuggestions,
       savedPlans,
       activePlanId,
@@ -671,6 +687,45 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     const { shapeAssessments } = get()
     const sorted = [...shapeAssessments].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     const idx = sorted.findIndex(a => a.id === beforeId)
+    if (idx === -1) return sorted[0] ?? null
+    return sorted[idx + 1] ?? null
+  },
+
+  addBodyMeasurement: (entry) => {
+    const measurement: BodyMeasurement = {
+      ...entry,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+    }
+    saveBodyMeasurement(measurement).catch(console.error)
+    set(state => ({
+      bodyMeasurements: [measurement, ...state.bodyMeasurements],
+    }))
+    return measurement
+  },
+
+  updateBodyMeasurementResult: (id, updates) => {
+    const { bodyMeasurements } = get()
+    const measurement = bodyMeasurements.find(m => m.id === id)
+    if (!measurement) return
+    const updated = { ...measurement, ...updates }
+    saveBodyMeasurement(updated).catch(console.error)
+    set(state => ({
+      bodyMeasurements: state.bodyMeasurements.map(m => (m.id === id ? updated : m)),
+    }))
+  },
+
+  deleteBodyMeasurementResult: (id) => {
+    apiDeleteBodyMeasurement(id).catch(console.error)
+    set(state => ({
+      bodyMeasurements: state.bodyMeasurements.filter(m => m.id !== id),
+    }))
+  },
+
+  getPreviousBodyMeasurement: (beforeId) => {
+    const { bodyMeasurements } = get()
+    const sorted = [...bodyMeasurements].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    const idx = sorted.findIndex(m => m.id === beforeId)
     if (idx === -1) return sorted[0] ?? null
     return sorted[idx + 1] ?? null
   },

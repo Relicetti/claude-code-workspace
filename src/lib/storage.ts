@@ -1,4 +1,4 @@
-import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan, CardioSession, ShapeAssessment, SavedPlan, AdminUser } from '@/types'
+import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan, CardioSession, ShapeAssessment, SavedPlan, AdminUser, BodyMeasurement } from '@/types'
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`/api${path}`, {
@@ -81,6 +81,21 @@ export async function saveShapeAssessment(assessment: ShapeAssessment): Promise<
 
 export async function deleteShapeAssessment(id: string): Promise<void> {
   await apiFetch(`/shape/${id}`, { method: 'DELETE' })
+}
+
+// --- Body measurements (perímetros) ---
+
+export async function loadBodyMeasurements(): Promise<BodyMeasurement[]> {
+  const { bodyMeasurements } = await apiFetch<{ bodyMeasurements: BodyMeasurement[] }>('/body-measurements')
+  return bodyMeasurements
+}
+
+export async function saveBodyMeasurement(measurement: BodyMeasurement): Promise<void> {
+  await apiFetch(`/body-measurements/${measurement.id}`, { method: 'PUT', body: JSON.stringify(measurement) })
+}
+
+export async function deleteBodyMeasurement(id: string): Promise<void> {
+  await apiFetch(`/body-measurements/${id}`, { method: 'DELETE' })
 }
 
 // --- Analyses ---

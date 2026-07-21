@@ -135,6 +135,28 @@ export interface ShapeAssessment {
   createdAt: string
 }
 
+// Monthly body measurement (perímetros) check-ins
+export interface BodyMeasurement {
+  id: string
+  date: string
+  fasting: boolean
+  // Little affected by fasting/meals — safe to measure any time
+  neck?: number
+  shoulders?: number
+  chest?: number
+  relaxedArm?: number
+  flexedArm?: number
+  thigh?: number
+  calf?: number
+  // Best measured fasting, 8h+ since last workout
+  weight?: number
+  waist?: number
+  abdomen?: number
+  hip?: number
+  notes?: string
+  createdAt: string
+}
+
 // Analytics types
 
 export interface WeeklyAnalysis {
