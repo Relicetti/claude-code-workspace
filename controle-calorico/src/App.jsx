@@ -7,6 +7,7 @@ import ReviewCards from './components/ReviewCards.jsx'
 import ManualForm from './components/ManualForm.jsx'
 import QuickAdd from './components/QuickAdd.jsx'
 import DailyLog from './components/DailyLog.jsx'
+import HistoryChart from './components/HistoryChart.jsx'
 import SettingsModal from './components/SettingsModal.jsx'
 
 export default function App() {
@@ -143,6 +144,10 @@ export default function App() {
       <section className="log-section">
         <h3>Hoje</h3>
         <DailyLog entries={entries} onRemove={handleRemoveEntry} />
+      </section>
+
+      <section className="log-section">
+        <HistoryChart goals={settings} />
       </section>
 
       {showSettings && (

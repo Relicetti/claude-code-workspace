@@ -15,6 +15,7 @@ import {
   deleteLogEntry,
   clearLog,
   upsertFoodDbEntry,
+  getDailySummary,
 } from './dataStore.js'
 import { analyzePhoto, analyzeTextDescription } from './anthropic.js'
 
@@ -47,6 +48,17 @@ app.put(
   '/api/settings',
   asyncHandler(async (req, res) => {
     res.json(await saveSettings(req.body))
+  })
+)
+
+app.get(
+  '/api/log/summary',
+  asyncHandler(async (req, res) => {
+    const { from, to } = req.query
+    if (!from || !to) {
+      return res.status(400).json({ error: 'from e to sao obrigatorios' })
+    }
+    res.json(await getDailySummary(from, to))
   })
 )
 

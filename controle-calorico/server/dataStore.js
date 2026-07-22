@@ -106,6 +106,28 @@ export async function getLog(date) {
   return rows.map(logRowToEntry)
 }
 
+export async function getDailySummary(fromDate, toDate) {
+  const { rows } = await query(
+    `SELECT log_date,
+            SUM(kcal) AS kcal,
+            SUM(protein) AS protein,
+            SUM(carbs) AS carbs,
+            SUM(fat) AS fat
+     FROM log_entries
+     WHERE log_date >= $1 AND log_date <= $2
+     GROUP BY log_date
+     ORDER BY log_date ASC`,
+    [fromDate, toDate]
+  )
+  return rows.map((row) => ({
+    date: row.log_date,
+    kcal: row.kcal,
+    protein: row.protein,
+    carbs: row.carbs,
+    fat: row.fat,
+  }))
+}
+
 export async function addLogEntry(date, entry) {
   await query(
     `INSERT INTO log_entries (id, log_date, name, kcal, protein, carbs, fat, caffeine, water, creatine, "timestamp", meal_group)
