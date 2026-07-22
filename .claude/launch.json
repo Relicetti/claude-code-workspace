@@ -1,0 +1,35 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "probscanner",
+      "runtimeExecutable": "py",
+      "runtimeArgs": ["-m", "flask", "--app", "app", "run", "--port", "5000"],
+      "port": 5000
+    },
+    {
+      "name": "calculadora-parceria",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "calculadora-parceria", "run", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "reta-log",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "reta-log", "run", "dev", "--", "--port", "5175"],
+      "port": 5175
+    },
+    {
+      "name": "optionstrat",
+      "runtimeExecutable": "optionstrat/.venv/Scripts/streamlit.exe",
+      "runtimeArgs": ["run", "optionstrat/dashboard.py", "--server.port", "8502", "--server.headless", "true"],
+      "port": 8502
+    },
+    {
+      "name": "controle-calorico",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "controle-calorico", "run", "dev"],
+      "port": 5176
+    }
+  ]
+}
