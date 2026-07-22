@@ -5,6 +5,7 @@ import MacroBars from './components/MacroBars.jsx'
 import PhotoCapture from './components/PhotoCapture.jsx'
 import ReviewCards from './components/ReviewCards.jsx'
 import ManualForm from './components/ManualForm.jsx'
+import QuickAdd from './components/QuickAdd.jsx'
 import DailyLog from './components/DailyLog.jsx'
 import SettingsModal from './components/SettingsModal.jsx'
 
@@ -45,8 +46,11 @@ export default function App() {
           protein: acc.protein + e.protein,
           carbs: acc.carbs + e.carbs,
           fat: acc.fat + e.fat,
+          caffeine: acc.caffeine + (e.caffeine || 0),
+          water: acc.water + (e.water || 0),
+          creatine: acc.creatine + (e.creatine || 0),
         }),
-        { kcal: 0, protein: 0, carbs: 0, fat: 0 }
+        { kcal: 0, protein: 0, carbs: 0, fat: 0, caffeine: 0, water: 0, creatine: 0 }
       ),
     [entries]
   )
@@ -130,7 +134,8 @@ export default function App() {
           analyzing={analyzing}
           setAnalyzing={setAnalyzing}
         />
-        <ManualForm onAdd={handleAddEntry} />
+        <ManualForm onAdd={handleAddEntry} onCandidates={setCandidates} />
+        <QuickAdd onAdd={handleAddEntry} defaultCreatineDose={settings.creatineGoal} />
       </section>
 
       <ReviewCards candidates={candidates} onAdd={handleAddCandidate} onDiscard={handleDiscardCandidate} />

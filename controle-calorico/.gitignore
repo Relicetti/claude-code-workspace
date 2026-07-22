@@ -3,3 +3,5 @@ dist
 .env
 data/**/*.json
 data/*.json
+data/**/*.tmp
+data/*.tmp

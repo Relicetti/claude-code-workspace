@@ -1,0 +1,50 @@
+import { useState } from 'react'
+
+const WATER_PRESETS = [200, 300, 500]
+
+function emptyNutrients(name) {
+  return { name, kcal: 0, protein: 0, carbs: 0, fat: 0, caffeine: 0, water: 0, creatine: 0 }
+}
+
+export default function QuickAdd({ onAdd, defaultCreatineDose }) {
+  const [creatineDose, setCreatineDose] = useState(defaultCreatineDose || 5)
+
+  function addWater(ml) {
+    onAdd({ ...emptyNutrients('Agua'), water: ml })
+  }
+
+  function addCreatine() {
+    const dose = Number(creatineDose) || 0
+    if (dose <= 0) return
+    onAdd({ ...emptyNutrients('Creatina'), creatine: dose })
+  }
+
+  return (
+    <div className="quick-add">
+      <div className="quick-add-row">
+        <span className="quick-add-label">💧 Agua</span>
+        <div className="quick-add-buttons">
+          {WATER_PRESETS.map((ml) => (
+            <button key={ml} className="btn btn-secondary btn-small" onClick={() => addWater(ml)}>
+              +{ml}ml
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="quick-add-row">
+        <span className="quick-add-label">💊 Creatina</span>
+        <div className="quick-add-buttons">
+          <input
+            type="number"
+            className="quick-add-dose"
+            value={creatineDose}
+            onChange={(e) => setCreatineDose(e.target.value)}
+          />
+          <button className="btn btn-secondary btn-small" onClick={addCreatine}>
+            Registrar {creatineDose}g
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}

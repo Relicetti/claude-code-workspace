@@ -33,6 +33,18 @@ export default function SettingsModal({ settings, onSave, onClearDay, onClose })
             Meta de gordura (g)
             <input type="number" value={form.fatGoal} onChange={(e) => update('fatGoal', e.target.value)} />
           </label>
+          <label>
+            Meta de cafeina (mg)
+            <input type="number" value={form.caffeineGoal} onChange={(e) => update('caffeineGoal', e.target.value)} />
+          </label>
+          <label>
+            Meta de agua (ml)
+            <input type="number" value={form.waterGoal} onChange={(e) => update('waterGoal', e.target.value)} />
+          </label>
+          <label>
+            Meta de creatina (g)
+            <input type="number" value={form.creatineGoal} onChange={(e) => update('creatineGoal', e.target.value)} />
+          </label>
           <div className="modal-actions">
             <button
               type="button"

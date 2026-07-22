@@ -34,6 +34,18 @@ function ReviewCard({ item, onAdd, onDiscard }) {
           Gordura (g)
           <input type="number" value={form.fat} onChange={(e) => update('fat', Number(e.target.value))} />
         </label>
+        <label>
+          Cafeina (mg)
+          <input type="number" value={form.caffeine} onChange={(e) => update('caffeine', Number(e.target.value))} />
+        </label>
+        <label>
+          Agua (ml)
+          <input type="number" value={form.water} onChange={(e) => update('water', Number(e.target.value))} />
+        </label>
+        <label>
+          Creatina (g)
+          <input type="number" value={form.creatine} onChange={(e) => update('creatine', Number(e.target.value))} />
+        </label>
       </div>
       <div className="review-card-actions">
         <button className="btn btn-secondary" onClick={onDiscard}>

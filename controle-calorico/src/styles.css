@@ -132,6 +132,51 @@ body {
   color: #c62828;
 }
 
+.btn-small {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.quick-add {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #fafafa;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.quick-add-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.quick-add-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #444;
+  white-space: nowrap;
+}
+
+.quick-add-buttons {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.quick-add-dose {
+  width: 56px;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
 .btn-icon {
   background: none;
   border: none;
@@ -225,6 +270,33 @@ body {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.estimate-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px dashed #ddd;
+}
+
+.estimate-textarea {
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.estimate-block .btn {
+  align-self: flex-start;
+}
+
+.estimate-error {
+  color: #c62828;
+  font-size: 13px;
 }
 
 .log-section {

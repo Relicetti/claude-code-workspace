@@ -27,4 +27,5 @@ export const api = {
   clearLog: (date) => request(`/log/${date}`, { method: 'DELETE' }),
   analyzePhoto: (imageBase64, mediaType) =>
     request('/analyze-photo', { method: 'POST', body: JSON.stringify({ imageBase64, mediaType }) }),
+  analyzeText: (description) => request('/analyze-text', { method: 'POST', body: JSON.stringify({ description }) }),
 }
