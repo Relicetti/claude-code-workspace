@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { MEAL_GROUPS, suggestMealGroup } from '../mealGroups.js'
 
 function ReviewCard({ item, onAdd, onDiscard }) {
   const [form, setForm] = useState(item)
+  const [mealGroup, setMealGroup] = useState(suggestMealGroup())
 
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }))
@@ -17,6 +19,17 @@ function ReviewCard({ item, onAdd, onDiscard }) {
       {typeof item.confidence === 'number' && (
         <div className="confidence">confianca: {Math.round(item.confidence * 100)}%</div>
       )}
+      <select
+        className="meal-group-select"
+        value={mealGroup}
+        onChange={(e) => setMealGroup(e.target.value)}
+      >
+        {MEAL_GROUPS.map((g) => (
+          <option key={g} value={g}>
+            {g}
+          </option>
+        ))}
+      </select>
       <div className="review-card-fields">
         <label>
           Kcal
@@ -51,7 +64,7 @@ function ReviewCard({ item, onAdd, onDiscard }) {
         <button className="btn btn-secondary" onClick={onDiscard}>
           Descartar
         </button>
-        <button className="btn btn-primary" onClick={() => onAdd(form)}>
+        <button className="btn btn-primary" onClick={() => onAdd({ ...form, mealGroup })}>
           Adicionar
         </button>
       </div>

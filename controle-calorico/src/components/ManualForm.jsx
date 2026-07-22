@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { api } from '../api.js'
+import { MEAL_GROUPS, suggestMealGroup } from '../mealGroups.js'
 
 const EMPTY = { name: '', kcal: '', protein: '', carbs: '', fat: '', caffeine: '', water: '', creatine: '' }
 
 export default function ManualForm({ onAdd, onCandidates }) {
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(EMPTY)
+  const [mealGroup, setMealGroup] = useState(suggestMealGroup())
   const [description, setDescription] = useState('')
   const [estimating, setEstimating] = useState(false)
   const [estimateError, setEstimateError] = useState(null)
@@ -26,9 +28,11 @@ export default function ManualForm({ onAdd, onCandidates }) {
       caffeine: Number(form.caffeine) || 0,
       water: Number(form.water) || 0,
       creatine: Number(form.creatine) || 0,
+      mealGroup,
     })
     setForm(EMPTY)
     setDescription('')
+    setMealGroup(suggestMealGroup())
     setOpen(false)
   }
 
@@ -100,6 +104,17 @@ export default function ManualForm({ onAdd, onCandidates }) {
         value={form.name}
         onChange={(e) => update('name', e.target.value)}
       />
+      <select
+        className="meal-group-select"
+        value={mealGroup}
+        onChange={(e) => setMealGroup(e.target.value)}
+      >
+        {MEAL_GROUPS.map((g) => (
+          <option key={g} value={g}>
+            {g}
+          </option>
+        ))}
+      </select>
       <div className="manual-form-fields">
         <input type="number" placeholder="Kcal" value={form.kcal} onChange={(e) => update('kcal', e.target.value)} />
         <input
@@ -135,7 +150,16 @@ export default function ManualForm({ onAdd, onCandidates }) {
         />
       </div>
       <div className="manual-form-actions">
-        <button type="button" className="btn btn-secondary" onClick={() => setOpen(false)}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => {
+            setOpen(false)
+            setForm(EMPTY)
+            setDescription('')
+            setMealGroup(suggestMealGroup())
+          }}
+        >
           Cancelar
         </button>
         <button type="submit" className="btn btn-primary">

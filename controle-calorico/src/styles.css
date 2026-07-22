@@ -266,6 +266,14 @@ body {
   gap: 8px;
 }
 
+.meal-group-select {
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  background: #fff;
+}
+
 .manual-form-actions {
   display: flex;
   justify-content: flex-end;
@@ -310,7 +318,22 @@ body {
 .daily-log {
   display: flex;
   flex-direction: column;
+  gap: 16px;
+}
+
+.daily-log-group {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
+}
+
+.daily-log-group-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .daily-log-empty {

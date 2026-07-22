@@ -52,6 +52,7 @@ export async function initSchema() {
       "timestamp" BIGINT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_log_entries_log_date ON log_entries (log_date);
+    ALTER TABLE log_entries ADD COLUMN IF NOT EXISTS meal_group TEXT;
 
     CREATE TABLE IF NOT EXISTS food_db (
       normalized_name TEXT PRIMARY KEY,

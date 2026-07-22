@@ -45,6 +45,7 @@ function logRowToEntry(row) {
     water: row.water,
     creatine: row.creatine,
     timestamp: Number(row.timestamp),
+    mealGroup: row.meal_group,
   }
 }
 
@@ -107,8 +108,8 @@ export async function getLog(date) {
 
 export async function addLogEntry(date, entry) {
   await query(
-    `INSERT INTO log_entries (id, log_date, name, kcal, protein, carbs, fat, caffeine, water, creatine, "timestamp")
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+    `INSERT INTO log_entries (id, log_date, name, kcal, protein, carbs, fat, caffeine, water, creatine, "timestamp", meal_group)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
     [
       entry.id,
       date,
@@ -121,6 +122,7 @@ export async function addLogEntry(date, entry) {
       entry.water,
       entry.creatine,
       entry.timestamp,
+      entry.mealGroup || null,
     ]
   )
   return getLog(date)
@@ -136,8 +138,8 @@ export async function updateLogEntry(date, id, updates) {
   const { rows } = await query(
     `UPDATE log_entries SET
        name = $1, kcal = $2, protein = $3, carbs = $4, fat = $5,
-       caffeine = $6, water = $7, creatine = $8, "timestamp" = $9
-     WHERE log_date = $10 AND id = $11
+       caffeine = $6, water = $7, creatine = $8, "timestamp" = $9, meal_group = $10
+     WHERE log_date = $11 AND id = $12
      RETURNING *`,
     [
       merged.name,
@@ -149,6 +151,7 @@ export async function updateLogEntry(date, id, updates) {
       merged.water,
       merged.creatine,
       merged.timestamp,
+      merged.mealGroup || null,
       date,
       id,
     ]

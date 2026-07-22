@@ -71,6 +71,7 @@ app.post(
       water: Number(req.body.water) || 0,
       creatine: Number(req.body.creatine) || 0,
       timestamp: Date.now(),
+      mealGroup: req.body.mealGroup || null,
     }
     const entries = await addLogEntry(req.params.date, entry)
     await upsertFoodDbEntry(entry)

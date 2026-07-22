@@ -16,7 +16,7 @@ export default function QuickAdd({ onAdd, defaultCreatineDose }) {
   function addCreatine() {
     const dose = Number(creatineDose) || 0
     if (dose <= 0) return
-    onAdd({ ...emptyNutrients('Creatina'), creatine: dose })
+    onAdd({ ...emptyNutrients('Creatina'), creatine: dose, mealGroup: 'Suplementos' })
   }
 
   return (
