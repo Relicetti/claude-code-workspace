@@ -5,6 +5,7 @@ import crypto from 'crypto'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { existsSync } from 'fs'
+import { initSchema } from './db.js'
 import {
   getSettings,
   saveSettings,
@@ -150,6 +151,13 @@ process.on('uncaughtException', (err) => {
   console.error('Uncaught exception:', err)
 })
 
-app.listen(PORT, () => {
-  console.log(`API rodando em http://localhost:${PORT}`)
-})
+initSchema()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`API rodando em http://localhost:${PORT}`)
+    })
+  })
+  .catch((err) => {
+    console.error('Falha ao inicializar o banco de dados:', err)
+    process.exit(1)
+  })
