@@ -7,7 +7,7 @@ import ReviewCards from './components/ReviewCards.jsx'
 import ManualForm from './components/ManualForm.jsx'
 import QuickAdd from './components/QuickAdd.jsx'
 import DailyLog from './components/DailyLog.jsx'
-import HistoryChart from './components/HistoryChart.jsx'
+import HistoryScreen from './components/HistoryScreen.jsx'
 import SettingsModal from './components/SettingsModal.jsx'
 
 export default function App() {
@@ -18,6 +18,7 @@ export default function App() {
   const [analyzing, setAnalyzing] = useState(false)
   const [error, setError] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -147,7 +148,9 @@ export default function App() {
       </section>
 
       <section className="log-section">
-        <HistoryChart goals={settings} />
+        <button className="btn btn-secondary history-open-btn" onClick={() => setShowHistory(true)}>
+          📈 Ver historico de calorias e macros
+        </button>
       </section>
 
       {showSettings && (
@@ -158,6 +161,8 @@ export default function App() {
           onClose={() => setShowSettings(false)}
         />
       )}
+
+      {showHistory && <HistoryScreen goals={settings} onClose={() => setShowHistory(false)} />}
     </div>
   )
 }
