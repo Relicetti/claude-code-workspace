@@ -177,6 +177,10 @@ body {
   font-size: 13px;
 }
 
+.quick-add-dose-wide {
+  width: 72px;
+}
+
 .btn-icon {
   background: none;
   border: none;

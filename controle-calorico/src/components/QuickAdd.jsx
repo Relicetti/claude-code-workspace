@@ -8,9 +8,17 @@ function emptyNutrients(name) {
 
 export default function QuickAdd({ onAdd, defaultCreatineDose }) {
   const [creatineDose, setCreatineDose] = useState(defaultCreatineDose || 5)
+  const [customWater, setCustomWater] = useState('')
 
   function addWater(ml) {
     onAdd({ ...emptyNutrients('Agua'), water: ml })
+  }
+
+  function addCustomWater() {
+    const ml = Number(customWater) || 0
+    if (ml <= 0) return
+    addWater(ml)
+    setCustomWater('')
   }
 
   function addCreatine() {
@@ -29,6 +37,16 @@ export default function QuickAdd({ onAdd, defaultCreatineDose }) {
               +{ml}ml
             </button>
           ))}
+          <input
+            type="number"
+            className="quick-add-dose quick-add-dose-wide"
+            placeholder="ml"
+            value={customWater}
+            onChange={(e) => setCustomWater(e.target.value)}
+          />
+          <button className="btn btn-secondary btn-small" onClick={addCustomWater}>
+            Registrar
+          </button>
         </div>
       </div>
       <div className="quick-add-row">
