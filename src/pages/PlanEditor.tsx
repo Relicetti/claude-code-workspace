@@ -20,6 +20,7 @@ import { NumberStepper } from '@/components/NumberStepper'
 import { SubstituteModal } from '@/components/SubstituteModal'
 import { ALL_MUSCLE_GROUPS, MUSCLE_LABELS } from '@/lib/muscleLabels'
 import { generateWorkoutPlan } from '@/lib/claudeApi'
+import { BUILT_IN_EXERCISE_LIBRARY } from '@/data/exerciseLibrary'
 import type { Exercise, WorkoutDay, WorkoutPlan, MuscleGroup, ExerciseAlternative } from '@/types'
 
 function newExercise(): Exercise {
@@ -564,12 +565,145 @@ export function PlanEditor() {
         })}
       </div>
 
+      <ExerciseLibrarySection />
+
       {aiSwapTarget && (
         <SubstituteModal
           exercise={aiSwapTarget.exercise}
           onConfirm={(alt) => handleAiSwapConfirm(alt)}
           onCancel={() => setAiSwapTarget(null)}
         />
+      )}
+    </div>
+  )
+}
+
+function ExerciseLibrarySection() {
+  const { customExerciseLibrary, addCustomLibraryExercise, deleteCustomLibraryExercise } = useWorkoutStore()
+  const [expanded, setExpanded] = useState(false)
+  const [showBuiltIn, setShowBuiltIn] = useState(false)
+  const [showForm, setShowForm] = useState(false)
+  const [name, setName] = useState('')
+  const [aliasesText, setAliasesText] = useState('')
+  const [muscleGroups, setMuscleGroups] = useState<MuscleGroup[]>([])
+
+  const toggleMuscle = (m: MuscleGroup) => {
+    setMuscleGroups(prev => (prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]))
+  }
+
+  const resetForm = () => {
+    setShowForm(false)
+    setName('')
+    setAliasesText('')
+    setMuscleGroups([])
+  }
+
+  const handleAdd = () => {
+    if (!name.trim() || muscleGroups.length === 0) return
+    addCustomLibraryExercise({
+      name: name.trim(),
+      muscleGroups,
+      aliases: aliasesText.split(',').map(a => a.trim()).filter(Boolean),
+    })
+    resetForm()
+  }
+
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-3">
+      <button onClick={() => setExpanded(v => !v)} className="w-full flex items-center justify-between">
+        <p className="text-xs text-gray-500 uppercase tracking-wide">Biblioteca de exercícios</p>
+        {expanded ? <ChevronUp size={16} className="text-gray-500" /> : <ChevronDown size={16} className="text-gray-500" />}
+      </button>
+
+      {expanded && (
+        <div className="mt-3 space-y-3">
+          <p className="text-xs text-gray-500">
+            Nomes diferentes do mesmo exercício (ex: "Crucifixo", "Peck deck", "Crucifixo Hammer") são unificados no Progresso a partir desta lista. Se um exercício seu não estiver sendo reconhecido, adicione ele aqui.
+          </p>
+
+          {customExerciseLibrary.length > 0 && (
+            <div className="space-y-1.5">
+              {customExerciseLibrary.map(entry => (
+                <div key={entry.id} className="flex items-center justify-between bg-gray-800/60 rounded-lg px-3 py-2">
+                  <div>
+                    <p className="text-sm text-white">{entry.name}</p>
+                    {entry.aliases.length > 0 && (
+                      <p className="text-xs text-gray-500">{entry.aliases.join(', ')}</p>
+                    )}
+                  </div>
+                  <button onClick={() => deleteCustomLibraryExercise(entry.id)} className="text-gray-600 hover:text-red-400 p-1">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {showForm ? (
+            <div className="bg-gray-800/40 rounded-xl p-3 space-y-2.5">
+              <input
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Nome do exercício (ex: Crucifixo)"
+                className="w-full bg-gray-800 text-white text-sm rounded-lg px-3 py-2 border border-gray-700 focus:border-brand-500 outline-none"
+              />
+              <input
+                value={aliasesText}
+                onChange={e => setAliasesText(e.target.value)}
+                placeholder="Outros nomes/variantes, separados por vírgula"
+                className="w-full bg-gray-800 text-white text-sm rounded-lg px-3 py-2 border border-gray-700 focus:border-brand-500 outline-none"
+              />
+              <div className="flex flex-wrap gap-1.5">
+                {ALL_MUSCLE_GROUPS.map(m => (
+                  <button
+                    key={m}
+                    onClick={() => toggleMuscle(m)}
+                    className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                      muscleGroups.includes(m)
+                        ? 'bg-brand-600 border-brand-500 text-white'
+                        : 'bg-gray-800 border-gray-700 text-gray-400'
+                    }`}
+                  >
+                    {MUSCLE_LABELS[m]}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleAdd}
+                  disabled={!name.trim() || muscleGroups.length === 0}
+                  className="flex-1 bg-brand-600 disabled:opacity-40 hover:bg-brand-500 text-white text-sm font-semibold py-2 rounded-lg transition-all"
+                >
+                  Adicionar
+                </button>
+                <button onClick={resetForm} className="flex-1 text-gray-400 hover:text-white text-sm py-2">
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowForm(true)}
+              className="w-full flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium py-2.5 rounded-xl transition-all"
+            >
+              <Plus size={16} />
+              Adicionar exercício à biblioteca
+            </button>
+          )}
+
+          <button
+            onClick={() => setShowBuiltIn(v => !v)}
+            className="text-xs text-brand-400 hover:text-brand-300 transition-colors"
+          >
+            {showBuiltIn ? 'Ocultar exercícios já reconhecidos' : 'Ver exercícios já reconhecidos'}
+          </button>
+
+          {showBuiltIn && (
+            <p className="text-xs text-gray-500 leading-relaxed">
+              {BUILT_IN_EXERCISE_LIBRARY.map(e => e.name).join(' · ')}
+            </p>
+          )}
+        </div>
       )}
     </div>
   )

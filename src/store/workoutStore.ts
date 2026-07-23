@@ -11,6 +11,7 @@ import type {
   ShapeAssessment,
   BodyMeasurement,
   SavedPlan,
+  ExerciseLibraryEntry,
 } from '@/types'
 import {
   loadSessions,
@@ -28,6 +29,8 @@ import {
   loadBodyMeasurements,
   saveBodyMeasurement,
   deleteBodyMeasurement as apiDeleteBodyMeasurement,
+  loadCustomExerciseLibrary,
+  saveCustomExerciseLibrary,
   loadCustomPlan,
   saveCustomPlan,
   clearCustomPlan,
@@ -47,6 +50,7 @@ import {
   checkSession,
 } from '@/lib/storage'
 import { defaultWorkoutPlan } from '@/data/workoutPlan'
+import { canonicalExerciseName } from '@/data/exerciseLibrary'
 import { todayLocalDate } from '@/lib/date'
 
 interface WorkoutStore {
@@ -84,6 +88,10 @@ interface WorkoutStore {
 
   // Monthly body measurement (perímetros) check-ins
   bodyMeasurements: BodyMeasurement[]
+
+  // User-added entries on top of the built-in exercise library — used to
+  // canonicalize exercise names (substitutions, Progress matching)
+  customExerciseLibrary: ExerciseLibraryEntry[]
 
   // Weight suggested for an exercise (from an applied "increase_weight"
   // analysis adjustment), keyed by normalized exercise name
@@ -138,6 +146,9 @@ interface WorkoutStore {
   updateBodyMeasurementResult: (id: string, updates: Partial<Omit<BodyMeasurement, 'id' | 'createdAt'>>) => void
   deleteBodyMeasurementResult: (id: string) => void
   getPreviousBodyMeasurement: (beforeId: string) => BodyMeasurement | null
+
+  addCustomLibraryExercise: (entry: Omit<ExerciseLibraryEntry, 'id'>) => void
+  deleteCustomLibraryExercise: (id: string) => void
 
   setActiveView: (view: WorkoutStore['activeView']) => void
 
@@ -209,6 +220,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
   analyses: [],
   shapeAssessments: [],
   bodyMeasurements: [],
+  customExerciseLibrary: [],
   weightSuggestions: {},
   savedPlans: [],
   activePlanId: null,
@@ -249,6 +261,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       analyses: [],
       shapeAssessments: [],
       bodyMeasurements: [],
+      customExerciseLibrary: [],
       weightSuggestions: {},
       savedPlans: [],
       activePlanId: null,
@@ -264,12 +277,13 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       ? storedId
       : (plan.workouts[0]?.id ?? null)
 
-    const [allSessions, cardioSessions, analyses, shapeAssessments, bodyMeasurements, weightSuggestions, savedPlansRaw, activePlanIdRaw] = await Promise.all([
+    const [allSessions, cardioSessions, analyses, shapeAssessments, bodyMeasurements, customExerciseLibrary, weightSuggestions, savedPlansRaw, activePlanIdRaw] = await Promise.all([
       loadSessions().catch(() => []),
       loadCardioSessions().catch(() => []),
       loadAnalyses().catch(() => []),
       loadShapeAssessments().catch(() => []),
       loadBodyMeasurements().catch(() => []),
+      loadCustomExerciseLibrary().catch(() => []),
       loadWeightSuggestions().catch(() => ({})),
       loadSavedPlans().catch(() => []),
       loadActivePlanId().catch(() => null),
@@ -311,6 +325,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       analyses,
       shapeAssessments,
       bodyMeasurements,
+      customExerciseLibrary,
       weightSuggestions,
       savedPlans,
       activePlanId,
@@ -488,12 +503,17 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
   },
 
   addSubstituteExercise: (originalExerciseId, substitute, reason) => {
-    const { activeSession } = get()
+    const { activeSession, customExerciseLibrary } = get()
     if (!activeSession) return
+
+    // Canonicalize against the exercise library right when the name enters
+    // the system, so a substitute typed/picked with a different equipment
+    // brand/wording still merges with the same lift's history in Progress.
+    const canonicalName = canonicalExerciseName(substitute.exerciseName, customExerciseLibrary)
 
     const subRecord: ExerciseRecord = {
       exerciseId: `sub_${crypto.randomUUID()}`,
-      exerciseName: substitute.exerciseName,
+      exerciseName: canonicalName,
       muscleGroups: substitute.muscleGroups,
       repsMin: substitute.repsMin,
       repsMax: substitute.repsMax,
@@ -728,6 +748,19 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     const idx = sorted.findIndex(m => m.id === beforeId)
     if (idx === -1) return sorted[0] ?? null
     return sorted[idx + 1] ?? null
+  },
+
+  addCustomLibraryExercise: (entry) => {
+    const newEntry: ExerciseLibraryEntry = { ...entry, id: crypto.randomUUID() }
+    const updated = [...get().customExerciseLibrary, newEntry]
+    saveCustomExerciseLibrary(updated).catch(console.error)
+    set({ customExerciseLibrary: updated })
+  },
+
+  deleteCustomLibraryExercise: (id) => {
+    const updated = get().customExerciseLibrary.filter(e => e.id !== id)
+    saveCustomExerciseLibrary(updated).catch(console.error)
+    set({ customExerciseLibrary: updated })
   },
 
   setActiveView: (view) => set({ activeView: view }),

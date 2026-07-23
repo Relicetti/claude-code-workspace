@@ -122,6 +122,22 @@ router.put('/weight-suggestions', async (req, res) => {
   res.json({ ok: true })
 })
 
+// --- Custom exercise library entries (user additions on top of the built-in list) ---
+
+router.get('/exercise-library', async (req, res) => {
+  const result = await pool.query("SELECT value FROM app_state WHERE user_id = $1 AND key = 'custom_exercise_library'", [res.locals.userId])
+  res.json({ entries: (result.rows[0]?.value as unknown[]) ?? [] })
+})
+
+router.put('/exercise-library', async (req, res) => {
+  const { entries } = req.body as { entries: unknown[] }
+  await pool.query(
+    "INSERT INTO app_state (user_id, key, value) VALUES ($1, 'custom_exercise_library', $2) ON CONFLICT (user_id, key) DO UPDATE SET value = $2",
+    [res.locals.userId, JSON.stringify(entries)],
+  )
+  res.json({ ok: true })
+})
+
 // --- Saved plans (library of switchable training plans) ---
 
 router.get('/active-plan-id', async (req, res) => {

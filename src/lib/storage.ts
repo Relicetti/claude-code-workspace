@@ -1,4 +1,4 @@
-import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan, CardioSession, ShapeAssessment, SavedPlan, AdminUser, BodyMeasurement } from '@/types'
+import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan, CardioSession, ShapeAssessment, SavedPlan, AdminUser, BodyMeasurement, ExerciseLibraryEntry } from '@/types'
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`/api${path}`, {
@@ -180,6 +180,17 @@ export async function loadWeightSuggestions(): Promise<Record<string, number>> {
 
 export async function saveWeightSuggestions(suggestions: Record<string, number>): Promise<void> {
   await apiFetch('/weight-suggestions', { method: 'PUT', body: JSON.stringify({ suggestions }) })
+}
+
+// --- Custom exercise library entries ---
+
+export async function loadCustomExerciseLibrary(): Promise<ExerciseLibraryEntry[]> {
+  const { entries } = await apiFetch<{ entries: ExerciseLibraryEntry[] }>('/exercise-library')
+  return entries
+}
+
+export async function saveCustomExerciseLibrary(entries: ExerciseLibraryEntry[]): Promise<void> {
+  await apiFetch('/exercise-library', { method: 'PUT', body: JSON.stringify({ entries }) })
 }
 
 // --- Export / Import ---

@@ -25,6 +25,17 @@ export interface Exercise {
   touchesShoulderAnterior?: boolean
 }
 
+// Canonical exercise reference — the same real exercise gets called
+// different things across plans/substitutions/gyms (equipment brand,
+// coach's wording, etc). Matching against this library's names/aliases is
+// what lets Progress merge those into one history instead of splitting it.
+export interface ExerciseLibraryEntry {
+  id: string
+  name: string
+  muscleGroups: MuscleGroup[]
+  aliases: string[]
+}
+
 // Free-form id referencing a workout within the active plan's sequence
 export type WorkoutType = string
 

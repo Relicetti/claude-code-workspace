@@ -10,74 +10,52 @@ import {
 } from 'recharts'
 import { TrendingUp, TrendingDown, Minus as MinusIcon } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
-import type { WorkoutSession } from '@/types'
+import { canonicalExerciseName } from '@/data/exerciseLibrary'
+import type { WorkoutSession, ExerciseLibraryEntry } from '@/types'
 
 // The same real-world exercise can carry different exerciseIds across
 // sessions — the plan's own id, a substitute's synthetic id, or an imported
 // history entry's id — so group by name instead, otherwise today's set gets
 // tracked as a "different" exercise from past sessions of the same lift.
 //
-// Plan rewrites (e.g. switching to a coach's PPL plan) also renamed a few
-// exercises that are the same real movement — grouping by exact name alone
-// splits their history right at the switch. Canonicalize known renames so
-// they keep merging; only exercises confirmed to be the same movement are
-// listed here, not just similarly-named ones (e.g. "Rosca scott" and "Rosca
-// direta" are different lifts and are deliberately NOT merged).
-const EXERCISE_NAME_ALIASES: Record<string, string> = {
-  'supino reto barra/máquina': 'supino reto máquina',
-  'elevação lateral': 'elevação lateral máquina',
-  'stiff/levantamento romeno': 'stiff máquina/polia',
-  'rosca alternada/martelo': 'rosca martelo polia',
-  'face pull / rear delt': 'face pull',
-  'remada baixa cabo': 'remada máquina baixa',
-  'puxada frente/barra fixa': 'puxada frente pegada aberta',
-  'leg press': 'leg press 45°',
-}
-
-// "Crucifixo" and "peck deck" are the same movement under every equipment
-// brand/variant a gym might have (Hammer Strength, machine, cabo, etc.) —
-// unlike e.g. "supino", where different variants (reto/inclinado/declinado)
-// are genuinely different lifts, any name mentioning either of these two
-// words is safely the same exercise, so match by keyword instead of having
-// to list every substitution name someone might pick at the gym.
-const PECK_DECK_KEYWORDS = ['crucifixo', 'peck deck', 'peckdeck']
-
-function normalizeExerciseName(name: string): string {
-  const key = name.trim().toLowerCase()
-  if (PECK_DECK_KEYWORDS.some(k => key.includes(k))) return 'peck deck'
-  return EXERCISE_NAME_ALIASES[key] ?? key
+// Different gyms/coaches also call the same movement different things
+// (equipment brand, wording, substitution names). Canonicalizing through the
+// shared exercise library (built-in + user's custom entries) is what merges
+// those into one history instead of splitting it at every rename.
+function normalizeExerciseName(name: string, customLibrary: ExerciseLibraryEntry[]): string {
+  return canonicalExerciseName(name, customLibrary).trim().toLowerCase()
 }
 
 // Only exercises that actually have a logged set with a registered weight —
 // plan exercises never performed shouldn't show up with an empty chart.
-function getLoggedExercises(sessions: WorkoutSession[]) {
+function getLoggedExercises(sessions: WorkoutSession[], customLibrary: ExerciseLibraryEntry[]) {
   const byKey = new Map<string, string>()
   sessions.forEach(s => {
     s.exercises.forEach(e => {
       if (e.skipped) return
       const hasLoggedWeight = e.sets.some(st => st.completedAt !== null && st.weight != null)
       if (!hasLoggedWeight) return
-      const key = normalizeExerciseName(e.exerciseName)
-      if (!byKey.has(key)) byKey.set(key, e.exerciseName)
+      const key = normalizeExerciseName(e.exerciseName, customLibrary)
+      if (!byKey.has(key)) byKey.set(key, canonicalExerciseName(e.exerciseName, customLibrary))
     })
   })
   return Array.from(byKey.entries()).map(([id, name]) => ({ id, name }))
 }
 
 export function Progress() {
-  const { sessions } = useWorkoutStore()
-  const allExercises = getLoggedExercises(sessions)
+  const { sessions, customExerciseLibrary } = useWorkoutStore()
+  const allExercises = getLoggedExercises(sessions, customExerciseLibrary)
   const [selectedId, setSelectedId] = useState(allExercises[0]?.id ?? '')
 
   const chartData = sessions
-    .filter(s => s.exercises.some(e => normalizeExerciseName(e.exerciseName) === selectedId && !e.skipped))
+    .filter(s => s.exercises.some(e => normalizeExerciseName(e.exerciseName, customExerciseLibrary) === selectedId && !e.skipped))
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
     .map(session => {
       // A substituted exercise doesn't remove the original record — it stays
       // in the array marked skipped, alongside the new one with the actual
       // logged sets. Without excluding it here, .find() can grab that empty
       // skipped placeholder instead of the substitute that has real data.
-      const ex = session.exercises.find(e => normalizeExerciseName(e.exerciseName) === selectedId && !e.skipped)
+      const ex = session.exercises.find(e => normalizeExerciseName(e.exerciseName, customExerciseLibrary) === selectedId && !e.skipped)
       const doneSets = ex?.sets.filter(s => s.completedAt !== null) ?? []
       const maxWeight = doneSets.length > 0
         ? Math.max(...doneSets.map(s => s.weight ?? 0))
