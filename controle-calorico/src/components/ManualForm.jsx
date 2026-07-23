@@ -1,8 +1,20 @@
 import { useState } from 'react'
 import { api } from '../api.js'
 import { MEAL_GROUPS, suggestMealGroup } from '../mealGroups.js'
+import { applyQuantityChange } from '../scaleNutrients.js'
 
-const EMPTY = { name: '', kcal: '', protein: '', carbs: '', fat: '', caffeine: '', water: '', creatine: '' }
+const EMPTY = {
+  name: '',
+  quantity: '',
+  unit: 'g',
+  kcal: '',
+  protein: '',
+  carbs: '',
+  fat: '',
+  caffeine: '',
+  water: '',
+  creatine: '',
+}
 
 export default function ManualForm({ onAdd, onCandidates }) {
   const [open, setOpen] = useState(false)
@@ -14,6 +26,11 @@ export default function ManualForm({ onAdd, onCandidates }) {
 
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }))
+  }
+
+  function updateQuantity(value) {
+    const newQuantity = Number(value) || 0
+    setForm((f) => applyQuantityChange(f, newQuantity))
   }
 
   function submit(e) {
@@ -48,6 +65,8 @@ export default function ManualForm({ onAdd, onCandidates }) {
         const item = items[0]
         setForm({
           name: item.name,
+          quantity: item.quantity,
+          unit: item.unit,
           kcal: item.kcal,
           protein: item.protein,
           carbs: item.carbs,
@@ -115,6 +134,16 @@ export default function ManualForm({ onAdd, onCandidates }) {
           </option>
         ))}
       </select>
+      <div className="quantity-row">
+        <label>
+          Quantidade
+          <input type="number" value={form.quantity} onChange={(e) => updateQuantity(e.target.value)} />
+        </label>
+        <label>
+          Unidade
+          <input className="quantity-unit" value={form.unit} onChange={(e) => update('unit', e.target.value)} />
+        </label>
+      </div>
       <div className="manual-form-fields">
         <input type="number" placeholder="Kcal" value={form.kcal} onChange={(e) => update('kcal', e.target.value)} />
         <input

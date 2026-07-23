@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { MEAL_GROUPS, suggestMealGroup } from '../mealGroups.js'
+import { applyQuantityChange } from '../scaleNutrients.js'
 
 function ReviewCard({ item, onAdd, onDiscard }) {
   const [form, setForm] = useState(item)
@@ -7,6 +8,11 @@ function ReviewCard({ item, onAdd, onDiscard }) {
 
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }))
+  }
+
+  function updateQuantity(value) {
+    const newQuantity = Number(value) || 0
+    setForm((f) => applyQuantityChange(f, newQuantity))
   }
 
   return (
@@ -30,6 +36,21 @@ function ReviewCard({ item, onAdd, onDiscard }) {
           </option>
         ))}
       </select>
+      <div className="quantity-row">
+        <label>
+          Quantidade
+          <input type="number" value={form.quantity ?? ''} onChange={(e) => updateQuantity(e.target.value)} />
+        </label>
+        <label>
+          Unidade
+          <input
+            className="quantity-unit"
+            value={form.unit ?? ''}
+            onChange={(e) => update('unit', e.target.value)}
+          />
+        </label>
+      </div>
+      <div className="quantity-hint">Ajustar a quantidade recalcula os valores abaixo proporcionalmente.</div>
       <div className="review-card-fields">
         <label>
           Kcal

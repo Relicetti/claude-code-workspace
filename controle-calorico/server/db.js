@@ -66,5 +66,7 @@ export async function initSchema() {
       creatine DOUBLE PRECISION NOT NULL DEFAULT 0,
       updated_at BIGINT NOT NULL
     );
+    ALTER TABLE food_db ADD COLUMN IF NOT EXISTS quantity DOUBLE PRECISION;
+    ALTER TABLE food_db ADD COLUMN IF NOT EXISTS unit TEXT;
   `)
 }

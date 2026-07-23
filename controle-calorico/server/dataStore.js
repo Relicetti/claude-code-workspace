@@ -53,6 +53,8 @@ function foodDbRowToEntry(row) {
   return {
     normalizedName: row.normalized_name,
     name: row.name,
+    quantity: row.quantity,
+    unit: row.unit,
     kcal: row.kcal,
     protein: row.protein,
     carbs: row.carbs,
@@ -204,10 +206,12 @@ export async function upsertFoodDbEntry(entry) {
   const normalizedName = normalizeName(entry.name)
   const updatedAt = Date.now()
   const { rows } = await query(
-    `INSERT INTO food_db (normalized_name, name, kcal, protein, carbs, fat, caffeine, water, creatine, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `INSERT INTO food_db (normalized_name, name, quantity, unit, kcal, protein, carbs, fat, caffeine, water, creatine, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
      ON CONFLICT (normalized_name) DO UPDATE SET
        name = EXCLUDED.name,
+       quantity = EXCLUDED.quantity,
+       unit = EXCLUDED.unit,
        kcal = EXCLUDED.kcal,
        protein = EXCLUDED.protein,
        carbs = EXCLUDED.carbs,
@@ -220,6 +224,8 @@ export async function upsertFoodDbEntry(entry) {
     [
       normalizedName,
       entry.name,
+      entry.quantity || null,
+      entry.unit || null,
       entry.kcal,
       entry.protein,
       entry.carbs,
