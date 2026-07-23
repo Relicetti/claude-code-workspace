@@ -16,8 +16,12 @@ import {
   clearLog,
   upsertFoodDbEntry,
   getDailySummary,
+  getDayType,
+  setDayType,
+  getDayTypesInRange,
 } from './dataStore.js'
 import { analyzePhoto, analyzeTextDescription } from './anthropic.js'
+import { DAY_TYPES } from './dayTypes.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
@@ -66,6 +70,38 @@ app.get(
   '/api/log/:date',
   asyncHandler(async (req, res) => {
     res.json(await getLog(req.params.date))
+  })
+)
+
+app.get('/api/day-types', (req, res) => {
+  res.json(DAY_TYPES)
+})
+
+app.get(
+  '/api/day-type/summary',
+  asyncHandler(async (req, res) => {
+    const { from, to } = req.query
+    if (!from || !to) {
+      return res.status(400).json({ error: 'from e to sao obrigatorios' })
+    }
+    res.json(await getDayTypesInRange(from, to))
+  })
+)
+
+app.get(
+  '/api/day-type/:date',
+  asyncHandler(async (req, res) => {
+    res.json(await getDayType(req.params.date))
+  })
+)
+
+app.put(
+  '/api/day-type/:date',
+  asyncHandler(async (req, res) => {
+    if (!DAY_TYPES.some((d) => d.key === req.body.dayType)) {
+      return res.status(400).json({ error: 'Tipo de dia invalido' })
+    }
+    res.json(await setDayType(req.params.date, req.body.dayType))
   })
 )
 
