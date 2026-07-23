@@ -31,6 +31,27 @@ export function dateKeysBack(count) {
   return keys
 }
 
+// Monday-start week key for the given date (getDay(): 0=Sunday..6=Saturday).
+export function mondayKey(d) {
+  const day = d.getDay()
+  const diffToMonday = day === 0 ? 6 : day - 1
+  const monday = new Date(d)
+  monday.setDate(monday.getDate() - diffToMonday)
+  return dateKey(monday)
+}
+
+// Date keys from this week's Monday through the given date (inclusive).
+export function weekKeysThrough(d) {
+  const keys = []
+  const cursor = new Date(mondayKey(d) + 'T00:00:00')
+  const end = new Date(dateKey(d) + 'T00:00:00')
+  while (cursor <= end) {
+    keys.push(dateKey(cursor))
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return keys
+}
+
 export const api = {
   getSettings: () => request('/settings'),
   saveSettings: (settings) => request('/settings', { method: 'PUT', body: JSON.stringify(settings) }),

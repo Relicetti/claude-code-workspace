@@ -11,6 +11,7 @@ import HistoryScreen from './components/HistoryScreen.jsx'
 import SettingsModal from './components/SettingsModal.jsx'
 import DayTypeSelector from './components/DayTypeSelector.jsx'
 import DeficitSummary from './components/DeficitSummary.jsx'
+import WeeklySummary from './components/WeeklySummary.jsx'
 
 export default function App() {
   const [dateKey, setDateKey] = useState(todayKey())
@@ -155,6 +156,7 @@ export default function App() {
         <CalorieGauge consumed={consumed.kcal} goal={goals.calorieGoal} />
         <MacroBars consumed={consumed} goals={goals} />
         <DeficitSummary expenditure={dayType.expenditure} calorieGoal={goals.calorieGoal} consumedKcal={consumed.kcal} />
+        <WeeklySummary dateKey={dateKey} entries={entries} dayType={dayType} />
       </section>
 
       <section className="capture-section">
