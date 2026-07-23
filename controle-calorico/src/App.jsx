@@ -144,6 +144,10 @@ export default function App() {
         </div>
       )}
 
+      <button className="btn btn-secondary history-open-btn" onClick={() => setShowHistory(true)}>
+        📈 Ver historico de calorias e macros
+      </button>
+
       <DayTypeSelector dayType={dayType.dayType} onChange={handleChangeDayType} />
 
       <section className="summary">
@@ -167,12 +171,6 @@ export default function App() {
       <section className="log-section">
         <h3>Hoje</h3>
         <DailyLog entries={entries} onRemove={handleRemoveEntry} />
-      </section>
-
-      <section className="log-section">
-        <button className="btn btn-secondary history-open-btn" onClick={() => setShowHistory(true)}>
-          📈 Ver historico de calorias e macros
-        </button>
       </section>
 
       {showSettings && (
