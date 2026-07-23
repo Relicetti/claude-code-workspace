@@ -62,6 +62,7 @@ export async function initSchema() {
       carb_goal DOUBLE PRECISION NOT NULL,
       fat_goal DOUBLE PRECISION NOT NULL
     );
+    ALTER TABLE day_activity ADD COLUMN IF NOT EXISTS expenditure DOUBLE PRECISION;
 
     CREATE TABLE IF NOT EXISTS food_db (
       normalized_name TEXT PRIMARY KEY,

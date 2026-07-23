@@ -25,7 +25,8 @@ const LABELS_Y = 186
 const AXIS_W = 34
 const LARGE_SCALE = 2.3
 const LARGE_DAY_W = 22
-const TOOLTIP_W = 124
+const TOOLTIP_W = 130
+const TOOLTIP_H = 185
 const DOT_R = 2.75
 const DOT_R_HOVER = 4.5
 
@@ -87,6 +88,7 @@ export default function HistoryChart({ large = false }) {
                 proteinGoal: DEFAULT_PRESET.proteinGoal,
                 carbGoal: DEFAULT_PRESET.carbGoal,
                 fatGoal: DEFAULT_PRESET.fatGoal,
+                expenditure: DEFAULT_PRESET.expenditure,
               }
           )
         )
@@ -153,11 +155,24 @@ export default function HistoryChart({ large = false }) {
     const visibleMinX = (Math.max(rect.left, containerRect.left) - rect.left) / scale
     const visibleMaxX = (Math.min(rect.right, containerRect.right) - rect.left) / scale
     const preferred = xFor(idx) + 8
-    const clamped = Math.min(Math.max(preferred, visibleMinX + 4), visibleMaxX - TOOLTIP_W - 4)
+    // Keep the left edge in view above all else: if the visible window is
+    // narrower than the tooltip (small phones, zoomed-in large mode), the
+    // left-bound clamp must win so labels never scroll off before values do.
+    let clamped = Math.max(preferred, visibleMinX + 4)
+    clamped = Math.min(clamped, visibleMaxX - TOOLTIP_W - 4)
+    clamped = Math.max(clamped, visibleMinX + 4)
     setTooltipX(clamped)
   }
 
-  const hovered = hoverIdx !== null ? { date: rows[hoverIdx].date, row: rows[hoverIdx], pct: pctRows[hoverIdx] } : null
+  const hovered =
+    hoverIdx !== null
+      ? { date: rows[hoverIdx].date, row: rows[hoverIdx], pct: pctRows[hoverIdx], dayGoal: dayGoals[hoverIdx] }
+      : null
+
+  function formatDeficit(value) {
+    const rounded = Math.round(value)
+    return rounded >= 0 ? `${rounded} kcal` : `-${Math.abs(rounded)} kcal`
+  }
 
   const axisSvg = large && (
     <svg viewBox={`0 0 ${AXIS_W} ${VB_H}`} width={AXIS_W * LARGE_SCALE} height={VB_H * LARGE_SCALE} className="history-chart-axis">
@@ -267,21 +282,52 @@ export default function HistoryChart({ large = false }) {
 
       {hovered && (
         <g transform={`translate(${tooltipX}, ${PLOT_TOP})`}>
-          <rect width={TOOLTIP_W} height="92" rx="6" fill={SURFACE} stroke={GRID_COLOR} strokeWidth="1" />
+          <rect width={TOOLTIP_W} height={TOOLTIP_H} rx="6" fill={SURFACE} stroke={GRID_COLOR} strokeWidth="1" />
           <text x="10" y="16" fontSize="10" fontWeight="700" fill={PRIMARY_INK}>
             {shortDate(hovered.date)}
           </text>
+
           {SERIES.map((s, i) => (
-            <g key={s.key} transform={`translate(10, ${32 + i * 15})`}>
-              <line x1="0" x2="10" y1="-4" y2="-4" stroke={s.color} strokeWidth="2" strokeDasharray={s.dash || undefined} />
-              <text x="16" y="0" fontSize="9" fill={SECONDARY_INK}>
+            <g key={s.key} transform={`translate(${10 + (i % 2) * (TOOLTIP_W / 2 - 10)}, ${30 + Math.floor(i / 2) * 30})`}>
+              <line x1="0" x2="9" y1="-9" y2="-9" stroke={s.color} strokeWidth="2" strokeDasharray={s.dash || undefined} />
+              <text x="0" y="0" fontSize="8" fill={SECONDARY_INK}>
                 {s.label}
               </text>
-              <text x="108" y="0" textAnchor="end" fontSize="9" fontWeight="700" fill={PRIMARY_INK}>
+              <text x="0" y="11" fontSize="10" fontWeight="700" fill={PRIMARY_INK}>
                 {Math.round(hovered.row[s.key])} {s.unit}
               </text>
             </g>
           ))}
+
+          {hovered.dayGoal.expenditure && (
+            <>
+              <line x1="10" x2={TOOLTIP_W - 10} y1="86" y2="86" stroke={GRID_COLOR} strokeWidth="1" />
+              <g transform="translate(10, 104)">
+                <text x="0" y="0" fontSize="8" fill={SECONDARY_INK}>
+                  Gasto estimado
+                </text>
+                <text x="0" y="11" fontSize="10" fontWeight="700" fill={PRIMARY_INK}>
+                  {Math.round(hovered.dayGoal.expenditure)} kcal
+                </text>
+              </g>
+              <g transform="translate(10, 134)">
+                <text x="0" y="0" fontSize="8" fill={SECONDARY_INK}>
+                  Deficit previsto
+                </text>
+                <text x="0" y="11" fontSize="10" fontWeight="700" fill={PRIMARY_INK}>
+                  {formatDeficit(hovered.dayGoal.expenditure - hovered.dayGoal.calorieGoal)}
+                </text>
+              </g>
+              <g transform="translate(10, 164)">
+                <text x="0" y="0" fontSize="8" fill={SECONDARY_INK}>
+                  Deficit real
+                </text>
+                <text x="0" y="11" fontSize="10" fontWeight="700" fill={PRIMARY_INK}>
+                  {formatDeficit(hovered.dayGoal.expenditure - hovered.row.kcal)}
+                </text>
+              </g>
+            </>
+          )}
         </g>
       )}
     </svg>

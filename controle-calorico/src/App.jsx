@@ -10,6 +10,7 @@ import DailyLog from './components/DailyLog.jsx'
 import HistoryScreen from './components/HistoryScreen.jsx'
 import SettingsModal from './components/SettingsModal.jsx'
 import DayTypeSelector from './components/DayTypeSelector.jsx'
+import DeficitSummary from './components/DeficitSummary.jsx'
 
 export default function App() {
   const [dateKey, setDateKey] = useState(todayKey())
@@ -153,6 +154,7 @@ export default function App() {
       <section className="summary">
         <CalorieGauge consumed={consumed.kcal} goal={goals.calorieGoal} />
         <MacroBars consumed={consumed} goals={goals} />
+        <DeficitSummary expenditure={dayType.expenditure} calorieGoal={goals.calorieGoal} consumedKcal={consumed.kcal} />
       </section>
 
       <section className="capture-section">

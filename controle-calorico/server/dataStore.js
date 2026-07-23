@@ -141,8 +141,12 @@ function dayTypeRowToEntry(date, row) {
       proteinGoal: preset.proteinGoal,
       carbGoal: preset.carbGoal,
       fatGoal: preset.fatGoal,
+      expenditure: preset.expenditure,
     }
   }
+  // Rows saved before the expenditure column existed have it as null;
+  // fall back to the preset's current value so old days still show a number.
+  const fallbackPreset = DAY_TYPE_BY_KEY[row.day_type]
   return {
     date,
     dayType: row.day_type,
@@ -150,6 +154,7 @@ function dayTypeRowToEntry(date, row) {
     proteinGoal: row.protein_goal,
     carbGoal: row.carb_goal,
     fatGoal: row.fat_goal,
+    expenditure: row.expenditure ?? fallbackPreset?.expenditure ?? null,
   }
 }
 
@@ -162,15 +167,16 @@ export async function setDayType(date, dayType) {
   const preset = DAY_TYPE_BY_KEY[dayType]
   if (!preset) throw new Error('Tipo de dia invalido')
   await query(
-    `INSERT INTO day_activity (log_date, day_type, calorie_goal, protein_goal, carb_goal, fat_goal)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO day_activity (log_date, day_type, calorie_goal, protein_goal, carb_goal, fat_goal, expenditure)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      ON CONFLICT (log_date) DO UPDATE SET
        day_type = EXCLUDED.day_type,
        calorie_goal = EXCLUDED.calorie_goal,
        protein_goal = EXCLUDED.protein_goal,
        carb_goal = EXCLUDED.carb_goal,
-       fat_goal = EXCLUDED.fat_goal`,
-    [date, dayType, preset.calorieGoal, preset.proteinGoal, preset.carbGoal, preset.fatGoal]
+       fat_goal = EXCLUDED.fat_goal,
+       expenditure = EXCLUDED.expenditure`,
+    [date, dayType, preset.calorieGoal, preset.proteinGoal, preset.carbGoal, preset.fatGoal, preset.expenditure]
   )
   return getDayType(date)
 }
