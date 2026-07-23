@@ -4,10 +4,10 @@ import { api, dateKeysBack } from '../api.js'
 const DAYS = 14
 
 const SERIES = [
-  { key: 'kcal', label: 'Calorias', unit: 'kcal', color: '#2a78d6', goalKey: 'calorieGoal' },
-  { key: 'protein', label: 'Proteina', unit: 'g', color: '#eb6834', goalKey: 'proteinGoal' },
-  { key: 'carbs', label: 'Carboidrato', unit: 'g', color: '#1baf7a', goalKey: 'carbGoal' },
-  { key: 'fat', label: 'Gordura', unit: 'g', color: '#eda100', goalKey: 'fatGoal' },
+  { key: 'kcal', label: 'Calorias', unit: 'kcal', color: '#2a78d6', goalKey: 'calorieGoal', dash: null, fill: true },
+  { key: 'protein', label: 'Proteina', unit: 'g', color: '#eb6834', goalKey: 'proteinGoal', dash: '7 4' },
+  { key: 'carbs', label: 'Carboidrato', unit: 'g', color: '#1baf7a', goalKey: 'carbGoal', dash: '1.5 3.5' },
+  { key: 'fat', label: 'Gordura', unit: 'g', color: '#eda100', goalKey: 'fatGoal', dash: '7 3 1.5 3' },
 ]
 
 const GRID_COLOR = '#e1e0d9'
@@ -25,10 +25,32 @@ const AXIS_W = 34
 const LARGE_SCALE = 2.3
 const LARGE_DAY_W = 22
 const TOOLTIP_W = 124
+const DOT_R = 2.75
+const DOT_R_HOVER = 4.5
 
 function shortDate(dateStr) {
   const [, mm, dd] = dateStr.split('-')
   return `${dd}/${mm}`
+}
+
+// Catmull-Rom -> cubic Bezier smoothing, so the line reads as a soft curve
+// instead of a straight-segment polyline (matches the reference chart look).
+function smoothPath(points) {
+  if (points.length === 0) return ''
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`
+  let d = `M ${points[0].x} ${points[0].y}`
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i - 1] || points[i]
+    const p1 = points[i]
+    const p2 = points[i + 1]
+    const p3 = points[i + 2] || p2
+    const cp1x = p1.x + (p2.x - p0.x) / 6
+    const cp1y = p1.y + (p2.y - p0.y) / 6
+    const cp2x = p2.x - (p3.x - p1.x) / 6
+    const cp2y = p2.y - (p3.y - p1.y) / 6
+    d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
+  }
+  return d
 }
 
 export default function HistoryChart({ goals, large = false }) {
@@ -81,15 +103,16 @@ export default function HistoryChart({ goals, large = false }) {
   const stepX = keys.length > 1 ? (PLOT_RIGHT - PLOT_LEFT) / (keys.length - 1) : 0
   const xFor = (i) => PLOT_LEFT + stepX * i
 
-  const paths = SERIES.map((s) => ({
+  const seriesPoints = SERIES.map((s) => ({
     ...s,
-    d: pctRows.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xFor(i)} ${yFor(p[s.key])}`).join(' '),
+    points: pctRows.map((p, i) => ({ x: xFor(i), y: yFor(p[s.key]) })),
   }))
+
+  const lastIdx = keys.length - 1
 
   const labelStep = Math.ceil(keys.length / 6)
   const tickIdx = []
   for (let i = 0; i < keys.length; i += labelStep) tickIdx.push(i)
-  const lastIdx = keys.length - 1
   if (tickIdx[tickIdx.length - 1] !== lastIdx) {
     if (lastIdx - tickIdx[tickIdx.length - 1] < labelStep) tickIdx.pop()
     tickIdx.push(lastIdx)
@@ -127,6 +150,8 @@ export default function HistoryChart({ goals, large = false }) {
     </svg>
   )
 
+  const baselineY = yFor(0)
+
   const plotSvg = (
     <svg
       ref={svgRef}
@@ -138,6 +163,17 @@ export default function HistoryChart({ goals, large = false }) {
       onTouchMove={handlePointer}
       onTouchEnd={() => setHoverIdx(null)}
     >
+      <defs>
+        {seriesPoints
+          .filter((s) => s.fill)
+          .map((s) => (
+            <linearGradient key={s.key} id={`history-fill-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={s.color} stopOpacity="0.22" />
+              <stop offset="100%" stopColor={s.color} stopOpacity="0.02" />
+            </linearGradient>
+          ))}
+      </defs>
+
       {yTicks.map((v) => (
         <line
           key={v}
@@ -169,26 +205,46 @@ export default function HistoryChart({ goals, large = false }) {
         <line x1={xFor(hoverIdx)} x2={xFor(hoverIdx)} y1={PLOT_TOP} y2={PLOT_BOTTOM} stroke={AXIS_COLOR} strokeWidth="1" />
       )}
 
-      {paths.map((s) => (
-        <path key={s.key} d={s.d} fill="none" stroke={s.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      ))}
+      {/* filled area under the primary series */}
+      {seriesPoints
+        .filter((s) => s.fill)
+        .map((s) => (
+          <path
+            key={`area-${s.key}`}
+            d={`${smoothPath(s.points)} L ${xFor(lastIdx)} ${baselineY} L ${xFor(0)} ${baselineY} Z`}
+            fill={`url(#history-fill-${s.key})`}
+            stroke="none"
+          />
+        ))}
 
-      {paths.map((s) => (
-        <circle
+      {/* lines */}
+      {seriesPoints.map((s) => (
+        <path
           key={s.key}
-          cx={xFor(lastIdx)}
-          cy={yFor(pctRows[lastIdx][s.key])}
-          r="5"
-          fill={s.color}
-          stroke={SURFACE}
+          d={smoothPath(s.points)}
+          fill="none"
+          stroke={s.color}
           strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeDasharray={s.dash || undefined}
         />
       ))}
 
-      {hoverIdx !== null &&
-        SERIES.map((s) => (
-          <circle key={s.key} cx={xFor(hoverIdx)} cy={yFor(hovered.pct[s.key])} r="4" fill={s.color} stroke={SURFACE} strokeWidth="2" />
-        ))}
+      {/* a dot on every data point, so the shape of the series reads clearly */}
+      {seriesPoints.map((s) =>
+        s.points.map((p, i) => (
+          <circle
+            key={`${s.key}-${i}`}
+            cx={p.x}
+            cy={p.y}
+            r={hoverIdx === i ? DOT_R_HOVER : DOT_R}
+            fill={s.color}
+            stroke={SURFACE}
+            strokeWidth={hoverIdx === i ? 2 : 1.5}
+          />
+        ))
+      )}
 
       {hovered && (
         <g transform={`translate(${tooltipX}, ${PLOT_TOP})`}>
@@ -198,7 +254,7 @@ export default function HistoryChart({ goals, large = false }) {
           </text>
           {SERIES.map((s, i) => (
             <g key={s.key} transform={`translate(10, ${32 + i * 15})`}>
-              <rect width="10" height="3" y="-4" fill={s.color} />
+              <line x1="0" x2="10" y1="-4" y2="-4" stroke={s.color} strokeWidth="2" strokeDasharray={s.dash || undefined} />
               <text x="16" y="0" fontSize="9" fill={SECONDARY_INK}>
                 {s.label}
               </text>
@@ -214,6 +270,25 @@ export default function HistoryChart({ goals, large = false }) {
 
   return (
     <div className={`history-chart${large ? ' history-chart-large' : ''}`}>
+      <div className="history-chart-legend">
+        {SERIES.map((s) => (
+          <span className="history-chart-legend-item" key={s.key}>
+            <svg width="20" height="8" className="history-chart-legend-swatch">
+              <line
+                x1="0"
+                x2="20"
+                y1="4"
+                y2="4"
+                stroke={s.color}
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeDasharray={s.dash || undefined}
+              />
+            </svg>
+            {s.label}
+          </span>
+        ))}
+      </div>
       {!large && <h4 className="history-chart-title">Ultimos {DAYS} dias</h4>}
       {large ? (
         <div className="history-chart-row">
@@ -225,14 +300,6 @@ export default function HistoryChart({ goals, large = false }) {
       ) : (
         plotSvg
       )}
-      <div className="history-chart-legend">
-        {SERIES.map((s) => (
-          <span className="history-chart-legend-item" key={s.key}>
-            <span className="history-chart-legend-swatch" style={{ background: s.color }} />
-            {s.label}
-          </span>
-        ))}
-      </div>
     </div>
   )
 }
