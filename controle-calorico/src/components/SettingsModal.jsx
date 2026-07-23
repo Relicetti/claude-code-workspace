@@ -16,23 +16,11 @@ export default function SettingsModal({ settings, onSave, onClearDay, onClose })
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2>Configuracoes</h2>
+        <p className="modal-hint">
+          As metas de calorias, proteina, carboidrato e gordura agora vem do tipo de dia (treino), escolhido na tela
+          principal.
+        </p>
         <form onSubmit={submit}>
-          <label>
-            Meta de calorias (kcal)
-            <input type="number" value={form.calorieGoal} onChange={(e) => update('calorieGoal', e.target.value)} />
-          </label>
-          <label>
-            Meta de proteina (g)
-            <input type="number" value={form.proteinGoal} onChange={(e) => update('proteinGoal', e.target.value)} />
-          </label>
-          <label>
-            Meta de carboidrato (g)
-            <input type="number" value={form.carbGoal} onChange={(e) => update('carbGoal', e.target.value)} />
-          </label>
-          <label>
-            Meta de gordura (g)
-            <input type="number" value={form.fatGoal} onChange={(e) => update('fatGoal', e.target.value)} />
-          </label>
           <label>
             Meta de cafeina (mg)
             <input type="number" value={form.caffeineGoal} onChange={(e) => update('caffeineGoal', e.target.value)} />

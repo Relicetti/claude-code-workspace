@@ -1,4 +1,5 @@
 import { query } from './db.js'
+import { DAY_TYPE_BY_KEY, DEFAULT_DAY_TYPE } from './dayTypes.js'
 
 const DEFAULT_SETTINGS = {
   calorieGoal: 2000,
@@ -126,6 +127,55 @@ export async function getDailySummary(fromDate, toDate) {
     carbs: row.carbs,
     fat: row.fat,
   }))
+}
+
+function dayTypeRowToEntry(date, row) {
+  if (!row) {
+    const preset = DAY_TYPE_BY_KEY[DEFAULT_DAY_TYPE]
+    return {
+      date,
+      dayType: DEFAULT_DAY_TYPE,
+      calorieGoal: preset.calorieGoal,
+      proteinGoal: preset.proteinGoal,
+      carbGoal: preset.carbGoal,
+      fatGoal: preset.fatGoal,
+    }
+  }
+  return {
+    date,
+    dayType: row.day_type,
+    calorieGoal: row.calorie_goal,
+    proteinGoal: row.protein_goal,
+    carbGoal: row.carb_goal,
+    fatGoal: row.fat_goal,
+  }
+}
+
+export async function getDayType(date) {
+  const { rows } = await query('SELECT * FROM day_activity WHERE log_date = $1', [date])
+  return dayTypeRowToEntry(date, rows[0])
+}
+
+export async function setDayType(date, dayType) {
+  const preset = DAY_TYPE_BY_KEY[dayType]
+  if (!preset) throw new Error('Tipo de dia invalido')
+  await query(
+    `INSERT INTO day_activity (log_date, day_type, calorie_goal, protein_goal, carb_goal, fat_goal)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (log_date) DO UPDATE SET
+       day_type = EXCLUDED.day_type,
+       calorie_goal = EXCLUDED.calorie_goal,
+       protein_goal = EXCLUDED.protein_goal,
+       carb_goal = EXCLUDED.carb_goal,
+       fat_goal = EXCLUDED.fat_goal`,
+    [date, dayType, preset.calorieGoal, preset.proteinGoal, preset.carbGoal, preset.fatGoal]
+  )
+  return getDayType(date)
+}
+
+export async function getDayTypesInRange(fromDate, toDate) {
+  const { rows } = await query('SELECT * FROM day_activity WHERE log_date >= $1 AND log_date <= $2', [fromDate, toDate])
+  return rows.map((row) => dayTypeRowToEntry(row.log_date, row))
 }
 
 export async function addLogEntry(date, entry) {

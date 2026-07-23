@@ -9,10 +9,12 @@ import QuickAdd from './components/QuickAdd.jsx'
 import DailyLog from './components/DailyLog.jsx'
 import HistoryScreen from './components/HistoryScreen.jsx'
 import SettingsModal from './components/SettingsModal.jsx'
+import DayTypeSelector from './components/DayTypeSelector.jsx'
 
 export default function App() {
   const [dateKey, setDateKey] = useState(todayKey())
   const [settings, setSettings] = useState(null)
+  const [dayType, setDayTypeState] = useState(null)
   const [entries, setEntries] = useState([])
   const [candidates, setCandidates] = useState([])
   const [analyzing, setAnalyzing] = useState(false)
@@ -22,10 +24,11 @@ export default function App() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([api.getSettings(), api.getLog(dateKey)])
-      .then(([s, log]) => {
+    Promise.all([api.getSettings(), api.getLog(dateKey), api.getDayType(dateKey)])
+      .then(([s, log, dt]) => {
         setSettings(s)
         setEntries(log)
+        setDayTypeState(dt)
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
@@ -104,8 +107,25 @@ export default function App() {
     }
   }
 
-  if (loading || !settings) {
+  async function handleChangeDayType(newDayType) {
+    try {
+      const updated = await api.setDayType(dateKey, newDayType)
+      setDayTypeState(updated)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  if (loading || !settings || !dayType) {
     return <div className="app-loading">Carregando...</div>
+  }
+
+  const goals = {
+    ...settings,
+    calorieGoal: dayType.calorieGoal,
+    proteinGoal: dayType.proteinGoal,
+    carbGoal: dayType.carbGoal,
+    fatGoal: dayType.fatGoal,
   }
 
   return (
@@ -124,9 +144,11 @@ export default function App() {
         </div>
       )}
 
+      <DayTypeSelector dayType={dayType.dayType} onChange={handleChangeDayType} />
+
       <section className="summary">
-        <CalorieGauge consumed={consumed.kcal} goal={settings.calorieGoal} />
-        <MacroBars consumed={consumed} goals={settings} />
+        <CalorieGauge consumed={consumed.kcal} goal={goals.calorieGoal} />
+        <MacroBars consumed={consumed} goals={goals} />
       </section>
 
       <section className="capture-section">
@@ -162,7 +184,7 @@ export default function App() {
         />
       )}
 
-      {showHistory && <HistoryScreen goals={settings} onClose={() => setShowHistory(false)} />}
+      {showHistory && <HistoryScreen onClose={() => setShowHistory(false)} />}
     </div>
   )
 }

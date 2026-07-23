@@ -54,6 +54,15 @@ export async function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_log_entries_log_date ON log_entries (log_date);
     ALTER TABLE log_entries ADD COLUMN IF NOT EXISTS meal_group TEXT;
 
+    CREATE TABLE IF NOT EXISTS day_activity (
+      log_date TEXT PRIMARY KEY,
+      day_type TEXT NOT NULL,
+      calorie_goal DOUBLE PRECISION NOT NULL,
+      protein_goal DOUBLE PRECISION NOT NULL,
+      carb_goal DOUBLE PRECISION NOT NULL,
+      fat_goal DOUBLE PRECISION NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS food_db (
       normalized_name TEXT PRIMARY KEY,
       name TEXT NOT NULL,

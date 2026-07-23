@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, dateKeysBack } from '../api.js'
+import { DAY_TYPE_BY_KEY, DEFAULT_DAY_TYPE } from '../dayTypes.js'
 
 const DAYS = 14
 
@@ -31,8 +32,11 @@ function shortDate(dateStr) {
   return `${dd}/${mm}`
 }
 
-export default function HistoryChart({ goals, large = false }) {
+const DEFAULT_PRESET = DAY_TYPE_BY_KEY[DEFAULT_DAY_TYPE]
+
+export default function HistoryChart({ large = false }) {
   const [rows, setRows] = useState(null)
+  const [dayGoals, setDayGoals] = useState(null)
   const [error, setError] = useState(null)
   const [hoverIdx, setHoverIdx] = useState(null)
   const [tooltipX, setTooltipX] = useState(0)
@@ -43,12 +47,27 @@ export default function HistoryChart({ goals, large = false }) {
 
   useEffect(() => {
     let cancelled = false
-    api
-      .getLogSummary(keys[0], keys[keys.length - 1])
-      .then((summary) => {
+    Promise.all([
+      api.getLogSummary(keys[0], keys[keys.length - 1]),
+      api.getDayTypeSummary(keys[0], keys[keys.length - 1]),
+    ])
+      .then(([summary, dayTypes]) => {
         if (cancelled) return
         const byDate = new Map(summary.map((r) => [r.date, r]))
         setRows(keys.map((date) => byDate.get(date) || { date, kcal: 0, protein: 0, carbs: 0, fat: 0 }))
+        const goalsByDate = new Map(dayTypes.map((r) => [r.date, r]))
+        setDayGoals(
+          keys.map(
+            (date) =>
+              goalsByDate.get(date) || {
+                date,
+                calorieGoal: DEFAULT_PRESET.calorieGoal,
+                proteinGoal: DEFAULT_PRESET.proteinGoal,
+                carbGoal: DEFAULT_PRESET.carbGoal,
+                fatGoal: DEFAULT_PRESET.fatGoal,
+              }
+          )
+        )
       })
       .catch((err) => !cancelled && setError(err.message))
     return () => {
@@ -57,12 +76,12 @@ export default function HistoryChart({ goals, large = false }) {
   }, [keys])
 
   if (error) return <div className="history-chart-error">{error}</div>
-  if (!rows) return null
+  if (!rows || !dayGoals) return null
 
-  const pctRows = rows.map((row) => {
+  const pctRows = rows.map((row, i) => {
     const pct = {}
     for (const s of SERIES) {
-      const goal = goals[s.goalKey]
+      const goal = dayGoals[i][s.goalKey]
       pct[s.key] = goal > 0 ? (row[s.key] / goal) * 100 : 0
     }
     return pct

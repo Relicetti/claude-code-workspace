@@ -39,6 +39,9 @@ export const api = {
   addLogEntry: (date, entry) => request(`/log/${date}`, { method: 'POST', body: JSON.stringify(entry) }),
   deleteLogEntry: (date, id) => request(`/log/${date}/${id}`, { method: 'DELETE' }),
   clearLog: (date) => request(`/log/${date}`, { method: 'DELETE' }),
+  getDayType: (date) => request(`/day-type/${date}`),
+  setDayType: (date, dayType) => request(`/day-type/${date}`, { method: 'PUT', body: JSON.stringify({ dayType }) }),
+  getDayTypeSummary: (from, to) => request(`/day-type/summary?from=${from}&to=${to}`),
   analyzePhoto: (imageBase64, mediaType) =>
     request('/analyze-photo', { method: 'POST', body: JSON.stringify({ imageBase64, mediaType }) }),
   analyzeText: (description) => request('/analyze-text', { method: 'POST', body: JSON.stringify({ description }) }),
