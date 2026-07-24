@@ -58,6 +58,7 @@ export const api = {
   getLog: (date) => request(`/log/${date}`),
   getLogSummary: (from, to) => request(`/log/summary?from=${from}&to=${to}`),
   addLogEntry: (date, entry) => request(`/log/${date}`, { method: 'POST', body: JSON.stringify(entry) }),
+  updateLogEntry: (date, id, updates) => request(`/log/${date}/${id}`, { method: 'PUT', body: JSON.stringify(updates) }),
   deleteLogEntry: (date, id) => request(`/log/${date}/${id}`, { method: 'DELETE' }),
   clearLog: (date) => request(`/log/${date}`, { method: 'DELETE' }),
   getDayType: (date) => request(`/day-type/${date}`),

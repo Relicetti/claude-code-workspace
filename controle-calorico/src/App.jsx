@@ -89,6 +89,15 @@ export default function App() {
     }
   }
 
+  async function handleUpdateEntry(id, updates) {
+    try {
+      const updated = await api.updateLogEntry(dateKey, id, updates)
+      setEntries((es) => es.map((e) => (e.id === id ? updated : e)))
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
   async function handleSaveSettings(newSettings) {
     try {
       const saved = await api.saveSettings(newSettings)
@@ -174,7 +183,7 @@ export default function App() {
 
       <section className="log-section">
         <h3>Hoje</h3>
-        <DailyLog entries={entries} onRemove={handleRemoveEntry} />
+        <DailyLog entries={entries} onRemove={handleRemoveEntry} onEdit={handleUpdateEntry} />
       </section>
 
       {showSettings && (

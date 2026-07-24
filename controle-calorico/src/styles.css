@@ -477,6 +477,16 @@ body {
   color: #777;
 }
 
+.daily-log-item-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.edit-entry-form {
+  margin-bottom: 0;
+}
+
 .history-chart {
   padding: 16px 0;
 }
