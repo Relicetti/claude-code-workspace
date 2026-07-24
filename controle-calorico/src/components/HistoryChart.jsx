@@ -15,13 +15,13 @@ const GRID_COLOR = '#e1e0d9'
 const AXIS_COLOR = '#c3c2b7'
 const MUTED_INK = '#898781'
 
+const VB_W = 340
 const VB_H = 220
 const PLOT_TOP = 14
 const PLOT_BOTTOM = 168
+const PLOT_LEFT = 34
+const PLOT_RIGHT = 328
 const LABELS_Y = 186
-const AXIS_W = 34
-const LARGE_SCALE = 2.3
-const LARGE_DAY_W = 22
 const DOT_R = 2.75
 const DOT_R_HOVER = 4.5
 
@@ -115,10 +115,6 @@ export default function HistoryChart({ large = false }) {
   for (let v = 0; v <= yMax; v += 50) yTicks.push(v)
   const yFor = (pct) => PLOT_BOTTOM - (pct / yMax) * (PLOT_BOTTOM - PLOT_TOP)
 
-  const PLOT_LEFT = large ? 10 : 34
-  const PLOT_RIGHT = large ? PLOT_LEFT + LARGE_DAY_W * (keys.length - 1) : 328
-  const VB_W = large ? PLOT_RIGHT + 24 : 340
-
   const stepX = keys.length > 1 ? (PLOT_RIGHT - PLOT_LEFT) / (keys.length - 1) : 0
   const xFor = (i) => PLOT_LEFT + stepX * i
 
@@ -153,24 +149,17 @@ export default function HistoryChart({ large = false }) {
       ? { date: rows[hoverIdx].date, row: rows[hoverIdx], pct: pctRows[hoverIdx], dayGoal: dayGoals[hoverIdx] }
       : null
 
-  const axisSvg = large && (
-    <svg viewBox={`0 0 ${AXIS_W} ${VB_H}`} width={AXIS_W * LARGE_SCALE} height={VB_H * LARGE_SCALE} className="history-chart-axis">
-      {yTicks.map((v) => (
-        <text key={v} x={AXIS_W - 6} y={yFor(v) + 3} textAnchor="end" fontSize="9" fill={MUTED_INK}>
-          {v}%
-        </text>
-      ))}
-    </svg>
-  )
-
   const baselineY = yFor(0)
 
+  // width is always 100% of the container and height follows via aspect-ratio,
+  // so the whole timeline always fits on screen without needing horizontal
+  // scroll/drag — it just renders bigger in a wider container (e.g. the
+  // fullscreen "large" history screen vs. the compact inline preview).
   const plotSvg = (
     <svg
       ref={svgRef}
       viewBox={`0 0 ${VB_W} ${VB_H}`}
-      width={large ? VB_W * LARGE_SCALE : '100%'}
-      height={large ? VB_H * LARGE_SCALE : VB_H}
+      style={{ width: '100%', height: 'auto', aspectRatio: `${VB_W} / ${VB_H}` }}
       onPointerMove={handlePointer}
       onPointerLeave={() => setHoverIdx(null)}
       onTouchMove={handlePointer}
@@ -198,12 +187,11 @@ export default function HistoryChart({ large = false }) {
           strokeWidth="1"
         />
       ))}
-      {!large &&
-        yTicks.map((v) => (
-          <text key={v} x={PLOT_LEFT - 6} y={yFor(v) + 3} textAnchor="end" fontSize="9" fill={MUTED_INK}>
-            {v}%
-          </text>
-        ))}
+      {yTicks.map((v) => (
+        <text key={v} x={PLOT_LEFT - 6} y={yFor(v) + 3} textAnchor="end" fontSize="9" fill={MUTED_INK}>
+          {v}%
+        </text>
+      ))}
       <text x={PLOT_RIGHT} y={yFor(100) - 4} textAnchor="end" fontSize="9" fill={MUTED_INK}>
         meta
       </text>
@@ -283,14 +271,7 @@ export default function HistoryChart({ large = false }) {
         ))}
       </div>
       {!large && <h4 className="history-chart-title">Ultimos {DAYS} dias</h4>}
-      {large ? (
-        <div className="history-chart-row">
-          {axisSvg}
-          <div className="history-chart-scroll">{plotSvg}</div>
-        </div>
-      ) : (
-        plotSvg
-      )}
+      {plotSvg}
 
       {/* Detail panel lives below the chart (plain HTML, not overlaid on the SVG)
           so it never covers the curves it's describing. */}
@@ -342,7 +323,7 @@ export default function HistoryChart({ large = false }) {
             ) : null}
           </>
         ) : (
-          <div className="history-detail-hint">Toque ou arraste no grafico pra ver os valores de cada dia.</div>
+          <div className="history-detail-hint">Toque no grafico pra ver os valores de cada dia.</div>
         )}
       </div>
     </div>

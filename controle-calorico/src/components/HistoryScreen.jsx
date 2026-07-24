@@ -10,7 +10,7 @@ export default function HistoryScreen({ onClose }) {
         <h2>Historico</h2>
       </header>
       <div className="history-screen-body">
-        <p className="history-screen-hint">Arraste o grafico pros lados pra ver todos os dias.</p>
+        <p className="history-screen-hint">Toque no grafico pra ver os valores de cada dia.</p>
         <HistoryChart large />
       </div>
     </div>
