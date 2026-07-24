@@ -14,9 +14,6 @@ const SERIES = [
 const GRID_COLOR = '#e1e0d9'
 const AXIS_COLOR = '#c3c2b7'
 const MUTED_INK = '#898781'
-const SECONDARY_INK = '#52514e'
-const PRIMARY_INK = '#0b0b0b'
-const SURFACE = '#ffffff'
 
 const VB_H = 220
 const PLOT_TOP = 14
@@ -25,8 +22,6 @@ const LABELS_Y = 186
 const AXIS_W = 34
 const LARGE_SCALE = 2.3
 const LARGE_DAY_W = 22
-const TOOLTIP_W = 130
-const TOOLTIP_H = 185
 const DOT_R = 2.75
 const DOT_R_HOVER = 4.5
 
@@ -55,6 +50,11 @@ function smoothPath(points) {
   return d
 }
 
+function formatDeficit(value) {
+  const rounded = Math.round(value)
+  return rounded >= 0 ? `${rounded} kcal` : `-${Math.abs(rounded)} kcal`
+}
+
 const DEFAULT_PRESET = DAY_TYPE_BY_KEY[DEFAULT_DAY_TYPE]
 
 export default function HistoryChart({ large = false }) {
@@ -62,9 +62,7 @@ export default function HistoryChart({ large = false }) {
   const [dayGoals, setDayGoals] = useState(null)
   const [error, setError] = useState(null)
   const [hoverIdx, setHoverIdx] = useState(null)
-  const [tooltipX, setTooltipX] = useState(0)
   const svgRef = useRef(null)
-  const scrollRef = useRef(null)
 
   const keys = useMemo(() => dateKeysBack(DAYS), [])
 
@@ -148,31 +146,12 @@ export default function HistoryChart({ large = false }) {
     let idx = Math.round((relX - PLOT_LEFT) / stepX)
     idx = Math.max(0, Math.min(keys.length - 1, idx))
     setHoverIdx(idx)
-
-    const container = scrollRef.current || svg
-    const containerRect = container.getBoundingClientRect()
-    const scale = rect.width / VB_W
-    const visibleMinX = (Math.max(rect.left, containerRect.left) - rect.left) / scale
-    const visibleMaxX = (Math.min(rect.right, containerRect.right) - rect.left) / scale
-    const preferred = xFor(idx) + 8
-    // Keep the left edge in view above all else: if the visible window is
-    // narrower than the tooltip (small phones, zoomed-in large mode), the
-    // left-bound clamp must win so labels never scroll off before values do.
-    let clamped = Math.max(preferred, visibleMinX + 4)
-    clamped = Math.min(clamped, visibleMaxX - TOOLTIP_W - 4)
-    clamped = Math.max(clamped, visibleMinX + 4)
-    setTooltipX(clamped)
   }
 
   const hovered =
     hoverIdx !== null
       ? { date: rows[hoverIdx].date, row: rows[hoverIdx], pct: pctRows[hoverIdx], dayGoal: dayGoals[hoverIdx] }
       : null
-
-  function formatDeficit(value) {
-    const rounded = Math.round(value)
-    return rounded >= 0 ? `${rounded} kcal` : `-${Math.abs(rounded)} kcal`
-  }
 
   const axisSvg = large && (
     <svg viewBox={`0 0 ${AXIS_W} ${VB_H}`} width={AXIS_W * LARGE_SCALE} height={VB_H * LARGE_SCALE} className="history-chart-axis">
@@ -274,61 +253,10 @@ export default function HistoryChart({ large = false }) {
             cy={p.y}
             r={hoverIdx === i ? DOT_R_HOVER : DOT_R}
             fill={s.color}
-            stroke={SURFACE}
+            stroke="#ffffff"
             strokeWidth={hoverIdx === i ? 2 : 1.5}
           />
         ))
-      )}
-
-      {hovered && (
-        <g transform={`translate(${tooltipX}, ${PLOT_TOP})`}>
-          <rect width={TOOLTIP_W} height={TOOLTIP_H} rx="6" fill={SURFACE} stroke={GRID_COLOR} strokeWidth="1" />
-          <text x="10" y="16" fontSize="10" fontWeight="700" fill={PRIMARY_INK}>
-            {shortDate(hovered.date)}
-          </text>
-
-          {SERIES.map((s, i) => (
-            <g key={s.key} transform={`translate(${10 + (i % 2) * (TOOLTIP_W / 2 - 10)}, ${30 + Math.floor(i / 2) * 30})`}>
-              <line x1="0" x2="9" y1="-9" y2="-9" stroke={s.color} strokeWidth="2" strokeDasharray={s.dash || undefined} />
-              <text x="0" y="0" fontSize="8" fill={SECONDARY_INK}>
-                {s.label}
-              </text>
-              <text x="0" y="11" fontSize="10" fontWeight="700" fill={PRIMARY_INK}>
-                {Math.round(hovered.row[s.key])} {s.unit}
-              </text>
-            </g>
-          ))}
-
-          {hovered.dayGoal.expenditure && (
-            <>
-              <line x1="10" x2={TOOLTIP_W - 10} y1="86" y2="86" stroke={GRID_COLOR} strokeWidth="1" />
-              <g transform="translate(10, 104)">
-                <text x="0" y="0" fontSize="8" fill={SECONDARY_INK}>
-                  Gasto estimado
-                </text>
-                <text x="0" y="11" fontSize="10" fontWeight="700" fill={PRIMARY_INK}>
-                  {Math.round(hovered.dayGoal.expenditure)} kcal
-                </text>
-              </g>
-              <g transform="translate(10, 134)">
-                <text x="0" y="0" fontSize="8" fill={SECONDARY_INK}>
-                  Deficit previsto
-                </text>
-                <text x="0" y="11" fontSize="10" fontWeight="700" fill={PRIMARY_INK}>
-                  {formatDeficit(hovered.dayGoal.expenditure - hovered.dayGoal.calorieGoal)}
-                </text>
-              </g>
-              <g transform="translate(10, 164)">
-                <text x="0" y="0" fontSize="8" fill={SECONDARY_INK}>
-                  Deficit real
-                </text>
-                <text x="0" y="11" fontSize="10" fontWeight="700" fill={PRIMARY_INK}>
-                  {formatDeficit(hovered.dayGoal.expenditure - hovered.row.kcal)}
-                </text>
-              </g>
-            </>
-          )}
-        </g>
       )}
     </svg>
   )
@@ -358,13 +286,65 @@ export default function HistoryChart({ large = false }) {
       {large ? (
         <div className="history-chart-row">
           {axisSvg}
-          <div className="history-chart-scroll" ref={scrollRef}>
-            {plotSvg}
-          </div>
+          <div className="history-chart-scroll">{plotSvg}</div>
         </div>
       ) : (
         plotSvg
       )}
+
+      {/* Detail panel lives below the chart (plain HTML, not overlaid on the SVG)
+          so it never covers the curves it's describing. */}
+      <div className="history-detail-panel">
+        {hovered ? (
+          <>
+            <div className="history-detail-date">{shortDate(hovered.date)}</div>
+            <div className="history-detail-grid">
+              {SERIES.map((s) => (
+                <div className="history-detail-item" key={s.key}>
+                  <svg width="14" height="6" className="history-detail-swatch">
+                    <line
+                      x1="0"
+                      x2="14"
+                      y1="3"
+                      y2="3"
+                      stroke={s.color}
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeDasharray={s.dash || undefined}
+                    />
+                  </svg>
+                  <span className="history-detail-label">{s.label}</span>
+                  <span className="history-detail-value">
+                    {Math.round(hovered.row[s.key])} {s.unit}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {hovered.dayGoal.expenditure ? (
+              <div className="history-detail-deficit">
+                <div className="history-detail-item">
+                  <span className="history-detail-label">Gasto estimado</span>
+                  <span className="history-detail-value">{Math.round(hovered.dayGoal.expenditure)} kcal</span>
+                </div>
+                <div className="history-detail-item">
+                  <span className="history-detail-label">Deficit previsto</span>
+                  <span className="history-detail-value">
+                    {formatDeficit(hovered.dayGoal.expenditure - hovered.dayGoal.calorieGoal)}
+                  </span>
+                </div>
+                <div className="history-detail-item">
+                  <span className="history-detail-label">Deficit real</span>
+                  <span className="history-detail-value">
+                    {formatDeficit(hovered.dayGoal.expenditure - hovered.row.kcal)}
+                  </span>
+                </div>
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <div className="history-detail-hint">Toque ou arraste no grafico pra ver os valores de cada dia.</div>
+        )}
+      </div>
     </div>
   )
 }

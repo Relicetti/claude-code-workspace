@@ -563,6 +563,82 @@ body {
   padding: 8px 0;
 }
 
+.history-detail-panel {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #fafafa;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  min-height: 40px;
+}
+
+.history-detail-date {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0b0b0b;
+  margin-bottom: 6px;
+}
+
+.history-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+}
+
+.history-detail-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.history-detail-swatch {
+  flex: none;
+}
+
+.history-detail-label {
+  color: #52514e;
+  flex: 1;
+}
+
+.history-detail-value {
+  font-weight: 700;
+  color: #0b0b0b;
+}
+
+.history-detail-deficit {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #e1e0d9;
+}
+
+.history-detail-deficit .history-detail-item {
+  justify-content: space-between;
+}
+
+.history-detail-hint {
+  font-size: 12px;
+  color: #898781;
+  text-align: center;
+  padding: 4px 0;
+}
+
+.history-chart-large .history-detail-panel {
+  margin-top: 14px;
+  padding: 14px 16px;
+}
+
+.history-chart-large .history-detail-date {
+  font-size: 15px;
+}
+
+.history-chart-large .history-detail-item {
+  font-size: 14px;
+}
+
 .history-open-btn {
   width: 100%;
   margin-bottom: 12px;
