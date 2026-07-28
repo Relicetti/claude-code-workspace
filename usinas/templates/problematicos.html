@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Clientes Problemáticos{% endblock %}
+{% block content %}
+
+<h4 class="mb-3">Clientes Problemáticos</h4>
+
+<form class="row g-2 align-items-center mb-4" method="get">
+  <div class="col-auto">
+    <label class="col-form-label">Período (aproveitamento):</label>
+  </div>
+  <div class="col-auto">
+    <select name="periodo" class="form-select">
+      {% for p in periodos %}
+        <option value="{{ p }}" {% if p == periodo %}selected{% endif %}>{{ p|mesnome }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <label class="col-form-label">Aproveitamento abaixo de (%):</label>
+  </div>
+  <div class="col-auto">
+    <input type="number" name="limite" value="{{ (limite_pct * 100)|int }}" class="form-control" style="width:90px">
+  </div>
+  <div class="col-auto">
+    <label class="col-form-label">Mín. atrasos (histórico):</label>
+  </div>
+  <div class="col-auto">
+    <input type="number" name="min_atrasos" value="{{ min_atrasos }}" class="form-control" style="width:70px">
+  </div>
+  <div class="col-auto"><button class="btn btn-primary">Filtrar</button></div>
+</form>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h6 class="card-title text-muted">
+      Atraso recorrente (≥ {{ min_atrasos }} meses em atraso, todo o histórico)
+    </h6>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover">
+        <thead><tr>
+          <th>UC</th><th>Cliente</th><th>Usina</th><th class="text-end">Qtd. Atrasos</th>
+          <th>Meses</th><th class="text-end">Valor Total Atrasado</th>
+        </tr></thead>
+        <tbody>
+        {% for c in atraso_recorrente %}
+          <tr>
+            <td>{{ c.uc }}</td>
+            <td>{{ c.nome_cliente }}</td>
+            <td><a href="{{ url_for('usina_detalhe', nome=c.usina) }}">{{ c.usina }}</a></td>
+            <td class="text-end">{{ c.qtd_atrasos }}</td>
+            <td class="small text-muted">{{ c.meses }}</td>
+            <td class="text-end valor-negativo">{{ c.valor_total_atrasado|brl }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="6" class="text-muted">Nenhum cliente com {{ min_atrasos }}+ atrasos no histórico.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h6 class="card-title text-muted">
+      Baixo aproveitamento em {{ periodo|mesnome if periodo else '-' }}
+      (energia compensada &lt; {{ (limite_pct * 100)|int }}% do consumo real)
+    </h6>
+    <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+      <table class="table table-sm table-hover">
+        <thead><tr>
+          <th>UC</th><th>Cliente</th><th>Usina</th>
+          <th class="text-end">Consumo</th><th class="text-end">Compensado</th>
+          <th class="text-end">Aproveit.</th><th>Status</th>
+        </tr></thead>
+        <tbody>
+        {% for c in baixa_compensacao %}
+          <tr>
+            <td>{{ c.uc }}</td>
+            <td>{{ c.nome_cliente }}</td>
+            <td><a href="{{ url_for('usina_detalhe', nome=c.usina, periodo=periodo) }}">{{ c.usina }}</a></td>
+            <td class="text-end">{{ c.consumo_real_kwh|numero }}</td>
+            <td class="text-end">{{ c.energia_compensada_kwh|numero }}</td>
+            <td class="text-end valor-negativo">{{ c.aproveitamento|pct }}</td>
+            <td>{{ c.status }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="7" class="text-muted">Nenhum registro abaixo do limite neste período.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h6 class="card-title text-muted">
+      Inadimplência (Análise por Beneficiária{% if periodo_analise %} — snapshot {{ periodo_analise|mesnome }}{% endif %})
+    </h6>
+    <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+      <table class="table table-sm table-hover">
+        <thead><tr>
+          <th>UC</th><th>Cliente</th><th>Usina</th>
+          <th class="text-end">Qtd Faturas</th><th class="text-end">Atrasadas</th>
+          <th class="text-end">Vol. Inadimpl. (kWh)</th><th class="text-end">Inadimplência</th>
+        </tr></thead>
+        <tbody>
+        {% for c in inadimplencia_beneficiaria %}
+          <tr>
+            <td>{{ c.uc }}</td>
+            <td>{{ c.nome_cliente }}</td>
+            <td>{% if c.usina %}<a href="{{ url_for('usina_detalhe', nome=c.usina) }}">{{ c.usina }}</a>{% endif %}</td>
+            <td class="text-end">{{ c.qtd_faturas }}</td>
+            <td class="text-end">{{ c.atrasadas }}</td>
+            <td class="text-end">{{ c.vol_energia_inadimplente|numero }}</td>
+            <td class="text-end valor-negativo">{{ c.inadimplencia_pct|pct }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="7" class="text-muted">Sem dados de análise por beneficiária para este período.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

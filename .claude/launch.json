@@ -30,6 +30,18 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "controle-calorico", "run", "dev"],
       "port": 5176
+    },
+    {
+      "name": "simulador-grupo-a",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "simulador-grupo-a", "run", "dev", "--", "--port", "5177"],
+      "port": 5177
+    },
+    {
+      "name": "usinas",
+      "runtimeExecutable": "py",
+      "runtimeArgs": ["-m", "flask", "--app", "usinas/app", "run", "--port", "5002"],
+      "port": 5002
     }
   ]
 }

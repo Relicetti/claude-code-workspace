@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Importar Excel{% endblock %}
+{% block content %}
+
+<h4 class="mb-3">Importar Relatório (.xlsx)</h4>
+
+<div class="card mb-4" style="max-width: 600px">
+  <div class="card-body">
+    <p class="text-muted">
+      Envie o relatório exportado do painel de usinas (aba "Unidades Consumidoras" e,
+      se presentes, "Rateios Cadastrados", "Dashboard Painel do Gerador",
+      "Relatório de Performance" e "Análise por Beneficiária"). Reenviar o mesmo mês
+      atualiza os dados existentes.
+    </p>
+    <form method="post" enctype="multipart/form-data">
+      <div class="mb-3">
+        <input type="file" name="arquivo" accept=".xlsx" class="form-control" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Importar</button>
+    </form>
+  </div>
+</div>
+
+<div class="card" style="max-width: 900px">
+  <div class="card-body">
+    <h6 class="card-title text-muted">Importações anteriores</h6>
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead><tr>
+          <th>Arquivo</th><th>Período</th><th class="text-end">Faturas</th>
+          <th class="text-end">Rateios</th><th class="text-end">Análises</th><th>Importado em</th>
+        </tr></thead>
+        <tbody>
+        {% for i in importacoes %}
+          <tr>
+            <td>{{ i.arquivo_nome }}</td>
+            <td>{{ i.periodo|mesnome }}</td>
+            <td class="text-end">{{ i.total_faturas|numero }}</td>
+            <td class="text-end">{{ i.total_rateios|numero }}</td>
+            <td class="text-end">{{ i.total_analise|numero }}</td>
+            <td class="small text-muted">{{ i.importado_em[:16] }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="6" class="text-muted">Nenhuma importação ainda.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
