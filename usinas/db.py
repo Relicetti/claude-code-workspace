@@ -337,7 +337,7 @@ def resumo_geral(periodo):
                 COUNT(*) AS total_ucs,
                 SUM(consumo_real_kwh) AS consumo_total,
                 SUM(energia_compensada_kwh) AS compensado_total,
-                SUM(valor_a_receber) AS valor_a_receber_total,
+                SUM(CASE WHEN status_norm IN ('pago','atrasado','aberto') THEN valor_a_receber ELSE 0 END) AS valor_a_receber_total,
                 SUM(CASE WHEN status_norm='pago' THEN valor_a_receber ELSE 0 END) AS valor_pago,
                 SUM(CASE WHEN status_norm='atrasado' THEN valor_a_receber ELSE 0 END) AS valor_atrasado,
                 SUM(CASE WHEN status_norm='aberto' THEN valor_a_receber ELSE 0 END) AS valor_aberto,
@@ -361,7 +361,7 @@ def resumo_por_usina(periodo):
                 COUNT(f.id) AS total_ucs,
                 SUM(f.consumo_real_kwh) AS consumo_total,
                 SUM(f.energia_compensada_kwh) AS compensado_total,
-                SUM(f.valor_a_receber) AS valor_a_receber_total,
+                SUM(CASE WHEN f.status_norm IN ('pago','atrasado','aberto') THEN f.valor_a_receber ELSE 0 END) AS valor_a_receber_total,
                 SUM(CASE WHEN f.status_norm='pago' THEN f.valor_a_receber ELSE 0 END) AS valor_pago,
                 SUM(CASE WHEN f.status_norm='atrasado' THEN f.valor_a_receber ELSE 0 END) AS valor_atrasado,
                 SUM(CASE WHEN f.status_norm='aberto' THEN f.valor_a_receber ELSE 0 END) AS valor_aberto,
@@ -388,7 +388,7 @@ def resumo_por_concessionaria(periodo):
             SELECT
                 COALESCE(NULLIF(concessionaria, ''), 'Não informado') AS concessionaria,
                 COUNT(*) AS total_ucs,
-                SUM(valor_a_receber) AS valor_a_receber_total,
+                SUM(CASE WHEN status_norm IN ('pago','atrasado','aberto') THEN valor_a_receber ELSE 0 END) AS valor_a_receber_total,
                 SUM(CASE WHEN status_norm='pago' THEN valor_a_receber ELSE 0 END) AS valor_pago,
                 SUM(CASE WHEN status_norm='atrasado' THEN valor_a_receber ELSE 0 END) AS valor_atrasado,
                 CASE WHEN SUM(CASE WHEN status_norm IN ('pago','atrasado') THEN valor_a_receber ELSE 0 END) > 0
@@ -410,7 +410,7 @@ def evolucao_usina(usina):
                 COUNT(*) AS total_ucs,
                 SUM(consumo_real_kwh) AS consumo_total,
                 SUM(energia_compensada_kwh) AS compensado_total,
-                SUM(valor_a_receber) AS valor_a_receber_total,
+                SUM(CASE WHEN status_norm IN ('pago','atrasado','aberto') THEN valor_a_receber ELSE 0 END) AS valor_a_receber_total,
                 SUM(CASE WHEN status_norm='pago' THEN valor_a_receber ELSE 0 END) AS valor_pago,
                 SUM(CASE WHEN status_norm='atrasado' THEN valor_a_receber ELSE 0 END) AS valor_atrasado,
                 CASE WHEN SUM(CASE WHEN status_norm IN ('pago','atrasado') THEN valor_a_receber ELSE 0 END) > 0
