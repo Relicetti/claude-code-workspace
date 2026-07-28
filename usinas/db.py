@@ -358,6 +358,8 @@ def resumo_por_usina(periodo):
                 SUM(CASE WHEN status_norm='atrasado' THEN valor_a_receber ELSE 0 END) AS valor_atrasado,
                 SUM(CASE WHEN status_norm='aberto' THEN valor_a_receber ELSE 0 END) AS valor_aberto,
                 SUM(CASE WHEN status_norm='atrasado' THEN 1 ELSE 0 END) AS qtd_atrasados,
+                SUM(CASE WHEN LOWER(status) LIKE '%emiss%' AND LOWER(status) LIKE '%pendente%'
+                          THEN 1 ELSE 0 END) AS qtd_emissao_pendente,
                 CASE WHEN SUM(CASE WHEN status_norm IN ('pago','atrasado') THEN valor_a_receber ELSE 0 END) > 0
                      THEN SUM(CASE WHEN status_norm='atrasado' THEN valor_a_receber ELSE 0 END) * 1.0
                           / SUM(CASE WHEN status_norm IN ('pago','atrasado') THEN valor_a_receber ELSE 0 END)

@@ -106,10 +106,11 @@
           <th class="text-end" data-tipo="num">Faturado</th><th class="text-end" data-tipo="num">Pago</th>
           <th class="text-end" data-tipo="num">Atrasado</th><th class="text-end" data-tipo="num">A Receber</th>
           <th class="text-end" data-tipo="num">Inadimplência</th>
+          <th class="text-end" data-tipo="num">Emissão Pendente</th>
         </tr>
         <tr class="filtro-row">
           <th><input type="text" class="form-control form-control-sm" placeholder="filtrar usina"></th>
-          <th colspan="9"></th>
+          <th colspan="10"></th>
         </tr>
         </thead>
         <tbody>
@@ -128,6 +129,7 @@
             <td class="text-end {% if u.pct_inadimplencia and u.pct_inadimplencia > 0.2 %}valor-negativo{% endif %}" data-valor="{{ u.pct_inadimplencia or 0 }}">
               {% if u.pct_inadimplencia is not none %}{{ u.pct_inadimplencia|pct }}{% else %}-{% endif %}
             </td>
+            <td class="text-end {% if u.qtd_emissao_pendente %}valor-negativo{% endif %}" data-valor="{{ u.qtd_emissao_pendente }}">{{ u.qtd_emissao_pendente|numero }}</td>
           </tr>
         {% endfor %}
         </tbody>
