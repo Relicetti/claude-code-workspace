@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { Camera, Plus, TrendingDown, TrendingUp, Minus, ChevronDown, ChevronUp, X, Ruler, Weight, Syringe, Pencil } from "lucide-react";
+import { Camera, Plus, TrendingDown, TrendingUp, Minus, ChevronDown, ChevronUp, X, Ruler, Weight, Syringe, Pencil, Sparkles } from "lucide-react";
 import { toISODate, formatDateLabel, makeId } from "./utils";
 
 // ---- cliente da API (backend) ----------------------------------------------------------
@@ -55,6 +55,13 @@ async function apiGetBioOffset() {
   if (!res.ok) throw new Error(`GET /api/bio/offset ${res.status}`);
   const data = await res.json();
   return data.offset;
+}
+
+async function apiAnalyze() {
+  const res = await fetch("/api/analyze", { method: "POST" });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json?.error || `POST /api/analyze ${res.status}`);
+  return json.analysis;
 }
 
 // ---- migração de dados antigos do localStorage -----------------------------------------
@@ -217,6 +224,8 @@ export default function RetaLog() {
   const [photoLoadingId, setPhotoLoadingId] = useState(null);
   const [showBio, setShowBio] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [analysis, setAnalysis] = useState(null);
+  const [analyzing, setAnalyzing] = useState(false);
   const fileInputRef = useRef(null);
 
   const [draft, setDraft] = useState(blankDraft());
@@ -388,6 +397,19 @@ export default function RetaLog() {
     }
   };
 
+  const runAnalysis = async () => {
+    setAnalyzing(true);
+    setError(null);
+    try {
+      const text = await apiAnalyze();
+      setAnalysis(text);
+    } catch (err) {
+      setError(`Não consegui gerar a análise (detalhe técnico: ${err?.message || err}).`);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   if (entries === null) {
     return (
       <div style={styles.page}>
@@ -489,6 +511,21 @@ export default function RetaLog() {
 
       {error && <div style={styles.errorBanner}>{error}</div>}
 
+      {analysis && (
+        <div style={styles.analysisPanel}>
+          <div style={styles.panelHeader}>
+            <span>
+              <Sparkles size={12} style={{ verticalAlign: -2, marginRight: 5 }} />
+              ANÁLISE DE EVOLUÇÃO — IA
+            </span>
+            <button style={styles.iconBtn} onClick={() => setAnalysis(null)}>
+              <X size={14} />
+            </button>
+          </div>
+          <div style={styles.analysisText}>{analysis}</div>
+        </div>
+      )}
+
       {/* botão / formulário de nova entrada / galeria de fotos */}
       {showGallery ? (
         <PhotoGallery
@@ -503,6 +540,12 @@ export default function RetaLog() {
             <button style={styles.galleryButton} onClick={() => setShowGallery(true)}>
               <Camera size={15} />
               GALERIA DE FOTOS
+            </button>
+          )}
+          {sorted.length >= 2 && (
+            <button style={styles.analyzeButton} onClick={runAnalysis} disabled={analyzing}>
+              <Sparkles size={15} />
+              {analyzing ? "ANALISANDO…" : "ANALISAR EVOLUÇÃO COM IA"}
             </button>
           )}
           <button style={styles.addButton} onClick={openNewForm}>
@@ -1001,6 +1044,38 @@ const styles = {
     gap: 8,
     cursor: "pointer",
     marginBottom: 8,
+  },
+  analyzeButton: {
+    width: "100%",
+    background: "transparent",
+    color: "#c08fd9",
+    border: "1px solid #6b3fa0",
+    borderRadius: 2,
+    padding: "10px 14px",
+    fontFamily: "'IBM Plex Mono', monospace",
+    fontWeight: 700,
+    fontSize: 11,
+    letterSpacing: 0.5,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    cursor: "pointer",
+    marginBottom: 8,
+  },
+  analysisPanel: {
+    border: "1px solid #6b3fa0",
+    background: "#141f33",
+    borderRadius: 2,
+    padding: 12,
+    marginBottom: 16,
+  },
+  analysisText: {
+    fontFamily: "'Inter', sans-serif",
+    fontSize: 13,
+    lineHeight: 1.6,
+    color: "#e6e2d8",
+    whiteSpace: "pre-wrap",
   },
   compareHint: {
     textAlign: "center",

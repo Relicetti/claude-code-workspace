@@ -1,7 +1,9 @@
+import "dotenv/config";
 import express from "express";
 import pg from "pg";
 import path from "path";
 import { fileURLToPath } from "url";
+import Anthropic from "@anthropic-ai/sdk";
 
 const { Pool } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -10,6 +12,8 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.PGSSL === "true" ? { rejectUnauthorized: false } : false,
 });
+
+const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic() : null;
 
 async function initDb() {
   await pool.query(`
@@ -112,6 +116,83 @@ app.post("/api/bio/offset", async (req, res) => {
     [offset]
   );
   res.json({ ok: true });
+});
+
+// ---- análise de evolução por IA -------------------------------------------
+//
+// Gera um texto (Claude) comentando tendências do log inteiro: peso, medidas,
+// bioimpedância e notas/efeitos colaterais. Sob demanda (não automático) pra
+// manter o custo baixo. Não é orientação médica — só leitura dos dados que já
+// estão no log.
+
+function formatEntriesForAnalysis(rows, bioOffset) {
+  return rows
+    .map((r, i) => {
+      const parts = [`#${i + 1} ${r.date}`, `dose ${r.dose ?? "?"}mg`];
+      if (r.weight != null) parts.push(`peso ${r.weight}kg`);
+      if (r.waist != null) parts.push(`cintura ${r.waist}cm`);
+      if (r.hip != null) parts.push(`quadril ${r.hip}cm`);
+      if (r.bodyFatPct != null) {
+        const corrected = bioOffset != null ? ` (corrigido ${(r.bodyFatPct - bioOffset).toFixed(1)}%)` : "";
+        parts.push(`% gordura ${r.bodyFatPct}%${corrected}`);
+      }
+      if (r.bodyFatKg != null) parts.push(`gordura ${r.bodyFatKg}kg`);
+      if (r.muscleKg != null) parts.push(`músculo esquelético ${r.muscleKg}kg`);
+      if (r.visceralFat != null) parts.push(`gordura visceral grau ${r.visceralFat}`);
+      if (r.notes) parts.push(`notas: "${r.notes}"`);
+      return "- " + parts.join(", ");
+    })
+    .join("\n");
+}
+
+app.post("/api/analyze", async (req, res) => {
+  if (!anthropic) {
+    return res.status(503).json({ error: "análise por IA não configurada (ANTHROPIC_API_KEY ausente no servidor)" });
+  }
+
+  try {
+    const [{ rows }, offsetResult] = await Promise.all([
+      pool.query(
+        `SELECT date, dose, weight, waist, hip, notes,
+                body_fat_pct AS "bodyFatPct", body_fat_kg AS "bodyFatKg",
+                muscle_kg AS "muscleKg", visceral_fat AS "visceralFat"
+         FROM entries ORDER BY date ASC`
+      ),
+      pool.query("SELECT value FROM bio_offset WHERE id = 1"),
+    ]);
+
+    if (rows.length < 2) {
+      return res.status(400).json({ error: "precisa de pelo menos 2 entradas pra analisar evolução" });
+    }
+
+    const bioOffset = offsetResult.rows[0]?.value ?? null;
+    const dataText = formatEntriesForAnalysis(rows, bioOffset);
+
+    const message = await anthropic.messages.create({
+      model: "claude-sonnet-5",
+      max_tokens: 1500,
+      system:
+        "Você analisa o log de um protocolo de retatrutida (GLP-1/GIP) pra perda de peso, a partir de dados que a própria pessoa registrou (peso, cintura, quadril, bioimpedância, dose, notas de efeitos colaterais). " +
+        "Escreva em português do Brasil, tom técnico e direto (linguagem de log de engenharia, sem floreio), em texto simples sem markdown. " +
+        "Comente: tendência e ritmo de perda de peso e medidas, o que a bioimpedância mostra sobre composição corporal (gordura vs músculo) quando houver dado, progressão da dose, e padrões nas notas de efeitos colaterais. " +
+        "Não sugira mudanças de dose nem dê qualquer orientação médica ou diagnóstico — isso é decisão do médico da pessoa. Se os dados sugerirem algo que vale conversar com o médico (ex: perda de músculo junto com a gordura, platô, efeito colateral recorrente), diga isso como observação, não como recomendação de tratamento. " +
+        "Termine sempre com uma linha separada: 'Isso é leitura dos seus próprios dados, não é orientação médica.'",
+      messages: [
+        {
+          role: "user",
+          content: `Dados do log, do mais antigo pro mais recente:\n${dataText}`,
+        },
+      ],
+    });
+
+    const text = message.content.find((b) => b.type === "text")?.text;
+    if (!text) {
+      return res.status(502).json({ error: "não consegui gerar a análise" });
+    }
+    res.json({ analysis: text });
+  } catch (err) {
+    res.status(502).json({ error: `falha ao gerar análise (detalhe técnico: ${err?.message || err})` });
+  }
 });
 
 const distPath = path.join(__dirname, "dist");
