@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block content %}
+
+{% if erro %}
+  <div class="alert alert-danger">{{ erro }}</div>
+{% endif %}
+
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div class="card card-resumo shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Dados do local e do sistema</h5>
+        <form method="post" action="{{ url_for('calcular') }}">
+
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="form-label">Estado</label>
+              <select class="form-select" id="uf" name="uf" required>
+                <option value="" selected disabled>Selecione...</option>
+                {% for e in estados %}
+                  <option value="{{ e.uf }}">{{ e.nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label">Cidade</label>
+              <select class="form-select" id="cidade" name="cidade" required disabled>
+                <option value="" selected disabled>Selecione o estado primeiro</option>
+              </select>
+            </div>
+
+            <div class="col-6">
+              <label class="form-label">Potência CC (kWp)</label>
+              <input type="text" inputmode="decimal" class="form-control" name="potencia_cc" placeholder="Ex: 120,00" required>
+              <div class="form-text">Potência total instalada dos módulos.</div>
+            </div>
+            <div class="col-6">
+              <label class="form-label">Potência CA (kW)</label>
+              <input type="text" inputmode="decimal" class="form-control" name="potencia_ca" placeholder="Ex: 100,00" required>
+              <div class="form-text">Potência nominal do(s) inversor(es).</div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary w-100 mt-4">Calcular geração</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="text-muted small mt-3">
+      A geração é estimada com dados horários de irradiância do
+      <a href="https://re.jrc.ec.europa.eu/pvg_tools/en/" target="_blank" rel="noopener">PVGIS</a>
+      (Comissão Europeia), considerando inclinação/azimute ótimos automáticos e limite de potência pela
+      Potência CA (clipping). Não considera efeitos de auto-sombreamento entre fileiras de usina fixa de solo.
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const ufSelect = document.getElementById('uf');
+  const cidadeSelect = document.getElementById('cidade');
+
+  ufSelect.addEventListener('change', async () => {
+    const uf = ufSelect.value;
+    cidadeSelect.innerHTML = '<option value="" selected disabled>Carregando...</option>';
+    cidadeSelect.disabled = true;
+
+    const resp = await fetch(`/cidades?uf=${encodeURIComponent(uf)}`);
+    const cidades = await resp.json();
+
+    cidadeSelect.innerHTML = '<option value="" selected disabled>Selecione...</option>' +
+      cidades.map(c => `<option value="${c}">${c}</option>`).join('');
+    cidadeSelect.disabled = false;
+  });
+</script>
+{% endblock %}

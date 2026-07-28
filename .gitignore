@@ -3,3 +3,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 *.csv
+!estimativa-geracao-solar/data/*.csv
+.env
+optionstrat/predictions.jsonl
