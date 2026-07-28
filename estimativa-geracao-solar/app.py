@@ -1,6 +1,9 @@
+import io
 import os
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_file
+from openpyxl import Workbook
+from openpyxl.styles import Font
 
 import geracao
 
@@ -18,14 +21,18 @@ def cidades():
     return jsonify([c["nome"] for c in geracao.listar_cidades(uf)])
 
 
+def _ler_parametros(dados):
+    uf = dados.get("uf", "")
+    cidade = dados.get("cidade", "")
+    potencia_cc = float(str(dados["potencia_cc"]).replace(",", "."))
+    potencia_ca = float(str(dados["potencia_ca"]).replace(",", "."))
+    return uf, cidade, potencia_cc, potencia_ca
+
+
 @app.route("/calcular", methods=["POST"])
 def calcular():
-    uf = request.form.get("uf", "")
-    cidade = request.form.get("cidade", "")
-
     try:
-        potencia_cc = float(request.form["potencia_cc"].replace(",", "."))
-        potencia_ca = float(request.form["potencia_ca"].replace(",", "."))
+        uf, cidade, potencia_cc, potencia_ca = _ler_parametros(request.form)
     except (KeyError, ValueError):
         return render_template("index.html", estados=geracao.listar_estados(),
                                 erro="Informe Potência CC e Potência CA válidas.")
@@ -47,6 +54,54 @@ def calcular():
         cidade=cidade, uf=uf, lat=lat, lon=lon,
         potencia_cc=potencia_cc, potencia_ca=potencia_ca,
         r=resultado,
+    )
+
+
+@app.route("/exportar-excel")
+def exportar_excel():
+    uf, cidade, potencia_cc, potencia_ca = _ler_parametros(request.args)
+
+    coords = geracao.buscar_coordenadas(uf, cidade)
+    if not coords:
+        return f"Cidade '{cidade}' não encontrada em {uf}.", 404
+    lat, lon = coords
+    resultado = geracao.calcular_geracao(lat, lon, potencia_cc, potencia_ca)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Geração CA"
+
+    ws.append([f"Estimativa de Geração — {cidade}/{uf}"])
+    ws["A1"].font = Font(bold=True, size=13)
+    ws.append([f"Potência CC: {potencia_cc:g} kWp   |   Potência CA: {potencia_ca:g} kW"])
+    ws.append([])
+
+    cabecalho = ["Mês", "Geração CA (kWh)", "FC do mês (%)"]
+    ws.append(cabecalho)
+    for cel in ws[4]:
+        cel.font = Font(bold=True)
+
+    for m in resultado["meses"]:
+        ws.append([m["mes"], round(m["energia_ca_kwh"], 1), round(m["fc"], 1)])
+
+    linha_total = ["Total / Média", round(resultado["energia_ca_total_kwh"], 1), round(resultado["fc_medio_anual"], 1)]
+    ws.append(linha_total)
+    for cel in ws[ws.max_row]:
+        cel.font = Font(bold=True)
+
+    for col, largura in zip("ABC", (18, 20, 16)):
+        ws.column_dimensions[col].width = largura
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+
+    nome_arquivo = f"geracao_{cidade}_{uf}.xlsx".replace(" ", "_")
+    return send_file(
+        buffer,
+        as_attachment=True,
+        download_name=nome_arquivo,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
 
