@@ -112,6 +112,19 @@
           <th><input type="text" class="form-control form-control-sm" placeholder="filtrar usina"></th>
           <th colspan="10"></th>
         </tr>
+        <tr class="totais-row no-sort">
+          <th>Total ({{ por_usina|length }} usinas)</th>
+          <th class="text-end">{{ totais_usina.total_ucs|numero }}</th>
+          <th class="text-end">{{ totais_usina.consumo_total|numero }}</th>
+          <th class="text-end">{{ totais_usina.compensado_total|numero }}</th>
+          <th class="text-end">{% if totais_usina.aproveitamento is not none %}{{ totais_usina.aproveitamento|pct }}{% else %}-{% endif %}</th>
+          <th class="text-end">{{ totais_usina.valor_a_receber_total|brl }}</th>
+          <th class="text-end">{{ totais_usina.valor_pago|brl }}</th>
+          <th class="text-end">{{ totais_usina.valor_atrasado|brl }}</th>
+          <th class="text-end">{{ totais_usina.valor_aberto|brl }}</th>
+          <th class="text-end">{% if totais_usina.pct_inadimplencia is not none %}{{ totais_usina.pct_inadimplencia|pct }}{% else %}-{% endif %}</th>
+          <th class="text-end">{{ totais_usina.qtd_emissao_pendente|numero }}</th>
+        </tr>
         </thead>
         <tbody>
         {% for u in por_usina %}
@@ -152,6 +165,14 @@
         <tr class="filtro-row">
           <th><input type="text" class="form-control form-control-sm" placeholder="filtrar"></th>
           <th colspan="5"></th>
+        </tr>
+        <tr class="totais-row no-sort">
+          <th>Total ({{ por_concessionaria|length }})</th>
+          <th class="text-end">{{ totais_concessionaria.total_ucs|numero }}</th>
+          <th class="text-end">{{ totais_concessionaria.valor_a_receber_total|brl }}</th>
+          <th class="text-end">{{ totais_concessionaria.valor_pago|brl }}</th>
+          <th class="text-end">{{ totais_concessionaria.valor_atrasado|brl }}</th>
+          <th class="text-end">{% if totais_concessionaria.pct_inadimplencia is not none %}{{ totais_concessionaria.pct_inadimplencia|pct }}{% else %}-{% endif %}</th>
         </tr>
         </thead>
         <tbody>

@@ -48,6 +48,29 @@ def mesnome(v):
         return v
 
 
+def _somar(linhas, campos):
+    """Soma os campos numericos indicados atraves de uma lista de linhas (sqlite3.Row)."""
+    return {campo: sum((r[campo] or 0) for r in linhas) for campo in campos}
+
+
+def _totais_usina(por_usina):
+    t = _somar(por_usina, [
+        "total_ucs", "consumo_total", "compensado_total", "valor_a_receber_total",
+        "valor_pago", "valor_atrasado", "valor_aberto", "qtd_atrasados", "qtd_emissao_pendente",
+    ])
+    t["aproveitamento"] = (t["compensado_total"] / t["consumo_total"]) if t["consumo_total"] else None
+    base = t["valor_atrasado"] + t["valor_pago"]
+    t["pct_inadimplencia"] = (t["valor_atrasado"] / base) if base else None
+    return t
+
+
+def _totais_concessionaria(por_concessionaria):
+    t = _somar(por_concessionaria, ["total_ucs", "valor_a_receber_total", "valor_pago", "valor_atrasado"])
+    base = t["valor_atrasado"] + t["valor_pago"]
+    t["pct_inadimplencia"] = (t["valor_atrasado"] / base) if base else None
+    return t
+
+
 def periodo_atual(padrao=None):
     periodos = db.get_periodos()
     p = request.args.get("periodo") or padrao
@@ -74,6 +97,7 @@ def index():
         "dashboard.html",
         periodo=periodo, periodos=periodos,
         resumo=resumo, por_usina=por_usina, por_concessionaria=por_concessionaria,
+        totais_usina=_totais_usina(por_usina), totais_concessionaria=_totais_concessionaria(por_concessionaria),
         kpis=kpis, geracao_prevista=geracao_prevista, geracao_real=geracao_real,
     )
 
