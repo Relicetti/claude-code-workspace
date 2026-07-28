@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, todayKey } from './api.js'
 import CalorieGauge from './components/CalorieGauge.jsx'
 import MacroBars from './components/MacroBars.jsx'
@@ -10,6 +10,7 @@ import DailyLog from './components/DailyLog.jsx'
 import HistoryScreen from './components/HistoryScreen.jsx'
 import SettingsModal from './components/SettingsModal.jsx'
 import DayTypeSelector from './components/DayTypeSelector.jsx'
+import DateNav from './components/DateNav.jsx'
 import DeficitSummary from './components/DeficitSummary.jsx'
 import WeeklySummary from './components/WeeklySummary.jsx'
 
@@ -36,14 +37,19 @@ export default function App() {
       .finally(() => setLoading(false))
   }, [dateKey])
 
-  // Reset automatically at midnight: check the date key periodically.
+  // Advance automatically at midnight, but only while the user is looking at
+  // "today" — browsing a past day should never get yanked back to today.
+  const lastKnownTodayRef = useRef(todayKey())
   useEffect(() => {
     const interval = setInterval(() => {
       const current = todayKey()
-      if (current !== dateKey) setDateKey(current)
+      if (current !== lastKnownTodayRef.current) {
+        setDateKey((prev) => (prev === lastKnownTodayRef.current ? current : prev))
+        lastKnownTodayRef.current = current
+      }
     }, 60000)
     return () => clearInterval(interval)
-  }, [dateKey])
+  }, [])
 
   const consumed = useMemo(
     () =>
@@ -159,6 +165,8 @@ export default function App() {
         📈 Ver historico de calorias e macros
       </button>
 
+      <DateNav dateKey={dateKey} onChange={setDateKey} />
+
       <DayTypeSelector dayType={dayType.dayType} onChange={handleChangeDayType} />
 
       <section className="summary">
@@ -182,7 +190,7 @@ export default function App() {
       <ReviewCards candidates={candidates} onAdd={handleAddCandidate} onDiscard={handleDiscardCandidate} />
 
       <section className="log-section">
-        <h3>Hoje</h3>
+        <h3>{dateKey === todayKey() ? 'Hoje' : 'Registros do dia'}</h3>
         <DailyLog entries={entries} onRemove={handleRemoveEntry} onEdit={handleUpdateEntry} />
       </section>
 

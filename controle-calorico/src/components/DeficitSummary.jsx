@@ -13,7 +13,7 @@ export default function DeficitSummary({ expenditure, calorieGoal, consumedKcal 
   return (
     <div className="deficit-summary">
       <div className="deficit-summary-row">
-        <span>Gasto estimado hoje</span>
+        <span>Gasto estimado</span>
         <strong>{Math.round(expenditure)} kcal</strong>
       </div>
       <div className="deficit-summary-row">
@@ -21,7 +21,7 @@ export default function DeficitSummary({ expenditure, calorieGoal, consumedKcal 
         <strong>{formatDeficit(plannedDeficit)}</strong>
       </div>
       <div className="deficit-summary-row">
-        <span>Deficit real (ate agora)</span>
+        <span>Deficit real</span>
         <strong className={actualDeficit < 0 ? 'deficit-negative' : 'deficit-positive'}>
           {formatDeficit(actualDeficit)}
         </strong>
