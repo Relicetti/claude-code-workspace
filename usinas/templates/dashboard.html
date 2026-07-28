@@ -22,7 +22,7 @@
 <div class="row g-3 mb-4">
   <div class="col-md-3">
     <div class="card card-kpi h-100"><div class="card-body">
-      <div class="text-muted small">Total a Receber</div>
+      <div class="text-muted small">Total Faturado</div>
       <div class="fs-4 fw-bold">{{ resumo.valor_a_receber_total|brl }}</div>
       <div class="small text-muted">{{ resumo.total_ucs|numero }} UCs · {{ resumo.total_usinas|numero }} usinas</div>
     </div></div>
@@ -46,7 +46,7 @@
   </div>
   <div class="col-md-3">
     <div class="card card-kpi h-100" style="border-left-color:#ffc107"><div class="card-body">
-      <div class="text-muted small">Em Aberto</div>
+      <div class="text-muted small">A Receber</div>
       <div class="fs-4 fw-bold">{{ resumo.valor_aberto|brl }}</div>
       <div class="small text-muted">a vencer / pendente</div>
     </div></div>
@@ -103,8 +103,8 @@
           <th data-tipo="texto">Usina</th><th class="text-end" data-tipo="num">UCs</th>
           <th class="text-end" data-tipo="num">Consumo (kWh)</th><th class="text-end" data-tipo="num">Compensado (kWh)</th>
           <th class="text-end" data-tipo="num">Aproveit.</th>
-          <th class="text-end" data-tipo="num">A Receber</th><th class="text-end" data-tipo="num">Pago</th>
-          <th class="text-end" data-tipo="num">Atrasado</th><th class="text-end" data-tipo="num">Aberto</th>
+          <th class="text-end" data-tipo="num">Faturado</th><th class="text-end" data-tipo="num">Pago</th>
+          <th class="text-end" data-tipo="num">Atrasado</th><th class="text-end" data-tipo="num">A Receber</th>
           <th class="text-end" data-tipo="num">Inadimplência</th>
         </tr>
         <tr class="filtro-row">
@@ -144,7 +144,7 @@
         <thead>
         <tr class="cabecalho">
           <th data-tipo="texto">Concessionária</th><th class="text-end" data-tipo="num">UCs</th>
-          <th class="text-end" data-tipo="num">A Receber</th><th class="text-end" data-tipo="num">Pago</th>
+          <th class="text-end" data-tipo="num">Faturado</th><th class="text-end" data-tipo="num">Pago</th>
           <th class="text-end" data-tipo="num">Atrasado</th><th class="text-end" data-tipo="num">Inadimplência</th>
         </tr>
         <tr class="filtro-row">
