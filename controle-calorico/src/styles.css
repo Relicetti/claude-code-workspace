@@ -478,6 +478,14 @@ body {
   gap: 8px;
 }
 
+.daily-log-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .daily-log-group-title {
   margin: 0;
   font-size: 13px;
@@ -485,6 +493,12 @@ body {
   color: #666;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+
+.daily-log-group-totals {
+  font-size: 12px;
+  color: #999;
+  white-space: nowrap;
 }
 
 .daily-log-empty {
