@@ -306,10 +306,10 @@ def get_importacoes():
 
 
 def get_usinas(periodo=None):
-    q = "SELECT DISTINCT usina FROM faturas"
+    q = "SELECT DISTINCT usina FROM faturas WHERE usina NOT LIKE '%/%'"
     params = []
     if periodo:
-        q += " WHERE mes_referencia = ?"
+        q += " AND mes_referencia = ?"
         params.append(periodo)
     q += " ORDER BY usina"
     with get_conn() as conn:
@@ -332,7 +332,7 @@ def resumo_geral(periodo):
         return conn.execute(f"""
             SELECT
                 COUNT(*) AS total_ucs,
-                COUNT(DISTINCT usina) AS total_usinas,
+                COUNT(DISTINCT CASE WHEN usina NOT LIKE '%/%' THEN usina END) AS total_usinas,
                 SUM(consumo_real_kwh) AS consumo_total,
                 SUM(energia_compensada_kwh) AS compensado_total,
                 SUM(valor_a_receber) AS valor_a_receber_total,
@@ -363,7 +363,7 @@ def resumo_por_usina(periodo):
                           / SUM(CASE WHEN status_norm IN ('pago','atrasado') THEN valor_a_receber ELSE 0 END)
                      ELSE NULL END AS pct_inadimplencia
             FROM faturas
-            WHERE mes_referencia = ?
+            WHERE mes_referencia = ? AND usina NOT LIKE '%/%'
             GROUP BY usina
             ORDER BY valor_a_receber_total DESC
         """, (periodo,)).fetchall()
