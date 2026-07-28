@@ -341,7 +341,7 @@ def resumo_geral(periodo):
                 SUM(CASE WHEN status_norm='aberto' THEN valor_a_receber ELSE 0 END) AS valor_aberto,
                 SUM(CASE WHEN status_norm='atrasado' THEN 1 ELSE 0 END) AS qtd_atrasados
             FROM faturas
-            WHERE mes_referencia = ?
+            WHERE mes_referencia = ? AND LOWER(status) NOT LIKE '%arquivad%'
         """, (periodo,)).fetchone()
 
 
@@ -365,7 +365,7 @@ def resumo_por_usina(periodo):
                           / SUM(CASE WHEN status_norm IN ('pago','atrasado') THEN valor_a_receber ELSE 0 END)
                      ELSE NULL END AS pct_inadimplencia
             FROM faturas
-            WHERE mes_referencia = ? AND usina NOT LIKE '%/%'
+            WHERE mes_referencia = ? AND usina NOT LIKE '%/%' AND LOWER(status) NOT LIKE '%arquivad%'
             GROUP BY usina
             ORDER BY valor_a_receber_total DESC
         """, (periodo,)).fetchall()
@@ -385,7 +385,7 @@ def resumo_por_concessionaria(periodo):
                           / SUM(CASE WHEN status_norm IN ('pago','atrasado') THEN valor_a_receber ELSE 0 END)
                      ELSE NULL END AS pct_inadimplencia
             FROM faturas
-            WHERE mes_referencia = ?
+            WHERE mes_referencia = ? AND LOWER(status) NOT LIKE '%arquivad%'
             GROUP BY concessionaria
             ORDER BY valor_a_receber_total DESC
         """, (periodo,)).fetchall()
@@ -407,7 +407,7 @@ def evolucao_usina(usina):
                           / SUM(CASE WHEN status_norm IN ('pago','atrasado') THEN valor_a_receber ELSE 0 END)
                      ELSE NULL END AS pct_inadimplencia
             FROM faturas
-            WHERE usina = ?
+            WHERE usina = ? AND LOWER(status) NOT LIKE '%arquivad%'
             GROUP BY mes_referencia
             ORDER BY mes_referencia
         """, (usina,)).fetchall()
