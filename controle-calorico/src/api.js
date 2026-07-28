@@ -21,6 +21,20 @@ export function dateKey(d) {
   return `${yyyy}-${mm}-${dd}`
 }
 
+export function shiftDateKey(key, deltaDays) {
+  const d = new Date(key + 'T00:00:00')
+  d.setDate(d.getDate() + deltaDays)
+  return dateKey(d)
+}
+
+export function formatDateLabel(key) {
+  const d = new Date(key + 'T00:00:00')
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const weekday = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'][d.getDay()]
+  return `${dd}/${mm} (${weekday})`
+}
+
 export function dateKeysBack(count) {
   const keys = []
   for (let i = count - 1; i >= 0; i--) {

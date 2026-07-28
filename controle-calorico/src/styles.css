@@ -35,6 +35,48 @@ body {
   margin: 0;
 }
 
+.date-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 4px;
+  margin-bottom: 4px;
+}
+
+.date-nav .btn-icon {
+  font-size: 22px;
+  line-height: 1;
+  padding: 4px 14px;
+}
+
+.date-nav .btn-icon:disabled {
+  opacity: 0.3;
+}
+
+.date-nav-current {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.date-nav-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+}
+
+.date-nav-today {
+  border: none;
+  background: none;
+  color: #2e7d32;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
 .day-type-selector {
   display: flex;
   align-items: center;
