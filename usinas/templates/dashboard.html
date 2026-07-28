@@ -95,27 +95,39 @@
 <div class="card mb-4">
   <div class="card-body">
     <h6 class="card-title text-muted">Resumo por Usina — {{ periodo|mesnome }}</h6>
+    <div class="text-muted small mb-2">Clique numa coluna para ordenar. Use os campos abaixo do cabeçalho para filtrar.</div>
     <div class="table-responsive">
-      <table class="table table-sm table-hover align-middle">
-        <thead><tr>
-          <th>Usina</th><th class="text-end">UCs</th>
-          <th class="text-end">Consumo (kWh)</th><th class="text-end">Compensado (kWh)</th>
-          <th class="text-end">Aproveit.</th>
-          <th class="text-end">A Receber</th><th class="text-end">Pago</th>
-          <th class="text-end">Atrasado</th><th class="text-end">Aberto</th>
-        </tr></thead>
+      <table class="table table-sm table-hover align-middle tabela-interativa">
+        <thead>
+        <tr class="cabecalho">
+          <th data-tipo="texto">Usina</th><th class="text-end" data-tipo="num">UCs</th>
+          <th class="text-end" data-tipo="num">Consumo (kWh)</th><th class="text-end" data-tipo="num">Compensado (kWh)</th>
+          <th class="text-end" data-tipo="num">Aproveit.</th>
+          <th class="text-end" data-tipo="num">A Receber</th><th class="text-end" data-tipo="num">Pago</th>
+          <th class="text-end" data-tipo="num">Atrasado</th><th class="text-end" data-tipo="num">Aberto</th>
+          <th class="text-end" data-tipo="num">Inadimplência</th>
+        </tr>
+        <tr class="filtro-row">
+          <th><input type="text" class="form-control form-control-sm" placeholder="filtrar usina"></th>
+          <th colspan="9"></th>
+        </tr>
+        </thead>
         <tbody>
         {% for u in por_usina %}
+          {% set aproveitamento = (u.compensado_total / u.consumo_total) if u.consumo_total else None %}
           <tr>
-            <td><a href="{{ url_for('usina_detalhe', nome=u.usina, periodo=periodo) }}">{{ u.usina }}</a></td>
-            <td class="text-end">{{ u.total_ucs|numero }}</td>
-            <td class="text-end">{{ u.consumo_total|numero }}</td>
-            <td class="text-end">{{ u.compensado_total|numero }}</td>
-            <td class="text-end">{% if u.consumo_total %}{{ (u.compensado_total / u.consumo_total)|pct }}{% else %}-{% endif %}</td>
-            <td class="text-end">{{ u.valor_a_receber_total|brl }}</td>
-            <td class="text-end valor-positivo">{{ u.valor_pago|brl }}</td>
-            <td class="text-end {% if u.valor_atrasado %}valor-negativo{% endif %}">{{ u.valor_atrasado|brl }}</td>
-            <td class="text-end">{{ u.valor_aberto|brl }}</td>
+            <td data-valor="{{ u.usina }}"><a href="{{ url_for('usina_detalhe', nome=u.usina, periodo=periodo) }}">{{ u.usina }}</a></td>
+            <td class="text-end" data-valor="{{ u.total_ucs }}">{{ u.total_ucs|numero }}</td>
+            <td class="text-end" data-valor="{{ u.consumo_total }}">{{ u.consumo_total|numero }}</td>
+            <td class="text-end" data-valor="{{ u.compensado_total }}">{{ u.compensado_total|numero }}</td>
+            <td class="text-end" data-valor="{{ aproveitamento or 0 }}">{% if aproveitamento is not none %}{{ aproveitamento|pct }}{% else %}-{% endif %}</td>
+            <td class="text-end" data-valor="{{ u.valor_a_receber_total }}">{{ u.valor_a_receber_total|brl }}</td>
+            <td class="text-end valor-positivo" data-valor="{{ u.valor_pago }}">{{ u.valor_pago|brl }}</td>
+            <td class="text-end {% if u.valor_atrasado %}valor-negativo{% endif %}" data-valor="{{ u.valor_atrasado }}">{{ u.valor_atrasado|brl }}</td>
+            <td class="text-end" data-valor="{{ u.valor_aberto }}">{{ u.valor_aberto|brl }}</td>
+            <td class="text-end {% if u.pct_inadimplencia and u.pct_inadimplencia > 0.2 %}valor-negativo{% endif %}" data-valor="{{ u.pct_inadimplencia or 0 }}">
+              {% if u.pct_inadimplencia is not none %}{{ u.pct_inadimplencia|pct }}{% else %}-{% endif %}
+            </td>
           </tr>
         {% endfor %}
         </tbody>
@@ -128,19 +140,29 @@
   <div class="card-body">
     <h6 class="card-title text-muted">Resumo por Concessionária — {{ periodo|mesnome }}</h6>
     <div class="table-responsive">
-      <table class="table table-sm table-hover align-middle">
-        <thead><tr>
-          <th>Concessionária</th><th class="text-end">UCs</th>
-          <th class="text-end">A Receber</th><th class="text-end">Pago</th><th class="text-end">Atrasado</th>
-        </tr></thead>
+      <table class="table table-sm table-hover align-middle tabela-interativa">
+        <thead>
+        <tr class="cabecalho">
+          <th data-tipo="texto">Concessionária</th><th class="text-end" data-tipo="num">UCs</th>
+          <th class="text-end" data-tipo="num">A Receber</th><th class="text-end" data-tipo="num">Pago</th>
+          <th class="text-end" data-tipo="num">Atrasado</th><th class="text-end" data-tipo="num">Inadimplência</th>
+        </tr>
+        <tr class="filtro-row">
+          <th><input type="text" class="form-control form-control-sm" placeholder="filtrar"></th>
+          <th colspan="5"></th>
+        </tr>
+        </thead>
         <tbody>
         {% for c in por_concessionaria %}
           <tr>
-            <td>{{ c.concessionaria }}</td>
-            <td class="text-end">{{ c.total_ucs|numero }}</td>
-            <td class="text-end">{{ c.valor_a_receber_total|brl }}</td>
-            <td class="text-end valor-positivo">{{ c.valor_pago|brl }}</td>
-            <td class="text-end {% if c.valor_atrasado %}valor-negativo{% endif %}">{{ c.valor_atrasado|brl }}</td>
+            <td data-valor="{{ c.concessionaria }}">{{ c.concessionaria }}</td>
+            <td class="text-end" data-valor="{{ c.total_ucs }}">{{ c.total_ucs|numero }}</td>
+            <td class="text-end" data-valor="{{ c.valor_a_receber_total }}">{{ c.valor_a_receber_total|brl }}</td>
+            <td class="text-end valor-positivo" data-valor="{{ c.valor_pago }}">{{ c.valor_pago|brl }}</td>
+            <td class="text-end {% if c.valor_atrasado %}valor-negativo{% endif %}" data-valor="{{ c.valor_atrasado }}">{{ c.valor_atrasado|brl }}</td>
+            <td class="text-end {% if c.pct_inadimplencia and c.pct_inadimplencia > 0.2 %}valor-negativo{% endif %}" data-valor="{{ c.pct_inadimplencia or 0 }}">
+              {% if c.pct_inadimplencia is not none %}{{ c.pct_inadimplencia|pct }}{% else %}-{% endif %}
+            </td>
           </tr>
         {% endfor %}
         </tbody>

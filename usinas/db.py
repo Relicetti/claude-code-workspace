@@ -357,7 +357,11 @@ def resumo_por_usina(periodo):
                 SUM(CASE WHEN status_norm='pago' THEN valor_a_receber ELSE 0 END) AS valor_pago,
                 SUM(CASE WHEN status_norm='atrasado' THEN valor_a_receber ELSE 0 END) AS valor_atrasado,
                 SUM(CASE WHEN status_norm='aberto' THEN valor_a_receber ELSE 0 END) AS valor_aberto,
-                SUM(CASE WHEN status_norm='atrasado' THEN 1 ELSE 0 END) AS qtd_atrasados
+                SUM(CASE WHEN status_norm='atrasado' THEN 1 ELSE 0 END) AS qtd_atrasados,
+                CASE WHEN SUM(CASE WHEN status_norm IN ('pago','atrasado') THEN valor_a_receber ELSE 0 END) > 0
+                     THEN SUM(CASE WHEN status_norm='atrasado' THEN valor_a_receber ELSE 0 END) * 1.0
+                          / SUM(CASE WHEN status_norm IN ('pago','atrasado') THEN valor_a_receber ELSE 0 END)
+                     ELSE NULL END AS pct_inadimplencia
             FROM faturas
             WHERE mes_referencia = ?
             GROUP BY usina
@@ -373,7 +377,11 @@ def resumo_por_concessionaria(periodo):
                 COUNT(*) AS total_ucs,
                 SUM(valor_a_receber) AS valor_a_receber_total,
                 SUM(CASE WHEN status_norm='pago' THEN valor_a_receber ELSE 0 END) AS valor_pago,
-                SUM(CASE WHEN status_norm='atrasado' THEN valor_a_receber ELSE 0 END) AS valor_atrasado
+                SUM(CASE WHEN status_norm='atrasado' THEN valor_a_receber ELSE 0 END) AS valor_atrasado,
+                CASE WHEN SUM(CASE WHEN status_norm IN ('pago','atrasado') THEN valor_a_receber ELSE 0 END) > 0
+                     THEN SUM(CASE WHEN status_norm='atrasado' THEN valor_a_receber ELSE 0 END) * 1.0
+                          / SUM(CASE WHEN status_norm IN ('pago','atrasado') THEN valor_a_receber ELSE 0 END)
+                     ELSE NULL END AS pct_inadimplencia
             FROM faturas
             WHERE mes_referencia = ?
             GROUP BY concessionaria
@@ -391,7 +399,11 @@ def evolucao_usina(usina):
                 SUM(energia_compensada_kwh) AS compensado_total,
                 SUM(valor_a_receber) AS valor_a_receber_total,
                 SUM(CASE WHEN status_norm='pago' THEN valor_a_receber ELSE 0 END) AS valor_pago,
-                SUM(CASE WHEN status_norm='atrasado' THEN valor_a_receber ELSE 0 END) AS valor_atrasado
+                SUM(CASE WHEN status_norm='atrasado' THEN valor_a_receber ELSE 0 END) AS valor_atrasado,
+                CASE WHEN SUM(CASE WHEN status_norm IN ('pago','atrasado') THEN valor_a_receber ELSE 0 END) > 0
+                     THEN SUM(CASE WHEN status_norm='atrasado' THEN valor_a_receber ELSE 0 END) * 1.0
+                          / SUM(CASE WHEN status_norm IN ('pago','atrasado') THEN valor_a_receber ELSE 0 END)
+                     ELSE NULL END AS pct_inadimplencia
             FROM faturas
             WHERE usina = ?
             GROUP BY mes_referencia
