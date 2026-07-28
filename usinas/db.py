@@ -329,10 +329,12 @@ _STATUS_CASE = """
 
 def resumo_geral(periodo):
     with get_conn() as conn:
-        return conn.execute(f"""
+        total_usinas = conn.execute(
+            "SELECT COUNT(DISTINCT usina) AS n FROM faturas WHERE usina NOT LIKE '%/%'"
+        ).fetchone()["n"]
+        row = conn.execute(f"""
             SELECT
                 COUNT(*) AS total_ucs,
-                COUNT(DISTINCT CASE WHEN usina NOT LIKE '%/%' THEN usina END) AS total_usinas,
                 SUM(consumo_real_kwh) AS consumo_total,
                 SUM(energia_compensada_kwh) AS compensado_total,
                 SUM(valor_a_receber) AS valor_a_receber_total,
@@ -343,30 +345,39 @@ def resumo_geral(periodo):
             FROM faturas
             WHERE mes_referencia = ? AND LOWER(status) NOT LIKE '%arquivad%'
         """, (periodo,)).fetchone()
+        resultado = dict(row)
+        resultado["total_usinas"] = total_usinas
+        return resultado
 
 
 def resumo_por_usina(periodo):
+    """Traz TODAS as usinas ja vistas em qualquer importacao (LEFT JOIN), mesmo
+    as que nao tem nenhuma fatura no periodo selecionado - essas aparecem com
+    valores zerados em vez de sumirem da tabela."""
     with get_conn() as conn:
         return conn.execute("""
             SELECT
-                usina,
-                COUNT(*) AS total_ucs,
-                SUM(consumo_real_kwh) AS consumo_total,
-                SUM(energia_compensada_kwh) AS compensado_total,
-                SUM(valor_a_receber) AS valor_a_receber_total,
-                SUM(CASE WHEN status_norm='pago' THEN valor_a_receber ELSE 0 END) AS valor_pago,
-                SUM(CASE WHEN status_norm='atrasado' THEN valor_a_receber ELSE 0 END) AS valor_atrasado,
-                SUM(CASE WHEN status_norm='aberto' THEN valor_a_receber ELSE 0 END) AS valor_aberto,
-                SUM(CASE WHEN status_norm='atrasado' THEN 1 ELSE 0 END) AS qtd_atrasados,
-                SUM(CASE WHEN LOWER(status) LIKE '%emiss%' AND LOWER(status) LIKE '%pendente%'
+                u.usina AS usina,
+                COUNT(f.id) AS total_ucs,
+                SUM(f.consumo_real_kwh) AS consumo_total,
+                SUM(f.energia_compensada_kwh) AS compensado_total,
+                SUM(f.valor_a_receber) AS valor_a_receber_total,
+                SUM(CASE WHEN f.status_norm='pago' THEN f.valor_a_receber ELSE 0 END) AS valor_pago,
+                SUM(CASE WHEN f.status_norm='atrasado' THEN f.valor_a_receber ELSE 0 END) AS valor_atrasado,
+                SUM(CASE WHEN f.status_norm='aberto' THEN f.valor_a_receber ELSE 0 END) AS valor_aberto,
+                SUM(CASE WHEN f.status_norm='atrasado' THEN 1 ELSE 0 END) AS qtd_atrasados,
+                SUM(CASE WHEN LOWER(f.status) LIKE '%emiss%' AND LOWER(f.status) LIKE '%pendente%'
                           THEN 1 ELSE 0 END) AS qtd_emissao_pendente,
-                CASE WHEN SUM(CASE WHEN status_norm IN ('pago','atrasado') THEN valor_a_receber ELSE 0 END) > 0
-                     THEN SUM(CASE WHEN status_norm='atrasado' THEN valor_a_receber ELSE 0 END) * 1.0
-                          / SUM(CASE WHEN status_norm IN ('pago','atrasado') THEN valor_a_receber ELSE 0 END)
+                CASE WHEN SUM(CASE WHEN f.status_norm IN ('pago','atrasado') THEN f.valor_a_receber ELSE 0 END) > 0
+                     THEN SUM(CASE WHEN f.status_norm='atrasado' THEN f.valor_a_receber ELSE 0 END) * 1.0
+                          / SUM(CASE WHEN f.status_norm IN ('pago','atrasado') THEN f.valor_a_receber ELSE 0 END)
                      ELSE NULL END AS pct_inadimplencia
-            FROM faturas
-            WHERE mes_referencia = ? AND usina NOT LIKE '%/%' AND LOWER(status) NOT LIKE '%arquivad%'
-            GROUP BY usina
+            FROM (SELECT DISTINCT usina FROM faturas WHERE usina NOT LIKE '%/%') u
+            LEFT JOIN faturas f
+                ON f.usina = u.usina
+               AND f.mes_referencia = ?
+               AND LOWER(f.status) NOT LIKE '%arquivad%'
+            GROUP BY u.usina
             ORDER BY valor_a_receber_total DESC
         """, (periodo,)).fetchall()
 
