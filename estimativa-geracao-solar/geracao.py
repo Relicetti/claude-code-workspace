@@ -6,9 +6,17 @@ import requests
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PVGIS_URL = "https://re.jrc.ec.europa.eu/api/v5_2/seriescalc"
 
-PERDA_SISTEMA_PADRAO = 14.0  # % (cabos, sujidade, mismatch, inversor, etc.)
-MOUNTING_PADRAO = "free"     # free-standing — sem GCR/auto-sombreamento de fileiras (nao e usina fixa de solo)
-ANO_REFERENCIA = 2019        # ano representativo disponivel na base historica do PVGIS
+MOUNTING_PADRAO = "free"  # free-standing — usina fixa de solo
+AZIMUTE_NORTE = 180       # convencao PVGIS: 0 = sul, +-180 = norte (fixo, sem otimizacao automatica)
+ANO_REFERENCIA = 2019     # ano representativo disponivel na base historica do PVGIS
+
+# Perdas de sistema padrao (%), combinadas multiplicativamente. Somam ~14% (default classico do PVGIS).
+PERDAS_PADRAO = {
+    "cc": 3.0,        # cabeamento CC + mismatch entre modulos/strings
+    "ca": 1.0,        # cabeamento CA + transformador
+    "sujidade": 3.0,  # sujidade/soiling
+    "outras": 7.0,    # inversor, indisponibilidade, degradacao inicial, etc.
+}
 
 MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
 
@@ -46,9 +54,24 @@ def buscar_coordenadas(uf, nome_cidade):
     return None
 
 
+def perda_total_pct(perdas):
+    """Combina as perdas percentuais multiplicativamente (1 - produto das eficiencias)."""
+    fator = 1.0
+    for p in perdas.values():
+        fator *= (1 - (p or 0) / 100)
+    return (1 - fator) * 100
+
+
 def calcular_geracao(lat, lon, potencia_cc_kwp, potencia_ca_kw,
-                      perda_pct=PERDA_SISTEMA_PADRAO, mounting=MOUNTING_PADRAO):
-    """Estima geracao mensal via serie horaria do PVGIS, aplicando clipping pela potencia CA."""
+                      perdas=None, mounting=MOUNTING_PADRAO):
+    """Estima geracao mensal via serie horaria do PVGIS, aplicando clipping pela potencia CA.
+
+    Usina fixa de solo, sempre orientada ao Norte (azimute fixo), com inclinacao otima
+    calculada automaticamente pelo PVGIS para essa orientacao.
+    """
+    perdas = perdas or PERDAS_PADRAO
+    perda_pct = perda_total_pct(perdas)
+
     params = {
         "lat": lat,
         "lon": lon,
@@ -56,7 +79,8 @@ def calcular_geracao(lat, lon, potencia_cc_kwp, potencia_ca_kw,
         "peakpower": potencia_cc_kwp,
         "loss": perda_pct,
         "mountingplace": mounting,
-        "optimalangles": 1,
+        "aspect": AZIMUTE_NORTE,
+        "optimalinclination": 1,
         "outputformat": "json",
         "startyear": ANO_REFERENCIA,
         "endyear": ANO_REFERENCIA,
@@ -110,6 +134,7 @@ def calcular_geracao(lat, lon, potencia_cc_kwp, potencia_ca_kw,
         "ano_referencia": ANO_REFERENCIA,
         "meteo_db": dados["inputs"]["meteo_data"]["radiation_db"],
         "inclinacao_otima": mount_info["slope"]["value"],
-        "azimute_otimo": mount_info["azimuth"]["value"],
+        "orientacao": "Norte (fixo)",
+        "perdas": perdas,
         "perda_sistema_pct": perda_pct,
     }

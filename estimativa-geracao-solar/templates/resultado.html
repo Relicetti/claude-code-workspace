@@ -80,9 +80,9 @@
             <tr><td>Base de irradiância</td><td class="text-end">{{ r.meteo_db }}</td></tr>
             <tr><td>Ano de referência</td><td class="text-end">{{ r.ano_referencia }}</td></tr>
             <tr><td>Inclinação ótima</td><td class="text-end">{{ r.inclinacao_otima }}°</td></tr>
-            <tr><td>Azimute ótimo</td><td class="text-end">{{ r.azimute_otimo }}°</td></tr>
-            <tr><td>Perdas de sistema</td><td class="text-end">{{ r.perda_sistema_pct }}%</td></tr>
-            <tr><td>Montagem</td><td class="text-end">Free-standing (não é usina fixa de solo)</td></tr>
+            <tr><td>Orientação</td><td class="text-end">{{ r.orientacao }}</td></tr>
+            <tr><td>Perdas de sistema</td><td class="text-end">{{ "%.1f"|format(r.perda_sistema_pct) }}%</td></tr>
+            <tr><td>Montagem</td><td class="text-end">Fixa, usina de solo (free-standing)</td></tr>
           </tbody>
         </table>
       </div>
