@@ -68,7 +68,7 @@ def _eta_dias(etapa_atual, dias_na_etapa, medias):
     if restante_etapa_atual is None:
         return None
     total = max(restante_etapa_atual - dias_na_etapa, 0)
-    etapas_opcionais = {"Refazer Rateio", "Consumo de Saldo Acumulado"}
+    etapas_opcionais = {"Refazer Rateio", "Consumo de Saldo Acumulado", "Rescisão"}
     for etapa in db.ETAPAS[idx + 1:]:
         if etapa in etapas_opcionais:
             continue  # etapas de exceção, não fazem parte do caminho padrão da maioria

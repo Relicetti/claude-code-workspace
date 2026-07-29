@@ -87,6 +87,7 @@ ETAPAS = [
     "Aguardando Rateio",
     "Aguardando Aprovação Rateio",
     "Consumo de Saldo Acumulado",
+    "Rescisão",
 ]
 
 ETAPAS_FINAIS = ["Operação", "Rescindida"]
