@@ -25,6 +25,15 @@
         <input type="text" name="dono_carteira" class="form-control" value="{{ usina.dono_carteira or '' }}">
       </div>
       <div class="mb-3">
+        <label class="form-label">Executivo (quem fechou a comercialização)</label>
+        <select name="executivo" class="form-select">
+          <option value="">—</option>
+          {% for u in usuarios %}
+            <option value="{{ u.nome }}" {{ 'selected' if u.nome == usina.executivo else '' }}>{{ u.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="mb-3">
         <label class="form-label">Data de assinatura do contrato</label>
         <input type="date" name="data_assinatura" class="form-control" value="{{ usina.data_assinatura_contrato or '' }}">
       </div>

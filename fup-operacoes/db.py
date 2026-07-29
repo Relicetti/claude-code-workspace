@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS usinas (
     nome_ufv TEXT NOT NULL,
     concessionaria TEXT,
     dono_carteira TEXT,
+    executivo TEXT,
     data_assinatura_contrato TEXT,
     etapa_atual TEXT NOT NULL,
     data_entrada_etapa_atual TEXT NOT NULL,
@@ -67,10 +68,11 @@ COLUNAS_NOVAS = [
     ("historico_etapas", "autor", "TEXT"),
     ("pendencias", "responsavel", "TEXT"),
     ("usuarios", "is_admin", "INTEGER NOT NULL DEFAULT 0"),
+    ("usinas", "executivo", "TEXT"),
 ]
 
 CAMPOS_EDITAVEIS_USINA = [
-    "ug_raw", "nome_ufv", "concessionaria", "dono_carteira", "data_assinatura_contrato",
+    "ug_raw", "nome_ufv", "concessionaria", "dono_carteira", "executivo", "data_assinatura_contrato",
 ]
 
 ETAPAS = [
@@ -147,6 +149,30 @@ def data_entrada_etapa_final_por_usina(conn, etapa):
 
 def buscar_usina(conn, usina_id):
     return conn.execute("SELECT * FROM usinas WHERE id = ?", (usina_id,)).fetchone()
+
+
+def buscar_usinas_ativas_por_pessoa(conn, termo):
+    """Usinas ativas onde a pessoa é a carteira ou o executivo (busca parcial)."""
+    coringa = f"%{termo}%"
+    return conn.execute(
+        """SELECT * FROM usinas WHERE status = 'ativa'
+           AND (dono_carteira LIKE ? OR executivo LIKE ?)
+           ORDER BY nome_ufv""",
+        (coringa, coringa),
+    ).fetchall()
+
+
+def buscar_pendencias_por_pessoa(conn, termo):
+    """Pendências (de usinas ativas) em que a pessoa é a responsável (busca parcial)."""
+    coringa = f"%{termo}%"
+    return conn.execute(
+        """SELECT p.*, u.nome_ufv, u.etapa_atual
+           FROM pendencias p
+           JOIN usinas u ON u.id = p.usina_id
+           WHERE u.status = 'ativa' AND p.responsavel LIKE ?
+           ORDER BY p.criado_em DESC""",
+        (coringa,),
+    ).fetchall()
 
 
 def historico_usina(conn, usina_id):
@@ -231,15 +257,15 @@ def adicionar_pendencia(conn, usina_id, texto, responsavel, autor, criado_em):
     )
 
 
-def criar_usina(conn, ug_raw, nome_ufv, concessionaria, dono_carteira,
+def criar_usina(conn, ug_raw, nome_ufv, concessionaria, dono_carteira, executivo,
                  data_assinatura, etapa_inicial, hoje_iso, pendencia, responsavel, autor, criado_em):
     ug = normalizar_ug(ug_raw)
     cur = conn.execute(
         """INSERT INTO usinas
-           (ug, ug_raw, nome_ufv, concessionaria, dono_carteira,
+           (ug, ug_raw, nome_ufv, concessionaria, dono_carteira, executivo,
             data_assinatura_contrato, etapa_atual, data_entrada_etapa_atual, status)
-           VALUES (?,?,?,?,?,?,?,?, 'ativa')""",
-        (ug, ug_raw, nome_ufv, concessionaria, dono_carteira,
+           VALUES (?,?,?,?,?,?,?,?,?, 'ativa')""",
+        (ug, ug_raw, nome_ufv, concessionaria, dono_carteira, executivo,
          data_assinatura or None, etapa_inicial, hoje_iso),
     )
     usina_id = cur.lastrowid

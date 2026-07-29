@@ -2,9 +2,65 @@
 {% block title %}Dashboard{% endblock %}
 {% block content %}
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <h4 class="mb-0">Usinas ativas no pipeline: <strong>{{ total_ativas }}</strong></h4>
+  <form method="get" class="d-flex gap-2">
+    <input type="text" name="pessoa" class="form-control form-control-sm" placeholder="Buscar por pessoa (carteira, executivo ou responsável)" value="{{ pessoa }}" style="min-width: 320px;">
+    <button type="submit" class="btn btn-sm btn-primary text-nowrap">Buscar</button>
+    {% if pessoa %}<a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary text-nowrap">Limpar</a>{% endif %}
+  </form>
 </div>
+
+{% if pessoa %}
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-white">Usinas na carteira/executivo de "{{ pessoa }}" ({{ usinas_pessoa|length }})</div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0 align-middle">
+        <thead>
+          <tr><th>Usina</th><th>Etapa</th><th>Carteira</th><th>Executivo</th><th>Dias na etapa</th></tr>
+        </thead>
+        <tbody>
+          {% for u in usinas_pessoa %}
+          <tr>
+            <td><a href="{{ url_for('ver_usina', usina_id=u.id) }}">{{ u.nome_ufv }}</a></td>
+            <td>{{ u.etapa_atual }}</td>
+            <td>{{ u.dono_carteira or '—' }}</td>
+            <td>{{ u.executivo or '—' }}</td>
+            <td>{{ u.dias_na_etapa if u.dias_na_etapa is not none else '—' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="text-center text-muted py-3">Nenhuma usina encontrada.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-white">Pendências de "{{ pessoa }}" ({{ pendencias_pessoa|length }})</div>
+    <div class="table-responsive">
+      <table class="table table-sm mb-0 align-middle">
+        <thead>
+          <tr><th>Usina</th><th>Etapa</th><th>Pendência</th><th>Registrada por</th></tr>
+        </thead>
+        <tbody>
+          {% for p in pendencias_pessoa %}
+          <tr>
+            <td><a href="{{ url_for('ver_usina', usina_id=p.usina_id) }}">{{ p.nome_ufv }}</a></td>
+            <td>{{ p.etapa_atual }}</td>
+            <td>{{ p.texto }}</td>
+            <td class="small text-muted">{{ p.autor }} · {{ p.criado_em.replace('T', ' ') }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="text-center text-muted py-3">Nenhuma pendência encontrada.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+{% else %}
 
 <div class="row g-3">
   {% for r in resumo %}
@@ -39,5 +95,7 @@
     </a>
   </div>
 </div>
+
+{% endif %}
 
 {% endblock %}

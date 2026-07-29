@@ -152,9 +152,19 @@ def registrar():
 
 @app.route("/")
 def dashboard():
+    pessoa = request.args.get("pessoa", "").strip()
+
     with db.conectar() as conn:
         usinas, medias = _usinas_ativas_com_metricas(conn)
         qtd_operacao = db.contar_por_status(conn, "operacao")
+
+        usinas_pessoa = pendencias_pessoa = None
+        if pessoa:
+            usinas_pessoa = [dict(u) for u in db.buscar_usinas_ativas_por_pessoa(conn, pessoa)]
+            hoje = date.today()
+            for u in usinas_pessoa:
+                u["dias_na_etapa"] = _dias_desde(u["data_entrada_etapa_atual"], hoje)
+            pendencias_pessoa = [dict(p) for p in db.buscar_pendencias_por_pessoa(conn, pessoa)]
 
     resumo = []
     for idx, etapa in enumerate(db.ETAPAS):
@@ -172,6 +182,9 @@ def dashboard():
         resumo=resumo,
         total_ativas=len(usinas),
         qtd_operacao=qtd_operacao,
+        pessoa=pessoa,
+        usinas_pessoa=usinas_pessoa,
+        pendencias_pessoa=pendencias_pessoa,
     )
 
 
@@ -337,6 +350,7 @@ def nova_usina():
             nome_ufv=request.form.get("nome_ufv", "").strip(),
             concessionaria=request.form.get("concessionaria", "").strip(),
             dono_carteira=request.form.get("dono_carteira", "").strip(),
+            executivo=request.form.get("executivo", "").strip(),
             data_assinatura=data_assinatura,
             etapa_inicial=request.form.get("etapa_inicial", db.ETAPAS[0]),
             hoje_iso=hoje_iso,
@@ -359,13 +373,15 @@ def editar_usina(usina_id):
             return "Usina não encontrada", 404
 
         if request.method == "GET":
-            return render_template("editar_usina.html", usina=dict(usina))
+            usuarios = db.listar_usuarios(conn)
+            return render_template("editar_usina.html", usina=dict(usina), usuarios=usuarios)
 
         db.atualizar_usina(conn, usina_id, {
             "ug_raw": request.form.get("ug", "").strip(),
             "nome_ufv": request.form.get("nome_ufv", "").strip(),
             "concessionaria": request.form.get("concessionaria", "").strip(),
             "dono_carteira": request.form.get("dono_carteira", "").strip(),
+            "executivo": request.form.get("executivo", "").strip(),
             "data_assinatura_contrato": request.form.get("data_assinatura", "").strip() or None,
         })
     return redirect(url_for("ver_usina", usina_id=usina_id))
