@@ -124,6 +124,17 @@ def mudar_etapa(conn, usina_id, nova_etapa, hoje_iso):
         )
 
 
+def adicionar_observacao(conn, usina_id, texto, data_fmt):
+    texto = texto.strip()
+    if not texto:
+        return
+    usina = buscar_usina(conn, usina_id)
+    linha_nova = f"{data_fmt}: {texto}"
+    anterior = (usina["observacao"] or "").strip()
+    observacao = f"{linha_nova}\n{anterior}" if anterior else linha_nova
+    conn.execute("UPDATE usinas SET observacao = ? WHERE id = ?", (observacao, usina_id))
+
+
 def criar_usina(conn, ug_raw, nome_ufv, concessionaria, dono_carteira, data_assinatura, etapa_inicial, hoje_iso, observacao):
     ug = normalizar_ug(ug_raw)
     cur = conn.execute(

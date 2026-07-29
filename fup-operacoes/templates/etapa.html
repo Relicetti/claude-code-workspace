@@ -48,7 +48,10 @@
           </td>
           <td>{{ u.dias_desde_assinatura if u.dias_desde_assinatura is not none else '—' }}</td>
           <td>{{ (u.eta_dias ~ ' dias') if u.eta_dias is not none else '—' }}</td>
-          <td class="small text-muted" style="max-width: 320px;">{{ u.observacao }}</td>
+          <td class="small text-muted" style="max-width: 320px;">
+            {{ (u.observacao.split('\n')[0] if u.observacao else '') }}
+            {% if u.observacao and '\n' in u.observacao.strip() %}<span class="text-primary">(+histórico)</span>{% endif %}
+          </td>
           <td style="min-width: 220px;">
             <form action="{{ url_for('mudar_etapa', usina_id=u.id) }}" method="post" class="d-flex gap-1">
               <select name="nova_etapa" class="form-select form-select-sm">

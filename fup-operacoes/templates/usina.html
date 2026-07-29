@@ -12,7 +12,6 @@
     <p class="mb-1">Status: <strong>{{ usina.status }}</strong> · Etapa atual: <strong>{{ usina.etapa_atual }}</strong></p>
     <p class="mb-1">Dias na etapa atual: <strong>{{ usina.dias_na_etapa if usina.dias_na_etapa is not none else '—' }}</strong></p>
     <p class="mb-1">Dias desde a assinatura do contrato: <strong>{{ usina.dias_desde_assinatura if usina.dias_desde_assinatura is not none else '—' }}</strong></p>
-    {% if usina.observacao %}<p class="mb-0"><em>{{ usina.observacao }}</em></p>{% endif %}
   </div>
 </div>
 
@@ -33,6 +32,27 @@
   </div>
 </div>
 {% endif %}
+
+<div class="card shadow-sm mb-4">
+  <div class="card-header bg-white">Observações</div>
+  <div class="card-body">
+    {% if usina.status == 'ativa' %}
+    <form action="{{ url_for('adicionar_observacao', usina_id=usina.id) }}" method="post" class="d-flex gap-2 mb-3">
+      <input type="text" name="texto" class="form-control" placeholder="Nova observação (a data de hoje é adicionada automaticamente)" required>
+      <button type="submit" class="btn btn-primary text-nowrap">Adicionar</button>
+    </form>
+    {% endif %}
+    {% if usina.observacao %}
+      <ul class="list-unstyled mb-0">
+        {% for linha in usina.observacao.split('\n') %}
+          {% if linha.strip() %}<li class="border-bottom py-1">{{ linha }}</li>{% endif %}
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-muted mb-0">Nenhuma observação registrada.</p>
+    {% endif %}
+  </div>
+</div>
 
 <div class="card shadow-sm">
   <div class="card-header bg-white">Linha do tempo</div>

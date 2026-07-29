@@ -124,6 +124,16 @@ def ver_usina(usina_id):
     )
 
 
+@app.route("/usina/<int:usina_id>/observacao", methods=["POST"])
+def adicionar_observacao(usina_id):
+    texto = request.form.get("texto", "").strip()
+    if texto:
+        data_fmt = date.today().strftime("%d/%m/%Y")
+        with db.conectar() as conn:
+            db.adicionar_observacao(conn, usina_id, texto, data_fmt)
+    return redirect(url_for("ver_usina", usina_id=usina_id))
+
+
 @app.route("/usina/<int:usina_id>/mudar-etapa", methods=["POST"])
 def mudar_etapa(usina_id):
     nova_etapa = request.form.get("nova_etapa", "").strip()
