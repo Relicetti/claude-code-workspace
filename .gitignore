@@ -6,3 +6,4 @@ __pycache__/
 !estimativa-geracao-solar/data/*.csv
 .env
 optionstrat/predictions.jsonl
+fup-operacoes/fup.db

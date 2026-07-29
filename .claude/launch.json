@@ -42,6 +42,12 @@
       "runtimeExecutable": "py",
       "runtimeArgs": ["-m", "flask", "--app", "usinas/app", "run", "--port", "5002"],
       "port": 5002
+    },
+    {
+      "name": "fup-operacoes",
+      "runtimeExecutable": "fup-operacoes/.venv/Scripts/python.exe",
+      "runtimeArgs": ["fup-operacoes/app.py"],
+      "port": 5010
     }
   ]
 }
