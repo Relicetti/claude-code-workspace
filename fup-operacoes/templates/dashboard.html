@@ -63,7 +63,10 @@
 {% else %}
 
 {% for grupo in grupos %}
-  <div class="faixa-grupo mb-2 mt-4">{{ grupo.titulo }}</div>
+  <div class="faixa-grupo mb-2 mt-4 d-flex justify-content-between align-items-center">
+    <span>{{ grupo.titulo }}</span>
+    <span class="faixa-total">{{ grupo.total }}</span>
+  </div>
   <div class="row g-3">
     {% for c in grupo.cards %}
     <div class="col-12 col-md-6 col-lg-4">

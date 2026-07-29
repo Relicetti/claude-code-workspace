@@ -227,6 +227,8 @@ def dashboard():
             card_rescindidas,
         ]},
     ]
+    for grupo in grupos:
+        grupo["total"] = sum(c["qtd"] for c in grupo["cards"])
 
     return render_template(
         "dashboard.html",
