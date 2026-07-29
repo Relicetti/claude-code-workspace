@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Rescindidas{% endblock %}
+{% block content %}
+
+<div class="mb-3">
+  <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary mb-2">&larr; todas as etapas</a>
+  <h4 class="mb-0 etapa-titulo text-danger">Rescindidas</h4>
+  <div class="text-muted small">{{ usinas|length }} usina(s)</div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0 align-middle table-sortable">
+      <thead>
+        <tr>
+          <th>Usina</th>
+          <th>Concessionária</th>
+          <th>Carteira</th>
+          <th>Rescindida desde</th>
+          <th>Dias desde a rescisão</th>
+          {% if usuario_admin %}<th data-nosort>Excluir</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in usinas %}
+        <tr>
+          <td><a href="{{ url_for('ver_usina', usina_id=u.id) }}">{{ u.nome_ufv }}</a></td>
+          <td>{{ u.concessionaria }}</td>
+          <td>{{ u.dono_carteira }}</td>
+          <td>{{ u.data_rescisao or '—' }}</td>
+          <td>{{ u.dias_desde_rescisao if u.dias_desde_rescisao is not none else '—' }}</td>
+          {% if usuario_admin %}
+          <td>
+            <form action="{{ url_for('excluir_usina', usina_id=u.id) }}" method="post"
+                  onsubmit="return confirm('Excluir {{ u.nome_ufv }} definitivamente?');">
+              <button type="submit" class="btn btn-sm btn-outline-danger">Excluir</button>
+            </form>
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-muted py-4">Nenhuma usina rescindida.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

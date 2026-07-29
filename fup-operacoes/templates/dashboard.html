@@ -62,39 +62,30 @@
 
 {% else %}
 
-<div class="row g-3">
-  {% for r in resumo %}
-  <div class="col-12 col-md-6 col-lg-4">
-    <a href="{{ url_for('ver_etapa', idx=r.idx) }}" class="text-decoration-none text-reset">
-      <div class="card shadow-sm h-100 {{ 'border-danger' if r.atrasadas else '' }}">
-        <div class="card-body">
-          <div class="etapa-titulo">{{ r.etapa }}</div>
-          <div class="display-6">{{ r.qtd }}</div>
-          <div class="text-muted small">usina(s) nesta etapa</div>
-          {% if r.media %}
-            <div class="text-muted small mt-1">média histórica: {{ r.media }} dias</div>
-          {% endif %}
-          {% if r.atrasadas %}
-            <span class="badge bg-danger mt-2">{{ r.atrasadas }} acima da média</span>
-          {% endif %}
+{% for grupo in grupos %}
+  <div class="faixa-grupo mb-2 mt-4">{{ grupo.titulo }}</div>
+  <div class="row g-3">
+    {% for c in grupo.cards %}
+    <div class="col-12 col-md-6 col-lg-4">
+      <a href="{{ c.url }}" class="text-decoration-none text-reset">
+        <div class="card shadow-sm h-100 {{ ('border-' ~ c.cor) if c.cor else ('border-danger' if c.atrasadas else '') }}">
+          <div class="card-body">
+            <div class="etapa-titulo {{ ('text-' ~ c.cor) if c.cor else '' }}">{{ c.titulo }}</div>
+            <div class="display-6">{{ c.qtd }}</div>
+            <div class="text-muted small">{{ c.sub }}</div>
+            {% if c.media %}
+              <div class="text-muted small mt-1">média histórica: {{ c.media }} dias</div>
+            {% endif %}
+            {% if c.atrasadas %}
+              <span class="badge bg-danger mt-2">{{ c.atrasadas }} acima da média</span>
+            {% endif %}
+          </div>
         </div>
-      </div>
-    </a>
+      </a>
+    </div>
+    {% endfor %}
   </div>
-  {% endfor %}
-
-  <div class="col-12 col-md-6 col-lg-4">
-    <a href="{{ url_for('ver_operacao') }}" class="text-decoration-none text-reset">
-      <div class="card shadow-sm h-100 border-success">
-        <div class="card-body">
-          <div class="etapa-titulo text-success">Em Operação</div>
-          <div class="display-6">{{ qtd_operacao }}</div>
-          <div class="text-muted small">usina(s) já operando</div>
-        </div>
-      </div>
-    </a>
-  </div>
-</div>
+{% endfor %}
 
 {% endif %}
 

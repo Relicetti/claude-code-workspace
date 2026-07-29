@@ -173,6 +173,7 @@ def dashboard():
     with db.conectar() as conn:
         usinas, medias = _usinas_ativas_com_metricas(conn)
         qtd_operacao = db.contar_por_status(conn, "operacao")
+        qtd_rescindidas = db.contar_por_status(conn, "rescindida")
 
         usinas_pessoa = pendencias_pessoa = None
         if pessoa:
@@ -182,22 +183,55 @@ def dashboard():
                 u["dias_na_etapa"] = _dias_desde(u["data_entrada_etapa_atual"], hoje)
             pendencias_pessoa = [dict(p) for p in db.buscar_pendencias_por_pessoa(conn, pessoa)]
 
-    resumo = []
-    for idx, etapa in enumerate(db.ETAPAS):
+    def card_etapa(etapa, titulo=None, cor=None):
+        idx = db.ETAPAS.index(etapa)
         usinas_etapa = [u for u in usinas if u["etapa_atual"] == etapa]
-        resumo.append({
-            "idx": idx,
-            "etapa": etapa,
+        return {
+            "titulo": titulo or etapa,
             "qtd": len(usinas_etapa),
             "atrasadas": sum(1 for u in usinas_etapa if u["atrasada"]),
             "media": medias.get(etapa),
-        })
+            "url": url_for("ver_etapa", idx=idx),
+            "cor": cor,
+            "sub": "usina(s) nesta etapa",
+        }
+
+    card_operando = {
+        "titulo": "Operando", "qtd": qtd_operacao, "atrasadas": 0, "media": None,
+        "url": url_for("ver_operacao"), "cor": "success", "sub": "usina(s) já operando",
+    }
+    card_rescindidas = {
+        "titulo": "Rescindidas", "qtd": qtd_rescindidas, "atrasadas": 0, "media": None,
+        "url": url_for("ver_rescindidas"), "cor": "danger", "sub": "usina(s) rescindidas",
+    }
+
+    grupos = [
+        {"titulo": "Troca de Titularidade", "cards": [
+            card_etapa("Assinado c/ Pendência"),
+            card_etapa("TT Usina"),
+        ]},
+        {"titulo": "Rateio", "cards": [
+            card_etapa("Sem Clientes"),
+            card_etapa("Separando Clientes"),
+            card_etapa("TT Cliente"),
+            card_etapa("Aguardando Rateio"),
+            card_etapa("Aguardando Aprovação Rateio"),
+        ]},
+        {"titulo": "Operação", "cards": [
+            card_operando,
+            card_etapa("Refazer Rateio"),
+            card_etapa("Consumo de Saldo Acumulado"),
+        ]},
+        {"titulo": "Rescisão", "cards": [
+            card_etapa("Rescisão", titulo="Em Rescisão", cor="warning"),
+            card_rescindidas,
+        ]},
+    ]
 
     return render_template(
         "dashboard.html",
-        resumo=resumo,
+        grupos=grupos,
         total_ativas=len(usinas),
-        qtd_operacao=qtd_operacao,
         pessoa=pessoa,
         usinas_pessoa=usinas_pessoa,
         pendencias_pessoa=pendencias_pessoa,
@@ -216,6 +250,20 @@ def ver_operacao():
         u["dias_em_operacao"] = _dias_desde(u["data_operacao"], hoje)
 
     return render_template("operacao.html", usinas=usinas)
+
+
+@app.route("/rescindidas")
+def ver_rescindidas():
+    with db.conectar() as conn:
+        usinas = [dict(u) for u in db.listar_por_status(conn, "rescindida")]
+        datas_rescisao = db.data_entrada_etapa_final_por_usina(conn, "Rescindida")
+
+    hoje = date.today()
+    for u in usinas:
+        u["data_rescisao"] = datas_rescisao.get(u["id"])
+        u["dias_desde_rescisao"] = _dias_desde(u["data_rescisao"], hoje)
+
+    return render_template("rescindidas.html", usinas=usinas)
 
 
 @app.route("/etapa/<int:idx>")
