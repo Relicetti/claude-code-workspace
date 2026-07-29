@@ -44,7 +44,12 @@
     {% if usina.status == 'ativa' %}
     <form action="{{ url_for('adicionar_pendencia', usina_id=usina.id) }}" method="post" class="d-flex gap-2 mb-3">
       <input type="text" name="texto" class="form-control" placeholder="Nova pendência (a data/hora de hoje é adicionada automaticamente)" required>
-      <input type="text" name="responsavel" class="form-control" placeholder="Responsável por essa pendência" style="max-width: 220px;">
+      <select name="responsavel" class="form-select" style="max-width: 220px;">
+        <option value="">Responsável por essa pendência</option>
+        {% for u in usuarios %}
+          <option value="{{ u.nome }}">{{ u.nome }}</option>
+        {% endfor %}
+      </select>
       <button type="submit" class="btn btn-primary text-nowrap">Adicionar</button>
     </form>
     {% endif %}

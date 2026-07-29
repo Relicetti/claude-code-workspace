@@ -256,6 +256,7 @@ def ver_usina(usina_id):
         usina = db.buscar_usina(conn, usina_id)
         historico = [dict(h) for h in db.historico_usina(conn, usina_id)]
         pendencias = [dict(p) for p in db.pendencias_usina(conn, usina_id)]
+        usuarios = db.listar_usuarios(conn)
 
     if usina is None:
         return "Usina não encontrada", 404
@@ -274,6 +275,7 @@ def ver_usina(usina_id):
         usina=usina,
         historico=historico,
         pendencias=pendencias,
+        usuarios=usuarios,
         etapas=db.ETAPAS,
         etapas_finais=db.ETAPAS_FINAIS,
     )
@@ -306,7 +308,9 @@ def mudar_etapa(usina_id):
 @app.route("/usinas/nova", methods=["GET", "POST"])
 def nova_usina():
     if request.method == "GET":
-        return render_template("nova_usina.html", etapas=db.ETAPAS)
+        with db.conectar() as conn:
+            usuarios = db.listar_usuarios(conn)
+        return render_template("nova_usina.html", etapas=db.ETAPAS, usuarios=usuarios)
 
     hoje_iso = date.today().isoformat()
     data_assinatura = request.form.get("data_assinatura", "").strip() or None

@@ -297,6 +297,10 @@ def buscar_usuario(conn, usuario_id):
     return conn.execute("SELECT * FROM usuarios WHERE id = ?", (usuario_id,)).fetchone()
 
 
+def listar_usuarios(conn):
+    return conn.execute("SELECT id, nome FROM usuarios ORDER BY nome").fetchall()
+
+
 def criar_usuario(conn, nome, username, senha_hash, criado_em, is_admin=False):
     cur = conn.execute(
         "INSERT INTO usuarios (nome, username, senha_hash, is_admin, criado_em) VALUES (?,?,?,?,?)",
