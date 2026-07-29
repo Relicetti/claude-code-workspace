@@ -266,14 +266,15 @@ def principal():
                     inicio_seg = data_i
 
             ultima_aparicao = aparicoes[-1][0]
+            data_saida_final = None
             if ultima_aparicao == ultima_data:
                 segmentos.append((etapa_seg, inicio_seg, None))
                 status = "ativa"
                 n_ativas += 1
             else:
                 idx = datas_ordenadas.index(ultima_aparicao)
-                data_saida = datas_ordenadas[idx + 1] if idx + 1 < len(datas_ordenadas) else ultima_aparicao + timedelta(days=7)
-                segmentos.append((etapa_seg, inicio_seg, data_saida))
+                data_saida_final = datas_ordenadas[idx + 1] if idx + 1 < len(datas_ordenadas) else ultima_aparicao + timedelta(days=7)
+                segmentos.append((etapa_seg, inicio_seg, data_saida_final))
                 if contem_encerramento(todas_obs):
                     status = "rescindida"
                     n_rescindidas += 1
@@ -282,6 +283,10 @@ def principal():
                     n_operacao += 1
 
             etapa_atual_stage, etapa_atual_inicio, _ = segmentos[-1]
+
+            if data_saida_final is not None:
+                etapa_final_label = {"operacao": "Operação", "rescindida": "Rescindida"}[status]
+                segmentos.append((etapa_final_label, data_saida_final, data_saida_final))
 
             cur = conn.execute(
                 """INSERT INTO usinas

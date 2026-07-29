@@ -154,6 +154,7 @@ def registrar():
 def dashboard():
     with db.conectar() as conn:
         usinas, medias = _usinas_ativas_com_metricas(conn)
+        qtd_operacao = db.contar_por_status(conn, "operacao")
 
     resumo = []
     for idx, etapa in enumerate(db.ETAPAS):
@@ -170,7 +171,22 @@ def dashboard():
         "dashboard.html",
         resumo=resumo,
         total_ativas=len(usinas),
+        qtd_operacao=qtd_operacao,
     )
+
+
+@app.route("/operacao")
+def ver_operacao():
+    with db.conectar() as conn:
+        usinas = [dict(u) for u in db.listar_por_status(conn, "operacao")]
+        datas_operacao = db.data_entrada_etapa_final_por_usina(conn, "Operação")
+
+    hoje = date.today()
+    for u in usinas:
+        u["data_operacao"] = datas_operacao.get(u["id"])
+        u["dias_em_operacao"] = _dias_desde(u["data_operacao"], hoje)
+
+    return render_template("operacao.html", usinas=usinas)
 
 
 @app.route("/etapa/<int:idx>")

@@ -125,6 +125,26 @@ def listar_ativas(conn):
     ).fetchall()
 
 
+def listar_por_status(conn, status):
+    return conn.execute(
+        "SELECT * FROM usinas WHERE status = ? ORDER BY nome_ufv", (status,)
+    ).fetchall()
+
+
+def contar_por_status(conn, status):
+    row = conn.execute("SELECT COUNT(*) AS qtd FROM usinas WHERE status = ?", (status,)).fetchone()
+    return row["qtd"]
+
+
+def data_entrada_etapa_final_por_usina(conn, etapa):
+    """Data em que cada usina entrou numa etapa final (Operação/Rescindida)."""
+    linhas = conn.execute(
+        "SELECT usina_id, MAX(data_entrada) AS data FROM historico_etapas WHERE etapa = ? GROUP BY usina_id",
+        (etapa,),
+    ).fetchall()
+    return {row["usina_id"]: row["data"] for row in linhas}
+
+
 def buscar_usina(conn, usina_id):
     return conn.execute("SELECT * FROM usinas WHERE id = ?", (usina_id,)).fetchone()
 

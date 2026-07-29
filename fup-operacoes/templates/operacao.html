@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Em Operação{% endblock %}
+{% block content %}
+
+<div class="mb-3">
+  <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary mb-2">&larr; todas as etapas</a>
+  <h4 class="mb-0 etapa-titulo">Em Operação</h4>
+  <div class="text-muted small">{{ usinas|length }} usina(s)</div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0 align-middle">
+      <thead>
+        <tr>
+          <th>Usina</th>
+          <th>Concessionária</th>
+          <th>Carteira</th>
+          <th>Em operação desde</th>
+          <th>Dias em operação</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in usinas %}
+        <tr>
+          <td><a href="{{ url_for('ver_usina', usina_id=u.id) }}">{{ u.nome_ufv }}</a></td>
+          <td>{{ u.concessionaria }}</td>
+          <td>{{ u.dono_carteira }}</td>
+          <td>{{ u.data_operacao or '—' }}</td>
+          <td>{{ u.dias_em_operacao if u.dias_em_operacao is not none else '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-4">Nenhuma usina em operação ainda.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
