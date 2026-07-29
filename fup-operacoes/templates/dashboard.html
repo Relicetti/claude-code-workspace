@@ -6,64 +6,26 @@
   <h4 class="mb-0">Usinas ativas no pipeline: <strong>{{ total_ativas }}</strong></h4>
 </div>
 
-{% for etapa in etapas %}
-  {% set usinas_etapa = grupos[etapa] %}
-  {% if usinas_etapa %}
-  <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-white">
-      <span class="etapa-titulo">{{ etapa }}</span>
-      <span class="text-muted">— {{ usinas_etapa|length }} usina(s)</span>
-      {% if medias.get(etapa) %}
-        <span class="text-muted small">· média histórica: {{ medias[etapa] }} dias</span>
-      {% endif %}
-    </div>
-    <div class="table-responsive">
-      <table class="table table-sm table-hover mb-0 align-middle">
-        <thead>
-          <tr>
-            <th>Usina</th>
-            <th>Concessionária</th>
-            <th>Responsável</th>
-            <th>Dias na etapa</th>
-            <th>Dias desde assinatura</th>
-            <th>ETA operação (est.)</th>
-            <th>Observação</th>
-            <th>Mudar etapa</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for u in usinas_etapa %}
-          <tr class="{{ 'atrasada' if u.atrasada else '' }}">
-            <td><a href="{{ url_for('ver_usina', usina_id=u.id) }}">{{ u.nome_ufv }}</a></td>
-            <td>{{ u.concessionaria }}</td>
-            <td>{{ u.dono_carteira }}</td>
-            <td>
-              {{ u.dias_na_etapa if u.dias_na_etapa is not none else '—' }}
-              {% if u.atrasada %}<span class="badge bg-danger badge-eta">acima da média</span>{% endif %}
-            </td>
-            <td>{{ u.dias_desde_assinatura if u.dias_desde_assinatura is not none else '—' }}</td>
-            <td>{{ (u.eta_dias ~ ' dias') if u.eta_dias is not none else '—' }}</td>
-            <td class="small text-muted" style="max-width: 260px;">{{ u.observacao }}</td>
-            <td style="min-width: 220px;">
-              <form action="{{ url_for('mudar_etapa', usina_id=u.id) }}" method="post" class="d-flex gap-1">
-                <select name="nova_etapa" class="form-select form-select-sm">
-                  {% for e in etapas %}
-                    <option value="{{ e }}" {{ 'selected' if e == u.etapa_atual else '' }}>{{ e }}</option>
-                  {% endfor %}
-                  {% for e in etapas_finais %}
-                    <option value="{{ e }}">{{ e }}</option>
-                  {% endfor %}
-                </select>
-                <button type="submit" class="btn btn-sm btn-outline-primary">OK</button>
-              </form>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+<div class="row g-3">
+  {% for r in resumo %}
+  <div class="col-12 col-md-6 col-lg-4">
+    <a href="{{ url_for('ver_etapa', idx=r.idx) }}" class="text-decoration-none text-reset">
+      <div class="card shadow-sm h-100 {{ 'border-danger' if r.atrasadas else '' }}">
+        <div class="card-body">
+          <div class="etapa-titulo">{{ r.etapa }}</div>
+          <div class="display-6">{{ r.qtd }}</div>
+          <div class="text-muted small">usina(s) nesta etapa</div>
+          {% if r.media %}
+            <div class="text-muted small mt-1">média histórica: {{ r.media }} dias</div>
+          {% endif %}
+          {% if r.atrasadas %}
+            <span class="badge bg-danger mt-2">{{ r.atrasadas }} acima da média</span>
+          {% endif %}
+        </div>
+      </div>
+    </a>
   </div>
-  {% endif %}
-{% endfor %}
+  {% endfor %}
+</div>
 
 {% endblock %}

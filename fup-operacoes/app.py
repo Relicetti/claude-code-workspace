@@ -36,12 +36,9 @@ def _eta_dias(etapa_atual, dias_na_etapa, medias):
     return round(total)
 
 
-@app.route("/")
-def dashboard():
-    with db.conectar() as conn:
-        usinas = [dict(u) for u in db.listar_ativas(conn)]
-        medias = db.medias_por_etapa(conn)
-
+def _usinas_ativas_com_metricas(conn):
+    usinas = [dict(u) for u in db.listar_ativas(conn)]
+    medias = db.medias_por_etapa(conn)
     hoje = date.today()
     for u in usinas:
         u["dias_na_etapa"] = _dias_desde(u["data_entrada_etapa_atual"], hoje)
@@ -50,18 +47,52 @@ def dashboard():
         u["media_etapa"] = media_etapa
         u["atrasada"] = media_etapa is not None and u["dias_na_etapa"] > media_etapa
         u["eta_dias"] = _eta_dias(u["etapa_atual"], u["dias_na_etapa"], medias)
+    return usinas, medias
 
-    grupos = {}
-    for etapa in db.ETAPAS:
-        grupos[etapa] = [u for u in usinas if u["etapa_atual"] == etapa]
+
+@app.route("/")
+def dashboard():
+    with db.conectar() as conn:
+        usinas, medias = _usinas_ativas_com_metricas(conn)
+
+    resumo = []
+    for idx, etapa in enumerate(db.ETAPAS):
+        usinas_etapa = [u for u in usinas if u["etapa_atual"] == etapa]
+        resumo.append({
+            "idx": idx,
+            "etapa": etapa,
+            "qtd": len(usinas_etapa),
+            "atrasadas": sum(1 for u in usinas_etapa if u["atrasada"]),
+            "media": medias.get(etapa),
+        })
 
     return render_template(
         "dashboard.html",
-        grupos=grupos,
+        resumo=resumo,
+        total_ativas=len(usinas),
+    )
+
+
+@app.route("/etapa/<int:idx>")
+def ver_etapa(idx):
+    if idx < 0 or idx >= len(db.ETAPAS):
+        return "Etapa inválida", 404
+    etapa = db.ETAPAS[idx]
+
+    with db.conectar() as conn:
+        usinas, medias = _usinas_ativas_com_metricas(conn)
+
+    usinas_etapa = [u for u in usinas if u["etapa_atual"] == etapa]
+
+    return render_template(
+        "etapa.html",
+        etapa=etapa,
+        idx=idx,
+        usinas=usinas_etapa,
+        media=medias.get(etapa),
         etapas=db.ETAPAS,
         etapas_finais=db.ETAPAS_FINAIS,
-        medias=medias,
-        total_ativas=len(usinas),
+        total_etapas=len(db.ETAPAS),
     )
 
 
