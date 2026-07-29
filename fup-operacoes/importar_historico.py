@@ -235,6 +235,9 @@ def principal():
 
     db.iniciar_banco()
     with db.conectar() as conn:
+        # como as usinas são recriadas com IDs novos, qualquer retrato semanal
+        # (snapshots) já tirado fica órfão e precisa ser limpo também
+        conn.execute("DELETE FROM snapshots")
         conn.execute("DELETE FROM pendencias")
         conn.execute("DELETE FROM historico_etapas")
         conn.execute("DELETE FROM usinas")

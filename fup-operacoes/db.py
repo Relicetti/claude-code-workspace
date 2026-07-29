@@ -1,6 +1,7 @@
 import os
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "fup.db")
 
@@ -44,8 +45,21 @@ CREATE TABLE IF NOT EXISTS pendencias (
     criado_em TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    semana TEXT NOT NULL,
+    usina_id INTEGER NOT NULL REFERENCES usinas(id),
+    nome_ufv TEXT NOT NULL,
+    etapa TEXT NOT NULL,
+    status TEXT NOT NULL,
+    dias_na_etapa INTEGER,
+    criado_em TEXT NOT NULL,
+    UNIQUE(semana, usina_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_historico_usina ON historico_etapas(usina_id);
 CREATE INDEX IF NOT EXISTS idx_pendencias_usina ON pendencias(usina_id);
+CREATE INDEX IF NOT EXISTS idx_snapshots_semana ON snapshots(semana);
 """
 
 # migrações incrementais em bancos já existentes (coluna, tabela, tipo)
@@ -233,6 +247,42 @@ def atualizar_usina(conn, usina_id, campos):
         valores.append(normalizar_ug(campos["ug_raw"]))
     valores.append(usina_id)
     conn.execute(f"UPDATE usinas SET {', '.join(sets)} WHERE id = ?", valores)
+
+
+# --- snapshot semanal ---------------------------------------------------
+
+def tirar_snapshot(conn, semana_iso, criado_em):
+    """Registra o estado atual de cada usina ativa como retrato da 'semana_iso'
+    (segunda-feira de referência). Não sobrescreve um snapshot já existente
+    pra essa semana."""
+    ja_existe = conn.execute(
+        "SELECT 1 FROM snapshots WHERE semana = ? LIMIT 1", (semana_iso,)
+    ).fetchone()
+    if ja_existe:
+        return False
+
+    hoje = datetime.strptime(criado_em[:10], "%Y-%m-%d").date()
+    for u in listar_ativas(conn):
+        dias_na_etapa = None
+        if u["data_entrada_etapa_atual"]:
+            entrada = datetime.strptime(u["data_entrada_etapa_atual"], "%Y-%m-%d").date()
+            dias_na_etapa = (hoje - entrada).days
+        conn.execute(
+            """INSERT INTO snapshots (semana, usina_id, nome_ufv, etapa, status, dias_na_etapa, criado_em)
+               VALUES (?,?,?,?,?,?,?)""",
+            (semana_iso, u["id"], u["nome_ufv"], u["etapa_atual"], u["status"], dias_na_etapa, criado_em),
+        )
+    return True
+
+
+def semanas_com_snapshot(conn):
+    linhas = conn.execute("SELECT DISTINCT semana FROM snapshots ORDER BY semana DESC").fetchall()
+    return [r["semana"] for r in linhas]
+
+
+def snapshot_da_semana(conn, semana_iso):
+    linhas = conn.execute("SELECT * FROM snapshots WHERE semana = ?", (semana_iso,)).fetchall()
+    return {row["usina_id"]: dict(row) for row in linhas}
 
 
 # --- usuários / login -------------------------------------------------

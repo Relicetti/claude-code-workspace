@@ -21,6 +21,7 @@
     <a class="navbar-brand fw-bold mb-0" href="{{ url_for('dashboard') }}">🔧 Painel FUP Operações</a>
     <div class="d-flex align-items-center gap-2">
       {% if usuario_logado %}
+        <a href="{{ url_for('comparativo') }}" class="btn btn-outline-light btn-sm">Comparativo semanal</a>
         <a href="{{ url_for('nova_usina') }}" class="btn btn-light btn-sm">+ Nova usina</a>
         <span class="text-white small">{{ usuario_logado }}</span>
         <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm">Sair</a>

@@ -1,5 +1,5 @@
 import os
-from datetime import date, datetime
+from datetime import date, datetime, time as dtime, timedelta
 
 from flask import Flask, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -12,6 +12,25 @@ db.iniciar_banco()
 
 ROTAS_PUBLICAS = {"login", "registrar", "static"}
 
+HORA_SNAPSHOT = dtime(8, 0)  # toda segunda a partir desse horário
+
+
+def _segunda_da_semana(d):
+    return d - timedelta(days=d.weekday())
+
+
+def _garantir_snapshot_semanal(conn):
+    """Roda a cada request: se já passou das 8h da segunda-feira desta semana
+    e ainda não existe um retrato dela, tira um agora. Como o app roda local
+    (não fica ligado 24h), essa checagem por demanda garante que a foto seja
+    tirada assim que alguém abrir o painel depois desse horário, em vez de
+    depender de um agendador rodando no instante exato."""
+    agora = datetime.now()
+    semana = _segunda_da_semana(agora.date())
+    if agora < datetime.combine(semana, HORA_SNAPSHOT):
+        return
+    db.tirar_snapshot(conn, semana.isoformat(), agora.isoformat(timespec="seconds"))
+
 
 @app.before_request
 def exigir_login():
@@ -19,6 +38,8 @@ def exigir_login():
         return None
     if "usuario_id" not in session:
         return redirect(url_for("login", proximo=request.path))
+    with db.conectar() as conn:
+        _garantir_snapshot_semanal(conn)
     return None
 
 
@@ -173,6 +194,60 @@ def ver_etapa(idx):
         etapas_finais=db.ETAPAS_FINAIS,
         total_etapas=len(db.ETAPAS),
     )
+
+
+@app.route("/comparativo")
+def comparativo():
+    with db.conectar() as conn:
+        semanas = db.semanas_com_snapshot(conn)
+        semana_escolhida = request.args.get("semana") or (semanas[0] if semanas else None)
+        snapshot = db.snapshot_da_semana(conn, semana_escolhida) if semana_escolhida else {}
+        usinas_atuais, _ = _usinas_ativas_com_metricas(conn)
+
+    atuais_por_id = {u["id"]: u for u in usinas_atuais}
+
+    contagem_antes, contagem_agora = {}, {}
+    for etapa in db.ETAPAS:
+        contagem_antes[etapa] = sum(1 for s in snapshot.values() if s["etapa"] == etapa)
+        contagem_agora[etapa] = sum(1 for u in usinas_atuais if u["etapa_atual"] == etapa)
+
+    avancaram, novas, saidas = [], [], []
+    for usina_id, s in snapshot.items():
+        atual = atuais_por_id.get(usina_id)
+        if atual is None:
+            saidas.append({"nome_ufv": s["nome_ufv"], "etapa_antes": s["etapa"]})
+        elif atual["etapa_atual"] != s["etapa"]:
+            avancaram.append({
+                "usina": atual, "etapa_antes": s["etapa"], "etapa_agora": atual["etapa_atual"],
+            })
+    for u in usinas_atuais:
+        if u["id"] not in snapshot:
+            novas.append(u)
+
+    return render_template(
+        "comparativo.html",
+        semanas=semanas,
+        semana_escolhida=semana_escolhida,
+        etapas=db.ETAPAS,
+        contagem_antes=contagem_antes,
+        contagem_agora=contagem_agora,
+        avancaram=avancaram,
+        novas=novas,
+        saidas=saidas,
+        total_antes=len(snapshot),
+        total_agora=len(usinas_atuais),
+    )
+
+
+@app.route("/comparativo/tirar-agora", methods=["POST"])
+def tirar_snapshot_agora():
+    if not session.get("usuario_admin"):
+        return "Só administradores podem forçar um novo retrato.", 403
+    agora = datetime.now()
+    semana = _segunda_da_semana(agora.date())
+    with db.conectar() as conn:
+        db.tirar_snapshot(conn, semana.isoformat(), agora.isoformat(timespec="seconds"))
+    return redirect(url_for("comparativo"))
 
 
 @app.route("/usina/<int:usina_id>")
