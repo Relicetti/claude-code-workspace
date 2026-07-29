@@ -356,18 +356,6 @@ def listar_usuarios(conn):
     return conn.execute("SELECT id, nome FROM usuarios ORDER BY nome").fetchall()
 
 
-def listar_usuarios_completo(conn):
-    return conn.execute(
-        "SELECT id, nome, username, email, is_admin, criado_em FROM usuarios ORDER BY nome"
-    ).fetchall()
-
-
-def buscar_usuario_por_email(conn, email):
-    return conn.execute(
-        "SELECT * FROM usuarios WHERE email = ?", (email.strip().lower(),)
-    ).fetchone()
-
-
 def criar_usuario(conn, nome, username, senha_hash, criado_em, is_admin=False, email=None):
     cur = conn.execute(
         "INSERT INTO usuarios (nome, username, email, senha_hash, is_admin, criado_em) VALUES (?,?,?,?,?,?)",
