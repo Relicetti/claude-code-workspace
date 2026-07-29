@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nome TEXT NOT NULL,
     username TEXT NOT NULL UNIQUE,
+    email TEXT,
     senha_hash TEXT NOT NULL,
     is_admin INTEGER NOT NULL DEFAULT 0,
     criado_em TEXT NOT NULL
@@ -69,6 +70,7 @@ COLUNAS_NOVAS = [
     ("pendencias", "responsavel", "TEXT"),
     ("usuarios", "is_admin", "INTEGER NOT NULL DEFAULT 0"),
     ("usinas", "executivo", "TEXT"),
+    ("usuarios", "email", "TEXT"),
 ]
 
 CAMPOS_EDITAVEIS_USINA = [
@@ -295,6 +297,13 @@ def atualizar_usina(conn, usina_id, campos):
     conn.execute(f"UPDATE usinas SET {', '.join(sets)} WHERE id = ?", valores)
 
 
+def excluir_usina(conn, usina_id):
+    conn.execute("DELETE FROM pendencias WHERE usina_id = ?", (usina_id,))
+    conn.execute("DELETE FROM historico_etapas WHERE usina_id = ?", (usina_id,))
+    conn.execute("DELETE FROM snapshots WHERE usina_id = ?", (usina_id,))
+    conn.execute("DELETE FROM usinas WHERE id = ?", (usina_id,))
+
+
 # --- snapshot semanal ---------------------------------------------------
 
 def tirar_snapshot(conn, semana_iso, criado_em):
@@ -347,9 +356,22 @@ def listar_usuarios(conn):
     return conn.execute("SELECT id, nome FROM usuarios ORDER BY nome").fetchall()
 
 
-def criar_usuario(conn, nome, username, senha_hash, criado_em, is_admin=False):
+def listar_usuarios_completo(conn):
+    return conn.execute(
+        "SELECT id, nome, username, email, is_admin, criado_em FROM usuarios ORDER BY nome"
+    ).fetchall()
+
+
+def buscar_usuario_por_email(conn, email):
+    return conn.execute(
+        "SELECT * FROM usuarios WHERE email = ?", (email.strip().lower(),)
+    ).fetchone()
+
+
+def criar_usuario(conn, nome, username, senha_hash, criado_em, is_admin=False, email=None):
     cur = conn.execute(
-        "INSERT INTO usuarios (nome, username, senha_hash, is_admin, criado_em) VALUES (?,?,?,?,?)",
-        (nome.strip(), username.strip().lower(), senha_hash, int(is_admin), criado_em),
+        "INSERT INTO usuarios (nome, username, email, senha_hash, is_admin, criado_em) VALUES (?,?,?,?,?,?)",
+        (nome.strip(), username.strip().lower(), email.strip().lower() if email else None,
+         senha_hash, int(is_admin), criado_em),
     )
     return cur.lastrowid

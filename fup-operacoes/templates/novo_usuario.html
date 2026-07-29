@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Novo usuário{% endblock %}
+{% block content %}
+
+<a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary mb-3">&larr; voltar</a>
+
+<div class="card shadow-sm" style="max-width: 480px;">
+  <div class="card-body">
+    <h4 class="mb-3">Cadastrar novo usuário</h4>
+    {% if erro %}<div class="alert alert-danger py-2">{{ erro }}</div>{% endif %}
+    <form method="post">
+      <div class="mb-3">
+        <label class="form-label">Nome</label>
+        <input type="text" name="nome" class="form-control" required autofocus>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">E-mail</label>
+        <input type="email" name="email" class="form-control" placeholder="nome.sobrenome@alexandriabr.com" required>
+        <div class="form-text">O usuário de login é gerado automaticamente a partir do e-mail (o que vem antes do "@").</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Senha inicial</label>
+        <input type="password" name="senha" class="form-control" minlength="4" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Tipo de login</label>
+        <select name="tipo" class="form-select">
+          <option value="operador">Operador</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary w-100">Cadastrar e enviar acesso por e-mail</button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

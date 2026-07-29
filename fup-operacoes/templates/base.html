@@ -13,6 +13,8 @@
     .etapa-titulo { font-weight: 600; color: #1a3a5c; }
     tr.atrasada { background: #fdecea !important; }
     .badge-eta { font-size: .8rem; }
+    table.table-sortable th[data-sortable] { cursor: pointer; user-select: none; }
+    table.table-sortable th[data-sortable]:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -22,6 +24,9 @@
     <div class="d-flex align-items-center gap-2">
       {% if usuario_logado %}
         <a href="{{ url_for('comparativo') }}" class="btn btn-outline-light btn-sm">Comparativo semanal</a>
+        {% if usuario_admin %}
+          <a href="{{ url_for('novo_usuario') }}" class="btn btn-outline-light btn-sm">+ Novo usuário</a>
+        {% endif %}
         <a href="{{ url_for('nova_usina') }}" class="btn btn-light btn-sm">+ Nova usina</a>
         <span class="text-white small">{{ usuario_logado }}</span>
         <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm">Sair</a>
@@ -31,9 +36,68 @@
 </nav>
 
 <div class="container-fluid px-4 pb-5">
+  {% with mensagens = get_flashed_messages(with_categories=true) %}
+    {% if mensagens %}
+      {% for categoria, msg in mensagens %}
+        <div class="alert alert-{{ 'success' if categoria == 'success' else 'warning' }}">{{ msg }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
   {% block content %}{% endblock %}
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('table.table-sortable').forEach(function (table) {
+    var thead = table.tHead;
+    if (!thead) return;
+    Array.prototype.forEach.call(thead.rows[0].cells, function (th, idx) {
+      if (th.hasAttribute('data-nosort')) return;
+      th.setAttribute('data-sortable', '');
+      th.addEventListener('click', function () { ordenarTabela(table, idx, th); });
+    });
+  });
+});
+
+function ordenarTabela(table, colIdx, th) {
+  var tbody = table.tBodies[0];
+  var linhas = Array.prototype.slice.call(tbody.rows);
+  var nova = th.getAttribute('data-ordem') === 'asc' ? 'desc' : 'asc';
+
+  Array.prototype.forEach.call(table.tHead.rows[0].cells, function (c) {
+    c.removeAttribute('data-ordem');
+    c.textContent = c.textContent.replace(/ [▲▼]$/, '');
+  });
+  th.setAttribute('data-ordem', nova);
+  th.textContent = th.textContent + (nova === 'asc' ? ' ▲' : ' ▼');
+
+  function valorCelula(linha) {
+    var celula = linha.cells[colIdx];
+    return celula ? celula.textContent.trim() : '';
+  }
+
+  var todasNumericas = linhas.every(function (linha) {
+    var v = valorCelula(linha).replace(/[^\d,.\-]/g, '');
+    return v === '' || !isNaN(parseFloat(v.replace(',', '.')));
+  });
+
+  linhas.sort(function (a, b) {
+    var va = valorCelula(a), vb = valorCelula(b), cmp;
+    if (todasNumericas) {
+      var na = parseFloat(va.replace(/[^\d,.\-]/g, '').replace(',', '.'));
+      var nb = parseFloat(vb.replace(/[^\d,.\-]/g, '').replace(',', '.'));
+      na = isNaN(na) ? -Infinity : na;
+      nb = isNaN(nb) ? -Infinity : nb;
+      cmp = na - nb;
+    } else {
+      cmp = va.localeCompare(vb, 'pt-BR', { sensitivity: 'base' });
+    }
+    return nova === 'asc' ? cmp : -cmp;
+  });
+
+  linhas.forEach(function (linha) { tbody.appendChild(linha); });
+}
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

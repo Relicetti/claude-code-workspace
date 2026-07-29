@@ -1,16 +1,17 @@
 import os
 from datetime import date, datetime, time as dtime, timedelta
 
-from flask import Flask, redirect, render_template, request, session, url_for
+from flask import Flask, flash, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import db
+import email_utils
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "chave-de-desenvolvimento-troque-em-producao")
 db.iniciar_banco()
 
-ROTAS_PUBLICAS = {"login", "registrar", "static"}
+ROTAS_PUBLICAS = {"login", "static"}
 
 HORA_SNAPSHOT = dtime(8, 0)  # toda segunda a partir desse horário
 
@@ -124,28 +125,43 @@ def logout():
     return redirect(url_for("login"))
 
 
-@app.route("/registrar", methods=["GET", "POST"])
-def registrar():
+@app.route("/usuarios/novo", methods=["GET", "POST"])
+def novo_usuario():
+    if not session.get("usuario_admin"):
+        return "Só administradores podem cadastrar usuários.", 403
+
     if request.method == "GET":
-        return render_template("registrar.html", erro=None)
+        return render_template("novo_usuario.html", erro=None)
 
     nome = request.form.get("nome", "").strip()
-    username = request.form.get("username", "").strip().lower()
+    email = request.form.get("email", "").strip().lower()
     senha = request.form.get("senha", "")
+    tipo = request.form.get("tipo", "operador")
 
-    if not nome or not username or len(senha) < 4:
-        return render_template("registrar.html", erro="Preencha nome, usuário e uma senha com pelo menos 4 caracteres.")
+    if not nome or "@" not in email or len(senha) < 4:
+        return render_template("novo_usuario.html", erro="Preencha nome, e-mail válido e uma senha com pelo menos 4 caracteres.")
+
+    username = email.split("@")[0]
 
     with db.conectar() as conn:
         if db.buscar_usuario_por_username(conn, username) is not None:
-            return render_template("registrar.html", erro="Esse usuário já existe.")
-        usuario_id = db.criar_usuario(
-            conn, nome, username, generate_password_hash(senha), datetime.now().isoformat(timespec="seconds")
+            return render_template("novo_usuario.html", erro=f"Já existe um usuário para o e-mail {email} (usuário '{username}').")
+        db.criar_usuario(
+            conn, nome, username, generate_password_hash(senha),
+            datetime.now().isoformat(timespec="seconds"),
+            is_admin=(tipo == "admin"), email=email,
         )
 
-    session["usuario_id"] = usuario_id
-    session["usuario_nome"] = nome
-    return redirect(url_for("dashboard"))
+    enviado, motivo = email_utils.enviar_boas_vindas(nome, email, username, senha, request.url_root.rstrip("/"))
+    if enviado:
+        flash(f"Usuário {nome} criado e e-mail de boas-vindas enviado para {email}.", "success")
+    else:
+        flash(
+            f"Usuário {nome} criado, mas o e-mail não foi enviado ({motivo}). "
+            f"Repasse manualmente: usuário '{username}', senha '{senha}'.",
+            "warning",
+        )
+    return redirect(url_for("novo_usuario"))
 
 
 # --- painel --------------------------------------------------------------
@@ -385,6 +401,15 @@ def editar_usina(usina_id):
             "data_assinatura_contrato": request.form.get("data_assinatura", "").strip() or None,
         })
     return redirect(url_for("ver_usina", usina_id=usina_id))
+
+
+@app.route("/usina/<int:usina_id>/excluir", methods=["POST"])
+def excluir_usina(usina_id):
+    if not session.get("usuario_admin"):
+        return "Só administradores podem excluir usinas.", 403
+    with db.conectar() as conn:
+        db.excluir_usina(conn, usina_id)
+    return redirect(request.referrer or url_for("dashboard"))
 
 
 if __name__ == "__main__":

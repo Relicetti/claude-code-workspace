@@ -16,7 +16,7 @@
   <div class="card shadow-sm mb-4">
     <div class="card-header bg-white">Usinas na carteira/executivo de "{{ pessoa }}" ({{ usinas_pessoa|length }})</div>
     <div class="table-responsive">
-      <table class="table table-sm table-hover mb-0 align-middle">
+      <table class="table table-sm table-hover mb-0 align-middle table-sortable">
         <thead>
           <tr><th>Usina</th><th>Etapa</th><th>Carteira</th><th>Executivo</th><th>Dias na etapa</th></tr>
         </thead>
@@ -40,7 +40,7 @@
   <div class="card shadow-sm mb-4">
     <div class="card-header bg-white">Pendências de "{{ pessoa }}" ({{ pendencias_pessoa|length }})</div>
     <div class="table-responsive">
-      <table class="table table-sm mb-0 align-middle">
+      <table class="table table-sm mb-0 align-middle table-sortable">
         <thead>
           <tr><th>Usina</th><th>Etapa</th><th>Pendência</th><th>Registrada por</th></tr>
         </thead>

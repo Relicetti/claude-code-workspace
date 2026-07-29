@@ -10,7 +10,7 @@
 
 <div class="card shadow-sm">
   <div class="table-responsive">
-    <table class="table table-sm table-hover mb-0 align-middle">
+    <table class="table table-sm table-hover mb-0 align-middle table-sortable">
       <thead>
         <tr>
           <th>Usina</th>
@@ -18,6 +18,7 @@
           <th>Carteira</th>
           <th>Em operação desde</th>
           <th>Dias em operação</th>
+          {% if usuario_admin %}<th data-nosort>Excluir</th>{% endif %}
         </tr>
       </thead>
       <tbody>
@@ -28,9 +29,17 @@
           <td>{{ u.dono_carteira }}</td>
           <td>{{ u.data_operacao or '—' }}</td>
           <td>{{ u.dias_em_operacao if u.dias_em_operacao is not none else '—' }}</td>
+          {% if usuario_admin %}
+          <td>
+            <form action="{{ url_for('excluir_usina', usina_id=u.id) }}" method="post"
+                  onsubmit="return confirm('Excluir {{ u.nome_ufv }} definitivamente?');">
+              <button type="submit" class="btn btn-sm btn-outline-danger">Excluir</button>
+            </form>
+          </td>
+          {% endif %}
         </tr>
         {% else %}
-        <tr><td colspan="5" class="text-center text-muted py-4">Nenhuma usina em operação ainda.</td></tr>
+        <tr><td colspan="6" class="text-center text-muted py-4">Nenhuma usina em operação ainda.</td></tr>
         {% endfor %}
       </tbody>
     </table>
