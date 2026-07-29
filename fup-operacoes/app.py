@@ -24,7 +24,10 @@ def exigir_login():
 
 @app.context_processor
 def injetar_usuario():
-    return {"usuario_logado": session.get("usuario_nome")}
+    return {
+        "usuario_logado": session.get("usuario_nome"),
+        "usuario_admin": session.get("usuario_admin", False),
+    }
 
 
 def _dias_desde(data_iso, referencia=None):
@@ -57,8 +60,8 @@ def _eta_dias(etapa_atual, dias_na_etapa, medias):
 def _usinas_ativas_com_metricas(conn):
     usinas = [dict(u) for u in db.listar_ativas(conn)]
     medias = db.medias_por_etapa(conn)
-    ultimas_obs = db.ultimas_observacoes_por_usina(conn)
-    qtd_obs = db.contar_observacoes_por_usina(conn)
+    ultimas_pend = db.ultimas_pendencias_por_usina(conn)
+    qtd_pend = db.contar_pendencias_por_usina(conn)
     hoje = date.today()
     for u in usinas:
         u["dias_na_etapa"] = _dias_desde(u["data_entrada_etapa_atual"], hoje)
@@ -67,8 +70,8 @@ def _usinas_ativas_com_metricas(conn):
         u["media_etapa"] = media_etapa
         u["atrasada"] = media_etapa is not None and u["dias_na_etapa"] > media_etapa
         u["eta_dias"] = _eta_dias(u["etapa_atual"], u["dias_na_etapa"], medias)
-        u["ultima_observacao"] = ultimas_obs.get(u["id"])
-        u["qtd_observacoes"] = qtd_obs.get(u["id"], 0)
+        u["ultima_pendencia"] = ultimas_pend.get(u["id"])
+        u["qtd_pendencias"] = qtd_pend.get(u["id"], 0)
     return usinas, medias
 
 
@@ -89,6 +92,7 @@ def login():
 
     session["usuario_id"] = usuario["id"]
     session["usuario_nome"] = usuario["nome"]
+    session["usuario_admin"] = bool(usuario["is_admin"])
     proximo = request.form.get("proximo") or url_for("dashboard")
     return redirect(proximo)
 
@@ -176,7 +180,7 @@ def ver_usina(usina_id):
     with db.conectar() as conn:
         usina = db.buscar_usina(conn, usina_id)
         historico = [dict(h) for h in db.historico_usina(conn, usina_id)]
-        observacoes = [dict(o) for o in db.observacoes_usina(conn, usina_id)]
+        pendencias = [dict(p) for p in db.pendencias_usina(conn, usina_id)]
 
     if usina is None:
         return "Usina não encontrada", 404
@@ -194,19 +198,20 @@ def ver_usina(usina_id):
         "usina.html",
         usina=usina,
         historico=historico,
-        observacoes=observacoes,
+        pendencias=pendencias,
         etapas=db.ETAPAS,
         etapas_finais=db.ETAPAS_FINAIS,
     )
 
 
-@app.route("/usina/<int:usina_id>/observacao", methods=["POST"])
-def adicionar_observacao(usina_id):
+@app.route("/usina/<int:usina_id>/pendencia", methods=["POST"])
+def adicionar_pendencia(usina_id):
     texto = request.form.get("texto", "").strip()
+    responsavel = request.form.get("responsavel", "").strip()
     if texto:
         with db.conectar() as conn:
-            db.adicionar_observacao(
-                conn, usina_id, texto, session["usuario_nome"],
+            db.adicionar_pendencia(
+                conn, usina_id, texto, responsavel, session["usuario_nome"],
                 datetime.now().isoformat(timespec="seconds"),
             )
     return redirect(url_for("ver_usina", usina_id=usina_id))
@@ -237,22 +242,37 @@ def nova_usina():
             nome_ufv=request.form.get("nome_ufv", "").strip(),
             concessionaria=request.form.get("concessionaria", "").strip(),
             dono_carteira=request.form.get("dono_carteira", "").strip(),
-            responsavel_acao=request.form.get("responsavel_acao", "").strip(),
             data_assinatura=data_assinatura,
             etapa_inicial=request.form.get("etapa_inicial", db.ETAPAS[0]),
             hoje_iso=hoje_iso,
-            observacao=request.form.get("observacao", "").strip(),
+            pendencia=request.form.get("pendencia", "").strip(),
+            responsavel=request.form.get("responsavel", "").strip(),
             autor=session["usuario_nome"],
             criado_em=datetime.now().isoformat(timespec="seconds"),
         )
     return redirect(url_for("ver_usina", usina_id=usina_id))
 
 
-@app.route("/usina/<int:usina_id>/responsavel", methods=["POST"])
-def atualizar_responsavel(usina_id):
-    responsavel_acao = request.form.get("responsavel_acao", "")
+@app.route("/usina/<int:usina_id>/editar", methods=["GET", "POST"])
+def editar_usina(usina_id):
+    if not session.get("usuario_admin"):
+        return "Só administradores podem editar os dados da usina.", 403
+
     with db.conectar() as conn:
-        db.atualizar_responsavel_acao(conn, usina_id, responsavel_acao)
+        usina = db.buscar_usina(conn, usina_id)
+        if usina is None:
+            return "Usina não encontrada", 404
+
+        if request.method == "GET":
+            return render_template("editar_usina.html", usina=dict(usina))
+
+        db.atualizar_usina(conn, usina_id, {
+            "ug_raw": request.form.get("ug", "").strip(),
+            "nome_ufv": request.form.get("nome_ufv", "").strip(),
+            "concessionaria": request.form.get("concessionaria", "").strip(),
+            "dono_carteira": request.form.get("dono_carteira", "").strip(),
+            "data_assinatura_contrato": request.form.get("data_assinatura", "").strip() or None,
+        })
     return redirect(url_for("ver_usina", usina_id=usina_id))
 
 

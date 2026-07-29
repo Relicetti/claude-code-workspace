@@ -235,7 +235,7 @@ def principal():
 
     db.iniciar_banco()
     with db.conectar() as conn:
-        conn.execute("DELETE FROM observacoes")
+        conn.execute("DELETE FROM pendencias")
         conn.execute("DELETE FROM historico_etapas")
         conn.execute("DELETE FROM usinas")
 
@@ -250,12 +250,6 @@ def principal():
             for _, reg in reversed(aparicoes):
                 if reg["data_assinatura"]:
                     data_assinatura = reg["data_assinatura"]
-                    break
-
-            responsavel_acao = None
-            for _, reg in reversed(aparicoes):
-                if reg["responsavel_acao"]:
-                    responsavel_acao = reg["responsavel_acao"]
                     break
 
             segmentos = []
@@ -288,17 +282,16 @@ def principal():
 
             cur = conn.execute(
                 """INSERT INTO usinas
-                   (ug, ug_raw, nome_ufv, concessionaria, dono_carteira, responsavel_acao,
+                   (ug, ug_raw, nome_ufv, concessionaria, dono_carteira,
                     data_assinatura_contrato, etapa_atual, data_entrada_etapa_atual,
                     status)
-                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?,?,?,?)""",
                 (
                     ug,
                     attrs_final["ug_raw"],
                     attrs_final["nome_ufv"],
                     attrs_final["concessionaria"],
                     attrs_final["dono_carteira"],
-                    responsavel_acao,
                     data_assinatura,
                     etapa_atual_stage,
                     etapa_atual_inicio.isoformat(),
@@ -315,8 +308,8 @@ def principal():
                 )
 
             if attrs_final["observacao"]:
-                db.adicionar_observacao(
-                    conn, usina_id, attrs_final["observacao"], "Importação",
+                db.adicionar_pendencia(
+                    conn, usina_id, attrs_final["observacao"], attrs_final["responsavel_acao"], "Importação",
                     f"{aparicoes[-1][0].isoformat()}T00:00:00",
                 )
 

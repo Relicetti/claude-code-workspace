@@ -29,11 +29,10 @@
           <th>Usina</th>
           <th>Concessionária</th>
           <th>Carteira</th>
-          <th>Resp. ação</th>
           <th>Dias na etapa</th>
           <th>Dias desde assinatura</th>
           <th>ETA operação (est.)</th>
-          <th>Observação</th>
+          <th>Pendência</th>
           <th>Mudar etapa</th>
         </tr>
       </thead>
@@ -43,7 +42,6 @@
           <td><a href="{{ url_for('ver_usina', usina_id=u.id) }}">{{ u.nome_ufv }}</a></td>
           <td>{{ u.concessionaria }}</td>
           <td>{{ u.dono_carteira }}</td>
-          <td>{{ u.responsavel_acao or '—' }}</td>
           <td>
             {{ u.dias_na_etapa if u.dias_na_etapa is not none else '—' }}
             {% if u.atrasada %}<span class="badge bg-danger badge-eta">acima da média</span>{% endif %}
@@ -51,11 +49,12 @@
           <td>{{ u.dias_desde_assinatura if u.dias_desde_assinatura is not none else '—' }}</td>
           <td>{{ (u.eta_dias ~ ' dias') if u.eta_dias is not none else '—' }}</td>
           <td class="small text-muted" style="max-width: 320px;">
-            {% if u.ultima_observacao %}
-              <div>{{ u.ultima_observacao.texto }}</div>
+            {% if u.ultima_pendencia %}
+              <div>{{ u.ultima_pendencia.texto }}</div>
               <div class="text-muted" style="font-size: .75rem;">
-                {{ u.ultima_observacao.autor }} · {{ u.ultima_observacao.criado_em.replace('T', ' ') }}
-                {% if u.qtd_observacoes > 1 %}<span class="text-primary">(+{{ u.qtd_observacoes - 1 }} anterior(es))</span>{% endif %}
+                {{ u.ultima_pendencia.autor }} · {{ u.ultima_pendencia.criado_em.replace('T', ' ') }}
+                {% if u.ultima_pendencia.responsavel %}· resp.: <strong>{{ u.ultima_pendencia.responsavel }}</strong>{% endif %}
+                {% if u.qtd_pendencias > 1 %}<span class="text-primary">(+{{ u.qtd_pendencias - 1 }} anterior(es))</span>{% endif %}
               </div>
             {% endif %}
           </td>
@@ -74,7 +73,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="9" class="text-center text-muted py-4">Nenhuma usina nesta etapa.</td></tr>
+        <tr><td colspan="8" class="text-center text-muted py-4">Nenhuma usina nesta etapa.</td></tr>
         {% endfor %}
       </tbody>
     </table>

@@ -2,7 +2,12 @@
 {% block title %}{{ usina.nome_ufv }}{% endblock %}
 {% block content %}
 
-<a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary mb-3">&larr; voltar</a>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary">&larr; voltar</a>
+  {% if usuario_admin %}
+    <a href="{{ url_for('editar_usina', usina_id=usina.id) }}" class="btn btn-sm btn-outline-primary">Editar dados da usina</a>
+  {% endif %}
+</div>
 
 <div class="card shadow-sm mb-4">
   <div class="card-body">
@@ -18,7 +23,7 @@
 {% if usina.status == 'ativa' %}
 <div class="card shadow-sm mb-4">
   <div class="card-body">
-    <form action="{{ url_for('mudar_etapa', usina_id=usina.id) }}" method="post" class="d-flex gap-2 mb-3">
+    <form action="{{ url_for('mudar_etapa', usina_id=usina.id) }}" method="post" class="d-flex gap-2 mb-0">
       <select name="nova_etapa" class="form-select">
         {% for e in etapas %}
           <option value="{{ e }}" {{ 'selected' if e == usina.etapa_atual else '' }}>{{ e }}</option>
@@ -29,36 +34,34 @@
       </select>
       <button type="submit" class="btn btn-primary text-nowrap">Atualizar etapa</button>
     </form>
-    <form action="{{ url_for('atualizar_responsavel', usina_id=usina.id) }}" method="post" class="d-flex gap-2 mb-0">
-      <input type="text" name="responsavel_acao" class="form-control" placeholder="Responsável pela ação atual" value="{{ usina.responsavel_acao or '' }}">
-      <button type="submit" class="btn btn-outline-primary text-nowrap">Salvar responsável</button>
-    </form>
   </div>
 </div>
-{% else %}
-<p class="text-muted mb-4">Responsável pela ação atual: {{ usina.responsavel_acao or '—' }}</p>
 {% endif %}
 
 <div class="card shadow-sm mb-4">
-  <div class="card-header bg-white">Observações</div>
+  <div class="card-header bg-white">Pendências</div>
   <div class="card-body">
     {% if usina.status == 'ativa' %}
-    <form action="{{ url_for('adicionar_observacao', usina_id=usina.id) }}" method="post" class="d-flex gap-2 mb-3">
-      <input type="text" name="texto" class="form-control" placeholder="Nova observação (a data de hoje é adicionada automaticamente)" required>
+    <form action="{{ url_for('adicionar_pendencia', usina_id=usina.id) }}" method="post" class="d-flex gap-2 mb-3">
+      <input type="text" name="texto" class="form-control" placeholder="Nova pendência (a data/hora de hoje é adicionada automaticamente)" required>
+      <input type="text" name="responsavel" class="form-control" placeholder="Responsável por essa pendência" style="max-width: 220px;">
       <button type="submit" class="btn btn-primary text-nowrap">Adicionar</button>
     </form>
     {% endif %}
-    {% if observacoes %}
+    {% if pendencias %}
       <ul class="list-unstyled mb-0">
-        {% for o in observacoes %}
+        {% for p in pendencias %}
           <li class="border-bottom py-2">
-            <div>{{ o.texto }}</div>
-            <div class="text-muted small">{{ o.autor }} · {{ o.criado_em.replace('T', ' ') }}</div>
+            <div>{{ p.texto }}</div>
+            <div class="text-muted small">
+              {{ p.autor }} · {{ p.criado_em.replace('T', ' ') }}
+              {% if p.responsavel %}· responsável: <strong>{{ p.responsavel }}</strong>{% endif %}
+            </div>
           </li>
         {% endfor %}
       </ul>
     {% else %}
-      <p class="text-muted mb-0">Nenhuma observação registrada.</p>
+      <p class="text-muted mb-0">Nenhuma pendência registrada.</p>
     {% endif %}
   </div>
 </div>
