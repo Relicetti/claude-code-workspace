@@ -1,12 +1,30 @@
 import os
 from datetime import date, datetime
 
-from flask import Flask, redirect, render_template, request, url_for
+from flask import Flask, redirect, render_template, request, session, url_for
+from werkzeug.security import check_password_hash, generate_password_hash
 
 import db
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "chave-de-desenvolvimento-troque-em-producao")
 db.iniciar_banco()
+
+ROTAS_PUBLICAS = {"login", "registrar", "static"}
+
+
+@app.before_request
+def exigir_login():
+    if request.endpoint in ROTAS_PUBLICAS or request.endpoint is None:
+        return None
+    if "usuario_id" not in session:
+        return redirect(url_for("login", proximo=request.path))
+    return None
+
+
+@app.context_processor
+def injetar_usuario():
+    return {"usuario_logado": session.get("usuario_nome")}
 
 
 def _dias_desde(data_iso, referencia=None):
@@ -39,6 +57,8 @@ def _eta_dias(etapa_atual, dias_na_etapa, medias):
 def _usinas_ativas_com_metricas(conn):
     usinas = [dict(u) for u in db.listar_ativas(conn)]
     medias = db.medias_por_etapa(conn)
+    ultimas_obs = db.ultimas_observacoes_por_usina(conn)
+    qtd_obs = db.contar_observacoes_por_usina(conn)
     hoje = date.today()
     for u in usinas:
         u["dias_na_etapa"] = _dias_desde(u["data_entrada_etapa_atual"], hoje)
@@ -47,8 +67,63 @@ def _usinas_ativas_com_metricas(conn):
         u["media_etapa"] = media_etapa
         u["atrasada"] = media_etapa is not None and u["dias_na_etapa"] > media_etapa
         u["eta_dias"] = _eta_dias(u["etapa_atual"], u["dias_na_etapa"], medias)
+        u["ultima_observacao"] = ultimas_obs.get(u["id"])
+        u["qtd_observacoes"] = qtd_obs.get(u["id"], 0)
     return usinas, medias
 
+
+# --- login / conta -----------------------------------------------------
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "GET":
+        return render_template("login.html", erro=None, proximo=request.args.get("proximo", ""))
+
+    username = request.form.get("username", "").strip()
+    senha = request.form.get("senha", "")
+    with db.conectar() as conn:
+        usuario = db.buscar_usuario_por_username(conn, username)
+
+    if usuario is None or not check_password_hash(usuario["senha_hash"], senha):
+        return render_template("login.html", erro="Usuário ou senha inválidos.", proximo=request.form.get("proximo", ""))
+
+    session["usuario_id"] = usuario["id"]
+    session["usuario_nome"] = usuario["nome"]
+    proximo = request.form.get("proximo") or url_for("dashboard")
+    return redirect(proximo)
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
+@app.route("/registrar", methods=["GET", "POST"])
+def registrar():
+    if request.method == "GET":
+        return render_template("registrar.html", erro=None)
+
+    nome = request.form.get("nome", "").strip()
+    username = request.form.get("username", "").strip().lower()
+    senha = request.form.get("senha", "")
+
+    if not nome or not username or len(senha) < 4:
+        return render_template("registrar.html", erro="Preencha nome, usuário e uma senha com pelo menos 4 caracteres.")
+
+    with db.conectar() as conn:
+        if db.buscar_usuario_por_username(conn, username) is not None:
+            return render_template("registrar.html", erro="Esse usuário já existe.")
+        usuario_id = db.criar_usuario(
+            conn, nome, username, generate_password_hash(senha), datetime.now().isoformat(timespec="seconds")
+        )
+
+    session["usuario_id"] = usuario_id
+    session["usuario_nome"] = nome
+    return redirect(url_for("dashboard"))
+
+
+# --- painel --------------------------------------------------------------
 
 @app.route("/")
 def dashboard():
@@ -101,7 +176,7 @@ def ver_usina(usina_id):
     with db.conectar() as conn:
         usina = db.buscar_usina(conn, usina_id)
         historico = [dict(h) for h in db.historico_usina(conn, usina_id)]
-        medias = db.medias_por_etapa(conn)
+        observacoes = [dict(o) for o in db.observacoes_usina(conn, usina_id)]
 
     if usina is None:
         return "Usina não encontrada", 404
@@ -119,6 +194,7 @@ def ver_usina(usina_id):
         "usina.html",
         usina=usina,
         historico=historico,
+        observacoes=observacoes,
         etapas=db.ETAPAS,
         etapas_finais=db.ETAPAS_FINAIS,
     )
@@ -128,9 +204,11 @@ def ver_usina(usina_id):
 def adicionar_observacao(usina_id):
     texto = request.form.get("texto", "").strip()
     if texto:
-        data_fmt = date.today().strftime("%d/%m/%Y")
         with db.conectar() as conn:
-            db.adicionar_observacao(conn, usina_id, texto, data_fmt)
+            db.adicionar_observacao(
+                conn, usina_id, texto, session["usuario_nome"],
+                datetime.now().isoformat(timespec="seconds"),
+            )
     return redirect(url_for("ver_usina", usina_id=usina_id))
 
 
@@ -141,7 +219,7 @@ def mudar_etapa(usina_id):
         return "Etapa inválida", 400
     hoje_iso = date.today().isoformat()
     with db.conectar() as conn:
-        db.mudar_etapa(conn, usina_id, nova_etapa, hoje_iso)
+        db.mudar_etapa(conn, usina_id, nova_etapa, hoje_iso, session["usuario_nome"])
     return redirect(request.referrer or url_for("dashboard"))
 
 
@@ -159,11 +237,22 @@ def nova_usina():
             nome_ufv=request.form.get("nome_ufv", "").strip(),
             concessionaria=request.form.get("concessionaria", "").strip(),
             dono_carteira=request.form.get("dono_carteira", "").strip(),
+            responsavel_acao=request.form.get("responsavel_acao", "").strip(),
             data_assinatura=data_assinatura,
             etapa_inicial=request.form.get("etapa_inicial", db.ETAPAS[0]),
             hoje_iso=hoje_iso,
             observacao=request.form.get("observacao", "").strip(),
+            autor=session["usuario_nome"],
+            criado_em=datetime.now().isoformat(timespec="seconds"),
         )
+    return redirect(url_for("ver_usina", usina_id=usina_id))
+
+
+@app.route("/usina/<int:usina_id>/responsavel", methods=["POST"])
+def atualizar_responsavel(usina_id):
+    responsavel_acao = request.form.get("responsavel_acao", "")
+    with db.conectar() as conn:
+        db.atualizar_responsavel_acao(conn, usina_id, responsavel_acao)
     return redirect(url_for("ver_usina", usina_id=usina_id))
 
 

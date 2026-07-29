@@ -118,7 +118,6 @@ HEADER_ALIASES = {
     "UG": ["UG"],
     "Nome UFV": ["Nome UFV"],
     "Concessionária": ["Concessionária", "Concessionaria"],
-    "Dono Carteira": ["Dono Carteira", "Responsável", "Responsavel"],
     "Dt. Ass. Cont.": ["Dt. Ass. Cont."],
     "Observação": ["Observação", "Observacao"],
 }
@@ -152,9 +151,16 @@ def ler_aba(ws, nao_mapeadas):
     ug_col = col(mapa, "UG", ws.max_column)
     nome_col = col(mapa, "Nome UFV", ws.max_column)
     conc_col = col(mapa, "Concessionária", ws.max_column)
-    dono_col = col(mapa, "Dono Carteira", ws.max_column)
     dtass_col = col(mapa, "Dt. Ass. Cont.", ws.max_column)
     obs_col = col(mapa, "Observação", ws.max_column)
+
+    # "Dono Carteira" (carteira/portfólio) e "Responsável" (quem toca a ação) já
+    # apareceram como colunas separadas em algumas abas antigas. Quando só uma das
+    # duas existe, ela é tratada como a carteira (era o único dado disponível).
+    dono_col = mapa.get("Dono Carteira")
+    resp_col = mapa.get("Responsável") or mapa.get("Responsavel")
+    if dono_col is None:
+        dono_col, resp_col = resp_col, None
 
     registros = {}
     secao_atual = None
@@ -188,6 +194,7 @@ def ler_aba(ws, nao_mapeadas):
             "nome_ufv": str(ws.cell(row=r, column=nome_col).value or "").strip() if nome_col else "",
             "concessionaria": str(ws.cell(row=r, column=conc_col).value or "").strip() if conc_col else "",
             "dono_carteira": str(ws.cell(row=r, column=dono_col).value or "").strip() if dono_col else "",
+            "responsavel_acao": str(ws.cell(row=r, column=resp_col).value or "").strip() if resp_col else "",
             "data_assinatura": dt_ass.date().isoformat() if hasattr(dt_ass, "date") else None,
             "observacao": str(ws.cell(row=r, column=obs_col).value or "").strip() if obs_col else "",
             "etapa": mapear_etapa(secao_atual, nao_mapeadas),
@@ -228,6 +235,7 @@ def principal():
 
     db.iniciar_banco()
     with db.conectar() as conn:
+        conn.execute("DELETE FROM observacoes")
         conn.execute("DELETE FROM historico_etapas")
         conn.execute("DELETE FROM usinas")
 
@@ -242,6 +250,12 @@ def principal():
             for _, reg in reversed(aparicoes):
                 if reg["data_assinatura"]:
                     data_assinatura = reg["data_assinatura"]
+                    break
+
+            responsavel_acao = None
+            for _, reg in reversed(aparicoes):
+                if reg["responsavel_acao"]:
+                    responsavel_acao = reg["responsavel_acao"]
                     break
 
             segmentos = []
@@ -274,9 +288,9 @@ def principal():
 
             cur = conn.execute(
                 """INSERT INTO usinas
-                   (ug, ug_raw, nome_ufv, concessionaria, dono_carteira,
+                   (ug, ug_raw, nome_ufv, concessionaria, dono_carteira, responsavel_acao,
                     data_assinatura_contrato, etapa_atual, data_entrada_etapa_atual,
-                    status, observacao)
+                    status)
                    VALUES (?,?,?,?,?,?,?,?,?,?)""",
                 (
                     ug,
@@ -284,20 +298,26 @@ def principal():
                     attrs_final["nome_ufv"],
                     attrs_final["concessionaria"],
                     attrs_final["dono_carteira"],
+                    responsavel_acao,
                     data_assinatura,
                     etapa_atual_stage,
                     etapa_atual_inicio.isoformat(),
                     status,
-                    attrs_final["observacao"],
                 ),
             )
             usina_id = cur.lastrowid
 
             for etapa, inicio, fim in segmentos:
                 conn.execute(
-                    """INSERT INTO historico_etapas (usina_id, etapa, data_entrada, data_saida)
-                       VALUES (?,?,?,?)""",
-                    (usina_id, etapa, inicio.isoformat(), fim.isoformat() if fim else None),
+                    """INSERT INTO historico_etapas (usina_id, etapa, data_entrada, data_saida, autor)
+                       VALUES (?,?,?,?,?)""",
+                    (usina_id, etapa, inicio.isoformat(), fim.isoformat() if fim else None, "Importação"),
+                )
+
+            if attrs_final["observacao"]:
+                db.adicionar_observacao(
+                    conn, usina_id, attrs_final["observacao"], "Importação",
+                    f"{aparicoes[-1][0].isoformat()}T00:00:00",
                 )
 
     print(f"Usinas importadas: {len(timeline)}")

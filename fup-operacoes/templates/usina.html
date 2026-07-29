@@ -8,7 +8,7 @@
   <div class="card-body">
     <h4>{{ usina.nome_ufv }}</h4>
     <p class="text-muted mb-1">UG: {{ usina.ug_raw }} · Concessionária: {{ usina.concessionaria }}</p>
-    <p class="text-muted mb-1">Responsável: {{ usina.dono_carteira or '—' }}</p>
+    <p class="text-muted mb-1">Carteira: {{ usina.dono_carteira or '—' }}</p>
     <p class="mb-1">Status: <strong>{{ usina.status }}</strong> · Etapa atual: <strong>{{ usina.etapa_atual }}</strong></p>
     <p class="mb-1">Dias na etapa atual: <strong>{{ usina.dias_na_etapa if usina.dias_na_etapa is not none else '—' }}</strong></p>
     <p class="mb-1">Dias desde a assinatura do contrato: <strong>{{ usina.dias_desde_assinatura if usina.dias_desde_assinatura is not none else '—' }}</strong></p>
@@ -18,7 +18,7 @@
 {% if usina.status == 'ativa' %}
 <div class="card shadow-sm mb-4">
   <div class="card-body">
-    <form action="{{ url_for('mudar_etapa', usina_id=usina.id) }}" method="post" class="d-flex gap-2">
+    <form action="{{ url_for('mudar_etapa', usina_id=usina.id) }}" method="post" class="d-flex gap-2 mb-3">
       <select name="nova_etapa" class="form-select">
         {% for e in etapas %}
           <option value="{{ e }}" {{ 'selected' if e == usina.etapa_atual else '' }}>{{ e }}</option>
@@ -27,10 +27,16 @@
           <option value="{{ e }}">{{ e }}</option>
         {% endfor %}
       </select>
-      <button type="submit" class="btn btn-primary">Atualizar etapa</button>
+      <button type="submit" class="btn btn-primary text-nowrap">Atualizar etapa</button>
+    </form>
+    <form action="{{ url_for('atualizar_responsavel', usina_id=usina.id) }}" method="post" class="d-flex gap-2 mb-0">
+      <input type="text" name="responsavel_acao" class="form-control" placeholder="Responsável pela ação atual" value="{{ usina.responsavel_acao or '' }}">
+      <button type="submit" class="btn btn-outline-primary text-nowrap">Salvar responsável</button>
     </form>
   </div>
 </div>
+{% else %}
+<p class="text-muted mb-4">Responsável pela ação atual: {{ usina.responsavel_acao or '—' }}</p>
 {% endif %}
 
 <div class="card shadow-sm mb-4">
@@ -42,10 +48,13 @@
       <button type="submit" class="btn btn-primary text-nowrap">Adicionar</button>
     </form>
     {% endif %}
-    {% if usina.observacao %}
+    {% if observacoes %}
       <ul class="list-unstyled mb-0">
-        {% for linha in usina.observacao.split('\n') %}
-          {% if linha.strip() %}<li class="border-bottom py-1">{{ linha }}</li>{% endif %}
+        {% for o in observacoes %}
+          <li class="border-bottom py-2">
+            <div>{{ o.texto }}</div>
+            <div class="text-muted small">{{ o.autor }} · {{ o.criado_em.replace('T', ' ') }}</div>
+          </li>
         {% endfor %}
       </ul>
     {% else %}
@@ -58,7 +67,7 @@
   <div class="card-header bg-white">Linha do tempo</div>
   <div class="table-responsive">
     <table class="table table-sm mb-0">
-      <thead><tr><th>Etapa</th><th>Entrada</th><th>Saída</th><th>Dias</th></tr></thead>
+      <thead><tr><th>Etapa</th><th>Entrada</th><th>Saída</th><th>Dias</th><th>Alterado por</th></tr></thead>
       <tbody>
         {% for h in historico %}
         <tr>
@@ -66,6 +75,7 @@
           <td>{{ h.data_entrada }}</td>
           <td>{{ h.data_saida or 'em andamento' }}</td>
           <td>{{ h.dias }}</td>
+          <td>{{ h.autor or '—' }}</td>
         </tr>
         {% endfor %}
       </tbody>

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Criar conta{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-center">
+  <div class="card shadow-sm mt-4" style="max-width: 380px; width: 100%;">
+    <div class="card-body">
+      <h4 class="mb-3">Criar conta</h4>
+      {% if erro %}<div class="alert alert-danger py-2">{{ erro }}</div>{% endif %}
+      <form method="post">
+        <div class="mb-3">
+          <label class="form-label">Nome</label>
+          <input type="text" name="nome" class="form-control" required autofocus>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Usuário</label>
+          <input type="text" name="username" class="form-control" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Senha</label>
+          <input type="password" name="senha" class="form-control" minlength="4" required>
+        </div>
+        <button type="submit" class="btn btn-primary w-100">Criar conta e entrar</button>
+      </form>
+      <p class="text-center text-muted small mt-3 mb-0">
+        Já tem conta? <a href="{{ url_for('login') }}">Entrar</a>
+      </p>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
