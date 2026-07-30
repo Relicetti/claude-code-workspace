@@ -1,18 +1,13 @@
 #!/usr/bin/env python3
 """
-gshock.py (v4) — init REATIVO (responde a hora quando o relogio pede) e puxa PASSOS.
+gshock.py (v5) — máquina de estados reativa do init Casio + puxa PASSOS.
 
-O protocolo Casio e reativo: a gente pede o nome, o relogio conduz uma sequencia de
-"features" e, quando manda 0x47 0x02, esta pedindo a HORA. Ai respondemos com a hora
-e ele libera os dados. Ref.: Gadgetbridge gbx100/InitOperation.
+Novidade vs v4: durante a cadeia de init, o app precisa ESCREVER de volta 3
+configs (BLE settings, advertising params, connection params). Só depois disso o
+relógio dispara 0x4701 pedindo a hora e libera os dados. Ref.: Gadgetbridge
+gbx100/InitOperation (bytes exatos das escritas).
 
 Só precisa de `bleak`. Log salvo ao lado (recon-....log).
-
-UUIDs (base ...-b012-49a8-b1f8-394fb2032b0f):
-  002d ALL_FEATURES   (escrever app-info + hora; e por onde as features respondem)
-  002c READ_REQUEST   (pedir features: nome, versao, etc.)
-  0023 DATA_REQUEST_SP (pedir passos)
-  0024 CONVOY          (dados dos passos voltam aqui, invertidos bit a bit)
 """
 import asyncio
 import datetime as dt
@@ -34,12 +29,12 @@ DATA_REQUEST = cu("0023")
 CONVOY       = cu("0024")
 NOTIFY_CHARS = [DATA_REQUEST, CONVOY, ALL_FEATURES]
 
-FEATURE_CURRENT_TIME    = 0x09
-FEATURE_APP_INFORMATION = 0x22
-FEATURE_WATCH_NAME      = 0x23
-FEATURE_SERVICE_DISCOVERY = 0x47
-# cadeia de features que o app pede durante o init (so leitura, sem escrever config):
-INIT_CHAIN = [0x10, 0x11, 0x3b, 0x3a, 0x26, 0x28, 0x20, 0x1d, 0x1e]
+# escritas fixas de config (bytes exatos do Gadgetbridge)
+ADV_PARAMS  = bytes([0x3b,0x50,0x00,0x0a,0x40,0x01,0x05,0x05,0x40,0x06,
+                     0x0a,0x02,0xa0,0x00,0x05,0x40,0x01,0x05,0x1c,0x00])
+CONN_PARAMS = bytes([0x3a,0x00,0x34,0x01,0x40,0x01,0x04,0x00,0xdc,0x05])
+APP_INFO    = bytes([0x22,0,1,2,3,4,5,6,7,8,9,0x02])
+ALL_FEAT_INIT = bytes([0x00, 0x01])
 
 STEP_REQUEST = bytes([0x00, 0x11, 0x00, 0x00, 0x00])
 STEP_ACK     = bytes([0x04, 0x11, 0x00, 0x00, 0x00])
@@ -55,10 +50,13 @@ def current_time_payload():
     t = dt.datetime.now(); y = t.year
     ten = bytes([y & 0xFF, (y >> 8) & 0xFF, t.month, t.day,
                  t.hour, t.minute, t.second, t.isoweekday(), 0x00, 0x01])
-    return bytes([FEATURE_CURRENT_TIME]) + ten
+    return bytes([0x09]) + ten
 
-def app_info_payload():
-    return bytes([FEATURE_APP_INFORMATION, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0x02])
+def ble_settings_from(data: bytes):
+    d = bytearray(data)
+    if len(d) >= 14:
+        d[12] = 0x80; d[13] = 0x1e
+    return bytes(d)
 
 
 async def find_watch(seconds=8.0):
@@ -90,44 +88,13 @@ def try_parse_steps(raw, log):
         log(f"(nao decodificou: {e})"); return False
 
 
-async def wchar(client, uuid, data, log, response=True):
-    try:
-        await client.write_gatt_char(uuid, data, response=response)
-        log(f"{now()}  WRITE  {uuid[4:8]}  {data.hex(' ')}")
-        return True
-    except Exception as e:
-        log(f"{now()}  WRITE  {uuid[4:8]}  FALHOU: {e}")
-        return False
-
-
 async def main():
     here = pathlib.Path(__file__).resolve().parent
     logpath = here / f"recon-{dt.datetime.now():%Y%m%d-%H%M%S}.log"
     fh = open(logpath, "w", encoding="utf-8")
     def log(t): print(t); fh.write(t + "\n"); fh.flush()
 
-    bufs = {u: bytearray() for u in NOTIFY_CHARS}
-    state = {"want_time": False, "init_done": False, "time_sent": False}
-
-    def on_notify(char: BleakGATTCharacteristic, data: bytearray):
-        u = char.uuid.lower()
-        bufs.setdefault(u, bytearray()).extend(data)
-        tag = ""
-        if u == ALL_FEATURES and len(data) >= 1:
-            fid = data[0]
-            tag = f"  feature=0x{fid:02x}"
-            if fid == FEATURE_SERVICE_DISCOVERY and len(data) >= 2:
-                if data[1] == 0x02:
-                    state["want_time"] = True   # relogio PEDIU a hora
-                    tag += " (PEDIU A HORA!)"
-                elif data[1] == 0x01:
-                    state["init_done"] = True
-                    tag += " (init ok)"
-            if fid == 0x3d:
-                state["init_done"] = True
-        log(f"{now()}  NOTIFY {u[4:8]}  ({len(data)}b)  {data.hex(' ')}{tag}")
-
-    log(f"# G-Shock init reativo v4 — {dt.datetime.now():%Y-%m-%d %H:%M:%S}\n")
+    log(f"# G-Shock init reativo v5 — {dt.datetime.now():%Y-%m-%d %H:%M:%S}\n")
     watch = await find_watch()
     if not watch:
         log("Nao achei o relogio. Modo CONNECT + feche o app da Casio no celular.")
@@ -135,11 +102,13 @@ async def main():
     address, name = watch
     log(f"Relogio: {name}  ({address})\n")
 
-    async def maybe_send_time(client):
-        if state["want_time"] and not state["time_sent"]:
-            state["time_sent"] = True
-            log(">>> relogio pediu a HORA -> enviando")
-            await wchar(client, ALL_FEATURES, current_time_payload(), log, response=True)
+    loop = asyncio.get_running_loop()
+    events = asyncio.Queue()
+    convoy = bytearray()
+    sp_buf = bytearray()
+
+    def on_notify(char: BleakGATTCharacteristic, data: bytearray):
+        loop.call_soon_threadsafe(events.put_nowait, (char.uuid.lower(), bytes(data)))
 
     try:
         async with BleakClient(address) as client:
@@ -149,53 +118,124 @@ async def main():
                 except Exception as e: log(f"(assinar {u[4:8]} falhou: {e})")
             await asyncio.sleep(1.0)
 
-            # ---- INIT reativo ----
-            log(">>> INIT: pedindo nome do relogio")
-            await wchar(client, READ_REQUEST, bytes([FEATURE_WATCH_NAME]), log, response=False)
-            await asyncio.sleep(0.6)
-            log(">>> enviando app-info")
-            await wchar(client, ALL_FEATURES, app_info_payload(), log, response=True)
-            await asyncio.sleep(0.6)
+            async def W(uuid, payload, resp=True):
+                try:
+                    await client.write_gatt_char(uuid, payload, response=resp)
+                    log(f"{now()}  WRITE  {uuid[4:8]}  {payload.hex(' ')}")
+                except Exception as e:
+                    log(f"{now()}  WRITE  {uuid[4:8]}  FALHOU: {e}")
+            async def REQ(feat):  # pede uma feature
+                await W(READ_REQUEST, bytes([feat]), resp=False)
 
-            # percorre a cadeia de features (so leitura), respondendo a hora quando pedida
-            log(">>> percorrendo a cadeia de features do init")
-            for feat in INIT_CHAIN:
-                await wchar(client, READ_REQUEST, bytes([feat]), log, response=False)
-                await asyncio.sleep(0.7)
-                await maybe_send_time(client)
+            # dispara o init pedindo o nome
+            log(">>> INIT: pedindo nome")
+            await REQ(0x23)
 
-            # espera ate ~10s o relogio pedir a hora / concluir init
-            log(">>> aguardando o relogio pedir a hora / concluir init")
-            for _ in range(50):
-                await maybe_send_time(client)
-                if state["init_done"]:
-                    log(">>> INIT concluido"); break
-                await asyncio.sleep(0.2)
+            init_done = False
+            time_sent = False
+            step_phase = False
+            dst_seen_at = None
 
-            # se ele nunca pediu, manda a hora mesmo assim
-            if not state["time_sent"]:
-                log(">>> relogio nao pediu a hora; enviando mesmo assim")
-                await wchar(client, ALL_FEATURES, current_time_payload(), log, response=True)
-                await asyncio.sleep(1.5)
+            deadline = loop.time() + 55
+            while loop.time() < deadline:
+                try:
+                    uuid, data = await asyncio.wait_for(events.get(), timeout=1.0)
+                except asyncio.TimeoutError:
+                    # sem evento por 1s: trata travadas
+                    if dst_seen_at and not init_done and not time_sent:
+                        idle = loop.time() - dst_seen_at
+                        if idle > 4:
+                            log(">>> relogio nao pediu a hora; enviando init+hora manualmente")
+                            await W(ALL_FEATURES, ALL_FEAT_INIT)
+                            await W(ALL_FEATURES, current_time_payload())
+                            time_sent = True
+                            init_done = True   # segue pro fetch
+                    continue
 
-            # ---- PEDIR PASSOS ----
-            for u in bufs: bufs[u].clear()
-            log("\n>>> Pedindo PASSOS em 0023")
-            await wchar(client, DATA_REQUEST, STEP_REQUEST, log, response=True)
-            await asyncio.sleep(6.0)
+                short = uuid[4:8]
+                if uuid == ALL_FEATURES and data:
+                    fid = data[0]
+                    log(f"{now()}  NOTIFY {short} ({len(data)}b) {data.hex(' ')}  feature=0x{fid:02x}")
+                    if fid == 0x23:
+                        await W(ALL_FEATURES, APP_INFO); await REQ(0x10)
+                    elif fid == 0x10:
+                        await REQ(0x11)
+                    elif fid == 0x11:
+                        await W(ALL_FEATURES, ble_settings_from(data)); await REQ(0x3b)
+                    elif fid == 0x3b:
+                        await W(ALL_FEATURES, ADV_PARAMS); await REQ(0x3a)
+                    elif fid == 0x3a:
+                        await W(ALL_FEATURES, CONN_PARAMS); await REQ(0x26)
+                    elif fid == 0x26:
+                        await REQ(0x28)
+                    elif fid == 0x28:
+                        await REQ(0x20)
+                    elif fid == 0x20:
+                        await REQ(0x1d)
+                    elif fid == 0x1d:
+                        await REQ(0x1e)
+                    elif fid == 0x1e:
+                        dst_seen_at = loop.time()
+                        log(">>> cadeia de config concluida; aguardando 0x47 (pedido de hora)")
+                    elif fid == 0x47:
+                        if len(data) >= 2 and data[1] == 0x02:
+                            log(">>> relogio PEDIU A HORA -> enviando hora + init")
+                            await W(ALL_FEATURES, current_time_payload())
+                            await W(ALL_FEATURES, ALL_FEAT_INIT)
+                            time_sent = True
+                        elif len(data) >= 2 and data[1] == 0x01:
+                            init_done = True
+                    elif fid == 0x3d:
+                        init_done = True
+                elif uuid == CONVOY:
+                    convoy.extend(data)
+                    log(f"{now()}  NOTIFY {short} ({len(data)}b) {data.hex(' ')}  [CONVOY]")
+                elif uuid == DATA_REQUEST:
+                    sp_buf.extend(data)
+                    log(f"{now()}  NOTIFY {short} ({len(data)}b) {data.hex(' ')}  [DATA_REQ]")
 
+                # quando init concluir, pede os passos (uma vez)
+                if init_done and not step_phase:
+                    step_phase = True
+                    convoy.clear(); sp_buf.clear()
+                    log("\n>>> INIT ok — pedindo PASSOS em 0023")
+                    await W(DATA_REQUEST, STEP_REQUEST)
+                    # coleta convoy por ~6s
+                    async def collect():
+                        await asyncio.sleep(6.0)
+                    end = loop.time() + 6
+                    while loop.time() < end:
+                        try:
+                            uuid2, data2 = await asyncio.wait_for(events.get(), timeout=0.5)
+                            s2 = uuid2[4:8]
+                            if uuid2 == CONVOY:
+                                convoy.extend(data2); log(f"{now()}  NOTIFY {s2} ({len(data2)}b) {data2.hex(' ')}  [CONVOY]")
+                            elif uuid2 == DATA_REQUEST:
+                                sp_buf.extend(data2); log(f"{now()}  NOTIFY {s2} ({len(data2)}b) {data2.hex(' ')}  [DATA_REQ]")
+                            else:
+                                log(f"{now()}  NOTIFY {s2} ({len(data2)}b) {data2.hex(' ')}")
+                        except asyncio.TimeoutError:
+                            pass
+                    await W(DATA_REQUEST, STEP_ACK)
+                    break
+
+            # tenta decodificar
             got = False
-            for u, buf in bufs.items():
+            for label_, buf in (("CONVOY", convoy), ("DATA_REQ", sp_buf)):
                 if len(buf) >= 18:
-                    log(f"\n-- decodificando buffer {u[4:8]} ({len(buf)}b) --")
+                    log(f"\n-- decodificando {label_} ({len(buf)}b) --")
                     if try_parse_steps(bytes(buf), log): got = True
-            await wchar(client, DATA_REQUEST, STEP_ACK, log, response=True)
-
             log("\n=== PASSOS OBTIDOS! ===" if got else
-                "\nAinda sem passos. O log cru acima mostra a conversa — manda pro chat.")
+                "\nAinda sem passos decodificaveis. Manda o log que eu ajusto o ultimo detalhe.")
 
-            log("\nEscutando +20s (mexa no relogio)...")
-            await asyncio.sleep(20.0)
+            log("\nEscutando +15s (mexa no relogio)...")
+            t_end = loop.time() + 15
+            while loop.time() < t_end:
+                try:
+                    uuid3, data3 = await asyncio.wait_for(events.get(), timeout=1.0)
+                    log(f"{now()}  NOTIFY {uuid3[4:8]} ({len(data3)}b) {data3.hex(' ')}")
+                except asyncio.TimeoutError:
+                    pass
 
     except Exception as e:
         log(f"\nErro: {e}")
