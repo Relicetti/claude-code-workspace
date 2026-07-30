@@ -7,6 +7,12 @@ from datetime import datetime
 # pra o banco não resetar a cada deploy. Local, usa o arquivo ao lado do código.
 DB_PATH = os.environ.get("DB_PATH") or os.path.join(os.path.dirname(__file__), "fup.db")
 
+# garante que a pasta do banco exista (ex: /data do volume no Railway); sem isso
+# o sqlite dá "unable to open database file" e o container entra em loop de erro.
+_pasta_db = os.path.dirname(DB_PATH)
+if _pasta_db:
+    os.makedirs(_pasta_db, exist_ok=True)
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS usinas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
