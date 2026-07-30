@@ -66,6 +66,14 @@ def load_health() -> dict:
     return {"days": [], "note": "Ainda sem dados. Rode sync.py depois de mapear o protocolo."}
 
 
+def load_status() -> dict:
+    for name in ("status.json", "status.sample.json"):
+        p = DATA / name
+        if p.exists():
+            return json.loads(p.read_text(encoding="utf-8"))
+    return {"connected": False, "note": "Rode o status.py (GShock.bat) com o relógio por perto."}
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):  # silencia o log ruidoso padrão
         pass
@@ -85,6 +93,9 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/health":
             self._send(200, "application/json; charset=utf-8",
                        json.dumps(load_health()).encode("utf-8"))
+        elif self.path == "/api/status":
+            self._send(200, "application/json; charset=utf-8",
+                       json.dumps(load_status()).encode("utf-8"))
         elif self.path == "/api/live":
             self._stream_live()
         else:

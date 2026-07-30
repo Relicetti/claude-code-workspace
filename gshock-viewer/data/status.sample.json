@@ -1,0 +1,9 @@
+{
+  "updated": "2026-07-30T14:23:08",
+  "connected": true,
+  "model": "CASIO GBD-H2000",
+  "battery_level": 3,
+  "condition_raw": "03 1d 00 00 17 00 00 00 01",
+  "firmware_raw": "23 07 00 15 15 22 04 91 00 00 00 00 04 02 01 00 10 00 01",
+  "time_synced": true
+}

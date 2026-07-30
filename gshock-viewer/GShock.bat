@@ -22,4 +22,4 @@ echo Instalando o necessario (so na primeira vez)...
 %PY% -m pip install --quiet bleak
 
 echo.
-%PY% "%~dp0gshock.py"
+%PY% "%~dp0status.py"

@@ -103,15 +103,28 @@ gshock-viewer/
   data/health.json   # seus dados (gerado; não versionado)
 ```
 
-## Situação (o que está pronto)
+## Situação (o que está pronto) — atualizado
+
+Depois de mapear o protocolo no relógio real (ver `PROTOCOL.md`), o resultado:
 
 | Parte | Status |
 |-------|--------|
-| Painel web (passos/HR/sono/BPM ao vivo) | ✅ pronto |
-| Achar o relógio (`scan`) | ✅ pronto |
-| Reconhecimento do protocolo (`recon`) | ✅ pronto |
-| BPM ao vivo (Heart Rate padrão) | ✅ pronto (depende do relógio expor `0x180D`) |
-| Histórico passos/sono (`sync`) | 🚧 esqueleto pronto; parsing proprietário depende do `recon` |
+| Achar o relógio (`scan`) | ✅ funciona |
+| Handshake completo (nome, versão, condição, **acertar a hora**) | ✅ funciona |
+| Status no painel (modelo, bateria, firmware, hora) via `status.py` + `GShock.bat` | ✅ funciona |
+| Passos / sono / batimentos | ❌ bloqueado neste modelo (ver abaixo) |
+
+### Por que passos/sono/BPM não saem (GBD-H2000)
+Esses dados ficam num subsistema do relógio (característica `0023`/`0024`) que só é
+"armado" depois de uma etapa de bonding (`0x47`) que **o próprio app** normalmente
+faz. Como o relógio foi pareado pelo **Windows**, ele se considera já pareado e pula
+essa etapa, então nunca libera os dados de atividade na nossa sessão. Não há Heart
+Rate padrão (`0x180D`), então o BPM ao vivo também depende desse mesmo canal. Os
+scripts `recon.py`/`gshock.py` documentam toda a investigação.
+
+### Caminho garantido para os dados de atividade
+Um aparelho **Android** com o app **Gadgetbridge** já sincroniza esses relógios.
+É a via recomendada caso você queira o histórico de passos/sono de fato.
 
 ## Depois: app nativo de iPhone?
 
