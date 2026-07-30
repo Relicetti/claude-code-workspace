@@ -90,6 +90,8 @@ COLUNAS_NOVAS = [
     ("usuarios", "is_admin", "INTEGER NOT NULL DEFAULT 0"),
     ("usinas", "executivo", "TEXT"),
     ("usuarios", "email", "TEXT"),
+    ("pendencias", "concluida_em", "TEXT"),
+    ("pendencias", "concluida_por", "TEXT"),
 ]
 
 CAMPOS_EDITAVEIS_USINA = [
@@ -252,7 +254,7 @@ def pendencias_usina(conn, usina_id):
 def ultimas_pendencias_por_usina(conn):
     """Última pendência de cada usina, pra listar sem 1 query por linha."""
     linhas = conn.execute(
-        """SELECT p.usina_id, p.autor, p.texto, p.responsavel, p.criado_em
+        """SELECT p.usina_id, p.autor, p.texto, p.responsavel, p.criado_em, p.concluida_em
            FROM pendencias p
            JOIN (
                SELECT usina_id, MAX(criado_em) AS max_criado_em
@@ -269,6 +271,14 @@ def contar_pendencias_por_usina(conn):
     return {row["usina_id"]: row["qtd"] for row in linhas}
 
 
+def tem_pendencia_aberta(conn, usina_id):
+    row = conn.execute(
+        "SELECT COUNT(*) AS abertas FROM pendencias WHERE usina_id = ? AND concluida_em IS NULL",
+        (usina_id,),
+    ).fetchone()
+    return row["abertas"] > 0
+
+
 def adicionar_pendencia(conn, usina_id, texto, responsavel, autor, criado_em):
     texto = texto.strip()
     if not texto:
@@ -277,6 +287,23 @@ def adicionar_pendencia(conn, usina_id, texto, responsavel, autor, criado_em):
         "INSERT INTO pendencias (usina_id, autor, texto, responsavel, criado_em) VALUES (?,?,?,?,?)",
         (usina_id, autor, texto, responsavel.strip() if responsavel else None, criado_em),
     )
+
+
+def marcar_pendencia(conn, pendencia_id, concluir, usuario, quando):
+    """Marca (ou desmarca) uma pendência como concluída. Retorna o usina_id
+    pra redirecionar de volta pra usina."""
+    if concluir:
+        conn.execute(
+            "UPDATE pendencias SET concluida_em = ?, concluida_por = ? WHERE id = ?",
+            (quando, usuario, pendencia_id),
+        )
+    else:
+        conn.execute(
+            "UPDATE pendencias SET concluida_em = NULL, concluida_por = NULL WHERE id = ?",
+            (pendencia_id,),
+        )
+    row = conn.execute("SELECT usina_id FROM pendencias WHERE id = ?", (pendencia_id,)).fetchone()
+    return row["usina_id"] if row else None
 
 
 def criar_usina(conn, ug_raw, nome_ufv, concessionaria, dono_carteira, executivo,

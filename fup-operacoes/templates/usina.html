@@ -62,11 +62,19 @@
     {% if pendencias %}
       <ul class="list-unstyled mb-0">
         {% for p in pendencias %}
-          <li class="border-bottom py-2">
-            <div>{{ p.texto }}</div>
-            <div class="text-muted small">
-              {{ p.autor }} · {{ p.criado_em.replace('T', ' ') }}
-              {% if p.responsavel %}· responsável: <strong>{{ p.responsavel }}</strong>{% endif %}
+          <li class="border-bottom py-2 d-flex align-items-start gap-2">
+            <form action="{{ url_for('concluir_pendencia', pendencia_id=p.id) }}" method="post" class="mt-1">
+              <input type="hidden" name="concluir" value="{{ '0' if p.concluida_em else '1' }}">
+              <input type="checkbox" class="form-check-input" title="Marcar como concluída"
+                     {{ 'checked' if p.concluida_em else '' }} onchange="this.form.submit()">
+            </form>
+            <div class="flex-grow-1">
+              <div class="{{ 'text-decoration-line-through text-muted' if p.concluida_em else '' }}">{{ p.texto }}</div>
+              <div class="text-muted small">
+                {{ p.autor }} · {{ p.criado_em.replace('T', ' ') }}
+                {% if p.responsavel %}· responsável: <strong>{{ p.responsavel }}</strong>{% endif %}
+                {% if p.concluida_em %}· <span class="text-success">✔ concluída por {{ p.concluida_por }} em {{ p.concluida_em.replace('T', ' ') }}</span>{% endif %}
+              </div>
             </div>
           </li>
         {% endfor %}

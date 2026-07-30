@@ -437,6 +437,19 @@ def adicionar_pendencia(usina_id):
     return redirect(url_for("ver_usina", usina_id=usina_id))
 
 
+@app.route("/pendencia/<int:pendencia_id>/concluir", methods=["POST"])
+def concluir_pendencia(pendencia_id):
+    concluir = request.form.get("concluir") == "1"
+    with db.conectar() as conn:
+        usina_id = db.marcar_pendencia(
+            conn, pendencia_id, concluir, session["usuario_nome"],
+            datetime.now().isoformat(timespec="seconds"),
+        )
+    if usina_id:
+        return redirect(url_for("ver_usina", usina_id=usina_id))
+    return redirect(request.referrer or url_for("dashboard"))
+
+
 @app.route("/usina/<int:usina_id>/mudar-etapa", methods=["POST"])
 def mudar_etapa(usina_id):
     nova_etapa = request.form.get("nova_etapa", "").strip()
@@ -444,6 +457,14 @@ def mudar_etapa(usina_id):
         return "Etapa inválida", 400
     hoje_iso = date.today().isoformat()
     with db.conectar() as conn:
+        if db.tem_pendencia_aberta(conn, usina_id):
+            usina = db.buscar_usina(conn, usina_id)
+            nome = usina["nome_ufv"] if usina else ""
+            flash(
+                f"Não dá pra mudar a etapa de {nome}: há pendência(s) em aberto. "
+                f"Marque todas como concluídas primeiro.", "warning",
+            )
+            return redirect(url_for("ver_usina", usina_id=usina_id))
         db.mudar_etapa(conn, usina_id, nova_etapa, hoje_iso, session["usuario_nome"])
     return redirect(request.referrer or url_for("dashboard"))
 
