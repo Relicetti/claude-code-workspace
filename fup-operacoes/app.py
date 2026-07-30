@@ -441,6 +441,11 @@ def adicionar_pendencia(usina_id):
 def concluir_pendencia(pendencia_id):
     concluir = request.form.get("concluir") == "1"
     with db.conectar() as conn:
+        # reabrir (tirar o check) é só pra admin; concluir qualquer um pode
+        if not concluir and not session.get("usuario_admin"):
+            row = conn.execute("SELECT usina_id FROM pendencias WHERE id = ?", (pendencia_id,)).fetchone()
+            flash("Só administradores podem reabrir uma pendência concluída.", "warning")
+            return redirect(url_for("ver_usina", usina_id=row["usina_id"]) if row else url_for("dashboard"))
         usina_id = db.marcar_pendencia(
             conn, pendencia_id, concluir, session["usuario_nome"],
             datetime.now().isoformat(timespec="seconds"),
