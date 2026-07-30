@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Importar banco{% endblock %}
+{% block content %}
+
+<a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary mb-3">&larr; voltar</a>
+
+<div class="card shadow-sm" style="max-width: 640px;">
+  <div class="card-body">
+    <h4 class="mb-3">Importar banco de dados</h4>
+    <p class="text-muted">
+      Sobe o arquivo <code>fup.db</code> da sua máquina pra dentro do servidor.
+      Isso <strong>substitui</strong> todos os dados atuais ({{ qtd_usinas }} usina(s) neste servidor).
+      Use isso na primeira vez que subir o sistema pra trazer os dados que já existem.
+    </p>
+    <form method="post" enctype="multipart/form-data">
+      <div class="mb-3">
+        <label class="form-label">Arquivo do banco (.db)</label>
+        <input type="file" name="banco" accept=".db" class="form-control" required>
+      </div>
+      <button type="submit" class="btn btn-primary"
+              onclick="return confirm('Isso substitui TODOS os dados deste servidor pelos do arquivo. Continuar?');">
+        Importar e substituir
+      </button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

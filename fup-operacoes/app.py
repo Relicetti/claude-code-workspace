@@ -9,7 +9,9 @@ import email_utils
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "chave-de-desenvolvimento-troque-em-producao")
+app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024  # upload do banco até 25 MB
 db.iniciar_banco()
+db.bootstrap_admin(generate_password_hash)
 
 ROTAS_PUBLICAS = {"login", "static"}
 
@@ -162,6 +164,39 @@ def novo_usuario():
             "warning",
         )
     return redirect(url_for("novo_usuario"))
+
+
+@app.route("/admin/importar-banco", methods=["GET", "POST"])
+def importar_banco():
+    if not session.get("usuario_admin"):
+        return "Só administradores podem importar o banco.", 403
+
+    if request.method == "GET":
+        with db.conectar() as conn:
+            qtd_usinas = conn.execute("SELECT COUNT(*) FROM usinas").fetchone()[0]
+        return render_template("importar_banco.html", qtd_usinas=qtd_usinas)
+
+    arquivo = request.files.get("banco")
+    if not arquivo or not arquivo.filename:
+        flash("Selecione um arquivo .db.", "warning")
+        return redirect(url_for("importar_banco"))
+
+    # grava o upload na MESMA pasta do banco, pra o os.replace ser atômico e
+    # não cruzar drives (no Windows, mover entre C: e D: dá erro).
+    destino_tmp = db.DB_PATH + ".importando"
+    arquivo.save(destino_tmp)
+
+    ok, msg = db.validar_banco_importado(destino_tmp)
+    if not ok:
+        os.remove(destino_tmp)
+        flash(f"Importação recusada: {msg}", "danger")
+        return redirect(url_for("importar_banco"))
+
+    # substitui o banco em uso e reaplica migrações de schema
+    os.replace(destino_tmp, db.DB_PATH)
+    db.iniciar_banco()
+    flash(f"Banco importado com sucesso. {msg} Faça login novamente se necessário.", "success")
+    return redirect(url_for("dashboard"))
 
 
 # --- painel --------------------------------------------------------------

@@ -35,6 +35,7 @@
         <a href="{{ url_for('comparativo') }}" class="btn btn-outline-light btn-sm">Comparativo semanal</a>
         {% if usuario_admin %}
           <a href="{{ url_for('novo_usuario') }}" class="btn btn-outline-light btn-sm">+ Novo usuário</a>
+          <a href="{{ url_for('importar_banco') }}" class="btn btn-outline-light btn-sm">Importar banco</a>
         {% endif %}
         <a href="{{ url_for('nova_usina') }}" class="btn btn-light btn-sm">+ Nova usina</a>
         <span class="text-white small">{{ usuario_logado }}</span>
@@ -48,7 +49,8 @@
   {% with mensagens = get_flashed_messages(with_categories=true) %}
     {% if mensagens %}
       {% for categoria, msg in mensagens %}
-        <div class="alert alert-{{ 'success' if categoria == 'success' else 'warning' }}">{{ msg }}</div>
+        {% set css = {'success': 'success', 'danger': 'danger', 'warning': 'warning'}.get(categoria, 'info') %}
+        <div class="alert alert-{{ css }}">{{ msg }}</div>
       {% endfor %}
     {% endif %}
   {% endwith %}

@@ -3,7 +3,9 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "fup.db")
+# No Railway, defina DB_PATH apontando pro volume persistente (ex: /data/fup.db)
+# pra o banco não resetar a cada deploy. Local, usa o arquivo ao lado do código.
+DB_PATH = os.environ.get("DB_PATH") or os.path.join(os.path.dirname(__file__), "fup.db")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS usinas (
@@ -364,3 +366,47 @@ def criar_usuario(conn, nome, username, senha_hash, criado_em, is_admin=False, e
          senha_hash, int(is_admin), criado_em),
     )
     return cur.lastrowid
+
+
+def bootstrap_admin(gerar_hash):
+    """Cria um admin inicial a partir de variáveis de ambiente, se ainda não
+    existir nenhum. Necessário no Railway: num banco vazio, sem isso ninguém
+    conseguiria logar pra criar os outros usuários. Não faz nada se a conta já
+    existe ou se as variáveis não estão definidas."""
+    username = (os.environ.get("BOOTSTRAP_ADMIN_USER") or "").strip().lower()
+    senha = os.environ.get("BOOTSTRAP_ADMIN_SENHA") or ""
+    nome = (os.environ.get("BOOTSTRAP_ADMIN_NOME") or username or "Admin").strip()
+    if not username or not senha:
+        return
+    with conectar() as conn:
+        if buscar_usuario_por_username(conn, username) is not None:
+            return
+        criar_usuario(
+            conn, nome, username, gerar_hash(senha),
+            datetime.now().isoformat(timespec="seconds"), is_admin=True,
+            email=f"{username}@alexandriabr.com",
+        )
+
+
+TABELAS_ESPERADAS = {"usinas", "historico_etapas", "usuarios", "pendencias"}
+
+
+def validar_banco_importado(caminho):
+    """Confere que o arquivo enviado é um SQLite válido com as tabelas do
+    sistema, antes de aceitá-lo. Retorna (ok, mensagem). Sempre fecha a
+    conexão (senão, no Windows, o arquivo fica travado e o os.replace falha)."""
+    conn = None
+    try:
+        conn = sqlite3.connect(caminho)
+        conn.row_factory = sqlite3.Row
+        tabelas = {r["name"] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        faltando = TABELAS_ESPERADAS - tabelas
+        if faltando:
+            return False, f"Arquivo não parece ser o banco do sistema (faltam tabelas: {', '.join(sorted(faltando))})."
+        n = conn.execute("SELECT COUNT(*) FROM usinas").fetchone()[0]
+        return True, f"Banco válido: {n} usina(s)."
+    except Exception as e:
+        return False, f"Arquivo inválido: {e}"
+    finally:
+        if conn is not None:
+            conn.close()

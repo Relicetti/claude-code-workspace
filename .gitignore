@@ -7,3 +7,6 @@ __pycache__/
 .env
 optionstrat/predictions.jsonl
 fup-operacoes/fup.db
+fup-operacoes/fup.db.*
+fup-operacoes/*.db
+fup-operacoes/seed.sql
