@@ -7,13 +7,25 @@ referência do [Gadgetbridge](https://gadgetbridge.org) (linha Casio GBX-100 / G
 
 Serviço proprietário Casio: `26eb000d-b012-49a8-b1f8-394fb2032b0f`
 
-| Característica (26eb..) | Propriedades | Papel provável (Gadgetbridge) |
+| Característica (26eb..) | Propriedades | Papel (Gadgetbridge — CONFIRMADO) |
 |------------------------|--------------|-------------------------------|
-| `0023` | notify, write | request / all-features |
-| `0024` | notify, write-sem-resposta | ALL_FEATURES (init/time) |
-| `002c` | write-sem-resposta | comando/config |
-| `002d` | notify, write | DATA_REQUEST_SP / CONVOY |
-| `0030` | write-sem-resposta | comando/config |
+| `0023` | notify, write | **DATA_REQUEST_SP** (pedir passos aqui) |
+| `0024` | notify, write-sem-resposta | **CONVOY** (dados voltam aqui) |
+| `002c` | write-sem-resposta | **READ_REQUEST** (pedir nome/feature) |
+| `002d` | notify, write | **ALL_FEATURES** (init: app-info + HORA) |
+| `0030` | write-sem-resposta | NOTIFICATION |
+
+### Feature IDs (escritos em ALL_FEATURES `002d`, prefixando o payload)
+`0x09` CURRENT_TIME · `0x22` APP_INFORMATION · `0x23` WATCH_NAME ·
+`0x20` VERSION · `0x28` WATCH_CONDITION · `0x47` SERVICE_DISCOVERY (o watch responde `0x4701`)
+
+### Init / aperto de mão (o que destrava os dados)
+1. Assinar notify em `0023`, `0024`, `002d`.
+2. `002c` <- `[0x23]` (pede nome).
+3. `002d` <- `[0x22, 00,01,..,09, 02]` (app-info).
+4. `002d` <- `[0x09] + 10 bytes` (hora, formato Current Time BLE, adjustReason=1):
+   `yearLo yearHi month day hour min sec diaDaSemana(1=Seg..7=Dom) 00 01`.
+5. Depois disso: pedir passos em `0023` com `00 11 00 00 00`; dados chegam em `0024`.
 
 **Não há** Heart Rate Service padrão (`0x180D`) — batimentos vêm pelo protocolo
 proprietário, não pelo padrão BLE.
