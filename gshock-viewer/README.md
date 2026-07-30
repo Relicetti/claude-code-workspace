@@ -20,6 +20,17 @@ rede Wi-Fi). Assim:
   mapeando com apoio do projeto open-source **Gadgetbridge** (que já suporta o
   GBD-H1000, primo do seu relógio).
 
+## Jeito fácil (Windows, clicando)
+
+1. Instale o **Python 3.10+** ([python.org](https://www.python.org/downloads/) —
+   na instalação, marque "Add Python to PATH").
+2. Clique **uma vez** em `criar-atalho.vbs` → aparece um atalho **"G-Shock Viewer"**
+   (com ícone) na sua Área de Trabalho.
+3. Deixe o relógio em modo **CONNECT** e clique no atalho. Ele instala tudo sozinho,
+   acha o relógio e mapeia o protocolo. No fim, o resultado fica em `bridge\logs\`.
+
+Prefere digitar os comandos? Siga a instalação manual abaixo.
+
 ## Instalação (uma vez)
 
 Precisa de **Python 3.10+** e Bluetooth no PC.

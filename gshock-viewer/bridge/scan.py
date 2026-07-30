@@ -60,6 +60,8 @@ async def main(seconds: float) -> None:
         addr = watches[0][2]
         print(f"Provável relógio → ENDEREÇO = {addr}")
         print(f"Próximo passo:  python recon.py --address {addr}")
+        # Linha simples pra scripts lerem o endereço sem depender de acento:
+        print(f"ADDR={addr}")
     else:
         print("Não identifiquei o relógio pelo nome. Coloque-o em modo CONNECT e")
         print("rode de novo; ou use o endereço do item com sinal (RSSI) mais forte.")
