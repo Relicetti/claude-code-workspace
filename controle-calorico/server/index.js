@@ -18,6 +18,7 @@ import {
   getDailySummary,
   getDayType,
   setDayType,
+  setExtraExpenditure,
   getDayTypesInRange,
 } from './dataStore.js'
 import { analyzePhoto, analyzeTextDescription } from './anthropic.js'
@@ -102,6 +103,14 @@ app.put(
       return res.status(400).json({ error: 'Tipo de dia invalido' })
     }
     res.json(await setDayType(req.params.date, req.body.dayType))
+  })
+)
+
+app.put(
+  '/api/day-type/:date/extra',
+  asyncHandler(async (req, res) => {
+    const extra = Number(req.body.extra) || 0
+    res.json(await setExtraExpenditure(req.params.date, extra))
   })
 )
 

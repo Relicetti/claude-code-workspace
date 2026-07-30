@@ -87,6 +87,7 @@ export default function HistoryChart({ large = false }) {
                 carbGoal: DEFAULT_PRESET.carbGoal,
                 fatGoal: DEFAULT_PRESET.fatGoal,
                 expenditure: DEFAULT_PRESET.expenditure,
+                extraExpenditure: 0,
               }
           )
         )
@@ -304,9 +305,17 @@ export default function HistoryChart({ large = false }) {
             {hovered.dayGoal.expenditure ? (
               <div className="history-detail-deficit">
                 <div className="history-detail-item">
-                  <span className="history-detail-label">Gasto estimado</span>
-                  <span className="history-detail-value">{Math.round(hovered.dayGoal.expenditure)} kcal</span>
+                  <span className="history-detail-label">Gasto estimado{hovered.dayGoal.extraExpenditure ? ' (com extra)' : ''}</span>
+                  <span className="history-detail-value">
+                    {Math.round(hovered.dayGoal.expenditure + (hovered.dayGoal.extraExpenditure || 0))} kcal
+                  </span>
                 </div>
+                {hovered.dayGoal.extraExpenditure ? (
+                  <div className="history-detail-item">
+                    <span className="history-detail-label">+ Atividade extra</span>
+                    <span className="history-detail-value">{Math.round(hovered.dayGoal.extraExpenditure)} kcal</span>
+                  </div>
+                ) : null}
                 <div className="history-detail-item">
                   <span className="history-detail-label">Deficit previsto</span>
                   <span className="history-detail-value">
@@ -316,7 +325,9 @@ export default function HistoryChart({ large = false }) {
                 <div className="history-detail-item">
                   <span className="history-detail-label">Deficit real</span>
                   <span className="history-detail-value">
-                    {formatDeficit(hovered.dayGoal.expenditure - hovered.row.kcal)}
+                    {formatDeficit(
+                      hovered.dayGoal.expenditure + (hovered.dayGoal.extraExpenditure || 0) - hovered.row.kcal
+                    )}
                   </span>
                 </div>
               </div>

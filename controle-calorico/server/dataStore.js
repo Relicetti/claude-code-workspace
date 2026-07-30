@@ -142,6 +142,7 @@ function dayTypeRowToEntry(date, row) {
       carbGoal: preset.carbGoal,
       fatGoal: preset.fatGoal,
       expenditure: preset.expenditure,
+      extraExpenditure: 0,
     }
   }
   // Rows saved before the expenditure column existed have it as null;
@@ -155,6 +156,7 @@ function dayTypeRowToEntry(date, row) {
     carbGoal: row.carb_goal,
     fatGoal: row.fat_goal,
     expenditure: row.expenditure ?? fallbackPreset?.expenditure ?? null,
+    extraExpenditure: row.extra_expenditure || 0,
   }
 }
 
@@ -167,8 +169,8 @@ export async function setDayType(date, dayType) {
   const preset = DAY_TYPE_BY_KEY[dayType]
   if (!preset) throw new Error('Tipo de dia invalido')
   await query(
-    `INSERT INTO day_activity (log_date, day_type, calorie_goal, protein_goal, carb_goal, fat_goal, expenditure)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO day_activity (log_date, day_type, calorie_goal, protein_goal, carb_goal, fat_goal, expenditure, extra_expenditure)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 0)
      ON CONFLICT (log_date) DO UPDATE SET
        day_type = EXCLUDED.day_type,
        calorie_goal = EXCLUDED.calorie_goal,
@@ -177,6 +179,26 @@ export async function setDayType(date, dayType) {
        fat_goal = EXCLUDED.fat_goal,
        expenditure = EXCLUDED.expenditure`,
     [date, dayType, preset.calorieGoal, preset.proteinGoal, preset.carbGoal, preset.fatGoal, preset.expenditure]
+  )
+  return getDayType(date)
+}
+
+export async function setExtraExpenditure(date, extra) {
+  const current = await getDayType(date)
+  await query(
+    `INSERT INTO day_activity (log_date, day_type, calorie_goal, protein_goal, carb_goal, fat_goal, expenditure, extra_expenditure)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     ON CONFLICT (log_date) DO UPDATE SET extra_expenditure = EXCLUDED.extra_expenditure`,
+    [
+      date,
+      current.dayType,
+      current.calorieGoal,
+      current.proteinGoal,
+      current.carbGoal,
+      current.fatGoal,
+      current.expenditure,
+      extra,
+    ]
   )
   return getDayType(date)
 }

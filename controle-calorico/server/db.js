@@ -63,6 +63,7 @@ export async function initSchema() {
       fat_goal DOUBLE PRECISION NOT NULL
     );
     ALTER TABLE day_activity ADD COLUMN IF NOT EXISTS expenditure DOUBLE PRECISION;
+    ALTER TABLE day_activity ADD COLUMN IF NOT EXISTS extra_expenditure DOUBLE PRECISION NOT NULL DEFAULT 0;
 
     CREATE TABLE IF NOT EXISTS food_db (
       normalized_name TEXT PRIMARY KEY,
