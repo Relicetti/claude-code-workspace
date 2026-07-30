@@ -22,7 +22,16 @@
       </div>
       <div class="mb-3">
         <label class="form-label">Carteira (dono da carteira)</label>
-        <input type="text" name="dono_carteira" class="form-control" value="{{ usina.dono_carteira or '' }}">
+        <select name="dono_carteira" class="form-select">
+          <option value="">—</option>
+          {% set nomes = usuarios | map(attribute='nome') | list %}
+          {% if usina.dono_carteira and usina.dono_carteira not in nomes %}
+            <option value="{{ usina.dono_carteira }}" selected>{{ usina.dono_carteira }} (atual)</option>
+          {% endif %}
+          {% for u in usuarios %}
+            <option value="{{ u.nome }}" {{ 'selected' if u.nome == usina.dono_carteira else '' }}>{{ u.nome }}</option>
+          {% endfor %}
+        </select>
       </div>
       <div class="mb-3">
         <label class="form-label">Executivo (quem fechou a comercialização)</label>

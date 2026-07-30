@@ -22,7 +22,12 @@
       </div>
       <div class="mb-3">
         <label class="form-label">Carteira (dono da carteira)</label>
-        <input type="text" name="dono_carteira" class="form-control">
+        <select name="dono_carteira" class="form-select">
+          <option value="">—</option>
+          {% for u in usuarios %}
+            <option value="{{ u.nome }}">{{ u.nome }}</option>
+          {% endfor %}
+        </select>
       </div>
       <div class="mb-3">
         <label class="form-label">Executivo (quem fechou a comercialização)</label>
