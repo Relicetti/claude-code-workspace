@@ -1,0 +1,2 @@
+# Ponte BLE com o relógio. Só uma dependência — o resto é biblioteca padrão do Python.
+bleak>=0.22

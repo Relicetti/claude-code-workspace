@@ -1,0 +1,7 @@
+# dados pessoais e logs ficam só na sua máquina
+bridge/logs/
+data/health.json
+__pycache__/
+*.pyc
+.venv/
+venv/
