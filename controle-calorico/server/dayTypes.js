@@ -9,6 +9,15 @@ export const DAY_TYPES = [
     expenditure: 2550,
   },
   {
+    key: 'descanso_sauna',
+    label: 'Descanso + Sauna',
+    calorieGoal: 2250,
+    proteinGoal: 220,
+    carbGoal: 165,
+    fatGoal: 63,
+    expenditure: 2600,
+  },
+  {
     key: 'musculacao',
     label: 'So Musculacao',
     calorieGoal: 2450,

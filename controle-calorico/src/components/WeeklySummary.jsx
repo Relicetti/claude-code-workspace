@@ -35,9 +35,10 @@ export default function WeeklySummary({ dateKey, entries, dayType }) {
         for (const date of keys) {
           const dt = dayTypeByDate.get(date) || DEFAULT_PRESET
           const kcal = kcalByDate.get(date) || 0
-          expenditure += dt.expenditure
+          const total = dt.expenditure + (dt.extraExpenditure || 0)
+          expenditure += total
           plannedDeficit += dt.expenditure - dt.calorieGoal
-          actualDeficit += dt.expenditure - kcal
+          actualDeficit += total - kcal
         }
         setTotals({ days: keys.length, expenditure, plannedDeficit, actualDeficit })
       })

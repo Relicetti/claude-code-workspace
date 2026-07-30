@@ -77,6 +77,8 @@ export const api = {
   clearLog: (date) => request(`/log/${date}`, { method: 'DELETE' }),
   getDayType: (date) => request(`/day-type/${date}`),
   setDayType: (date, dayType) => request(`/day-type/${date}`, { method: 'PUT', body: JSON.stringify({ dayType }) }),
+  setExtraExpenditure: (date, extra) =>
+    request(`/day-type/${date}/extra`, { method: 'PUT', body: JSON.stringify({ extra }) }),
   getDayTypeSummary: (from, to) => request(`/day-type/summary?from=${from}&to=${to}`),
   analyzePhoto: (imageBase64, mediaType) =>
     request('/analyze-photo', { method: 'POST', body: JSON.stringify({ imageBase64, mediaType }) }),

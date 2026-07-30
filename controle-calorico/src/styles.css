@@ -152,6 +152,42 @@ body {
   color: #c62828;
 }
 
+.deficit-summary-extra {
+  font-size: 12px;
+  color: #888;
+  padding-left: 8px;
+}
+
+.extra-expenditure {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #fafafa;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 4px;
+}
+
+.extra-expenditure label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #444;
+}
+
+.extra-expenditure-row {
+  display: flex;
+  gap: 8px;
+}
+
+.extra-expenditure-row input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
 .weekly-summary {
   width: 100%;
   display: flex;

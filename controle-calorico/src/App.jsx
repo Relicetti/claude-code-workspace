@@ -13,6 +13,7 @@ import DayTypeSelector from './components/DayTypeSelector.jsx'
 import DateNav from './components/DateNav.jsx'
 import DeficitSummary from './components/DeficitSummary.jsx'
 import WeeklySummary from './components/WeeklySummary.jsx'
+import ExtraExpenditure from './components/ExtraExpenditure.jsx'
 
 export default function App() {
   const [dateKey, setDateKey] = useState(todayKey())
@@ -133,6 +134,15 @@ export default function App() {
     }
   }
 
+  async function handleSetExtraExpenditure(extra) {
+    try {
+      const updated = await api.setExtraExpenditure(dateKey, extra)
+      setDayTypeState(updated)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
   if (loading || !settings || !dayType) {
     return <div className="app-loading">Carregando...</div>
   }
@@ -169,10 +179,17 @@ export default function App() {
 
       <DayTypeSelector dayType={dayType.dayType} onChange={handleChangeDayType} />
 
+      <ExtraExpenditure value={dayType.extraExpenditure} onSave={handleSetExtraExpenditure} />
+
       <section className="summary">
         <CalorieGauge consumed={consumed.kcal} goal={goals.calorieGoal} />
         <MacroBars consumed={consumed} goals={goals} />
-        <DeficitSummary expenditure={dayType.expenditure} calorieGoal={goals.calorieGoal} consumedKcal={consumed.kcal} />
+        <DeficitSummary
+          expenditure={dayType.expenditure}
+          extra={dayType.extraExpenditure}
+          calorieGoal={goals.calorieGoal}
+          consumedKcal={consumed.kcal}
+        />
         <WeeklySummary dateKey={dateKey} entries={entries} dayType={dayType} />
       </section>
 
