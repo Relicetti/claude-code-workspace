@@ -94,7 +94,7 @@ async def main():
     fh = open(logpath, "w", encoding="utf-8")
     def log(t): print(t); fh.write(t + "\n"); fh.flush()
 
-    log(f"# G-Shock init reativo v5 — {dt.datetime.now():%Y-%m-%d %H:%M:%S}\n")
+    log(f"# G-Shock init reativo v6 — {dt.datetime.now():%Y-%m-%d %H:%M:%S}\n")
     watch = await find_watch()
     if not watch:
         log("Nao achei o relogio. Modo CONNECT + feche o app da Casio no celular.")
@@ -110,6 +110,8 @@ async def main():
     def on_notify(char: BleakGATTCharacteristic, data: bytearray):
         loop.call_soon_threadsafe(events.put_nowait, (char.uuid.lower(), bytes(data)))
 
+    got = False
+
     try:
         async with BleakClient(address) as client:
             log(f"Conectado: {client.is_connected}\n")
@@ -122,40 +124,66 @@ async def main():
                 try:
                     await client.write_gatt_char(uuid, payload, response=resp)
                     log(f"{now()}  WRITE  {uuid[4:8]}  {payload.hex(' ')}")
+                    return True
                 except Exception as e:
                     log(f"{now()}  WRITE  {uuid[4:8]}  FALHOU: {e}")
-            async def REQ(feat):  # pede uma feature
+                    return False
+            async def REQ(feat):
                 await W(READ_REQUEST, bytes([feat]), resp=False)
+
+            def route(uuid, data):
+                s = uuid[4:8]
+                if uuid == CONVOY:
+                    convoy.extend(data); log(f"{now()}  NOTIFY {s} ({len(data)}b) {data.hex(' ')}  [CONVOY]")
+                elif uuid == DATA_REQUEST:
+                    sp_buf.extend(data); log(f"{now()}  NOTIFY {s} ({len(data)}b) {data.hex(' ')}  [DATA_REQ]")
+                else:
+                    log(f"{now()}  NOTIFY {s} ({len(data)}b) {data.hex(' ')}")
+
+            async def do_fetch(tag=""):
+                nonlocal got
+                convoy.clear(); sp_buf.clear()
+                log(f"\n>>> pedindo PASSOS em 0023 {tag}")
+                await W(DATA_REQUEST, STEP_REQUEST)
+                end = loop.time() + 7
+                while loop.time() < end:
+                    try:
+                        u2, d2 = await asyncio.wait_for(events.get(), timeout=0.5)
+                        route(u2, d2)
+                    except asyncio.TimeoutError:
+                        pass
+                await W(DATA_REQUEST, STEP_ACK)
+                for label_, buf in (("CONVOY", convoy), ("DATA_REQ", sp_buf)):
+                    if len(buf) >= 18:
+                        log(f"\n-- decodificando {label_} ({len(buf)}b) --")
+                        if try_parse_steps(bytes(buf), log): got = True
 
             # dispara o init pedindo o nome
             log(">>> INIT: pedindo nome")
             await REQ(0x23)
 
-            init_done = False
             time_sent = False
-            step_phase = False
+            fetched = False
             dst_seen_at = None
-
             deadline = loop.time() + 55
-            while loop.time() < deadline:
+
+            while not fetched and loop.time() < deadline:
                 try:
                     uuid, data = await asyncio.wait_for(events.get(), timeout=1.0)
                 except asyncio.TimeoutError:
-                    # sem evento por 1s: trata travadas
-                    if dst_seen_at and not init_done and not time_sent:
-                        idle = loop.time() - dst_seen_at
-                        if idle > 4:
-                            log(">>> relogio nao pediu a hora; enviando init+hora manualmente")
-                            await W(ALL_FEATURES, ALL_FEAT_INIT)
-                            await W(ALL_FEATURES, current_time_payload())
-                            time_sent = True
-                            init_done = True   # segue pro fetch
+                    # o relogio ja pareado nao manda 0x47 sozinho -> manda hora e pede passos
+                    if dst_seen_at and not time_sent and (loop.time() - dst_seen_at) > 4:
+                        log(">>> sem 0x47; enviando a HORA manualmente")
+                        await W(ALL_FEATURES, current_time_payload())
+                        time_sent = True
+                        await asyncio.sleep(1.0)
+                        await do_fetch("(apos hora manual)")
+                        fetched = True
                     continue
 
-                short = uuid[4:8]
                 if uuid == ALL_FEATURES and data:
                     fid = data[0]
-                    log(f"{now()}  NOTIFY {short} ({len(data)}b) {data.hex(' ')}  feature=0x{fid:02x}")
+                    log(f"{now()}  NOTIFY 002d ({len(data)}b) {data.hex(' ')}  feature=0x{fid:02x}")
                     if fid == 0x23:
                         await W(ALL_FEATURES, APP_INFO); await REQ(0x10)
                     elif fid == 0x10:
@@ -176,55 +204,22 @@ async def main():
                         await REQ(0x1e)
                     elif fid == 0x1e:
                         dst_seen_at = loop.time()
-                        log(">>> cadeia de config concluida; aguardando 0x47 (pedido de hora)")
+                        log(">>> cadeia de config concluida; aguardando 0x47 (senao mando a hora)")
                     elif fid == 0x47:
                         if len(data) >= 2 and data[1] == 0x02:
-                            log(">>> relogio PEDIU A HORA -> enviando hora + init")
+                            log(">>> relogio PEDIU A HORA -> enviando hora e pedindo passos")
                             await W(ALL_FEATURES, current_time_payload())
-                            await W(ALL_FEATURES, ALL_FEAT_INIT)
                             time_sent = True
-                        elif len(data) >= 2 and data[1] == 0x01:
-                            init_done = True
-                    elif fid == 0x3d:
-                        init_done = True
-                elif uuid == CONVOY:
-                    convoy.extend(data)
-                    log(f"{now()}  NOTIFY {short} ({len(data)}b) {data.hex(' ')}  [CONVOY]")
-                elif uuid == DATA_REQUEST:
-                    sp_buf.extend(data)
-                    log(f"{now()}  NOTIFY {short} ({len(data)}b) {data.hex(' ')}  [DATA_REQ]")
+                            await asyncio.sleep(0.6)
+                            await do_fetch("(apos 0x47)")
+                            fetched = True
+                        elif len(data) >= 2 and data[1] == 0x01 and not fetched:
+                            await do_fetch("(init 0x4701)"); fetched = True
+                    elif fid == 0x3d and not fetched:
+                        await do_fetch("(init 0x3d)"); fetched = True
+                else:
+                    route(uuid, data)
 
-                # quando init concluir, pede os passos (uma vez)
-                if init_done and not step_phase:
-                    step_phase = True
-                    convoy.clear(); sp_buf.clear()
-                    log("\n>>> INIT ok — pedindo PASSOS em 0023")
-                    await W(DATA_REQUEST, STEP_REQUEST)
-                    # coleta convoy por ~6s
-                    async def collect():
-                        await asyncio.sleep(6.0)
-                    end = loop.time() + 6
-                    while loop.time() < end:
-                        try:
-                            uuid2, data2 = await asyncio.wait_for(events.get(), timeout=0.5)
-                            s2 = uuid2[4:8]
-                            if uuid2 == CONVOY:
-                                convoy.extend(data2); log(f"{now()}  NOTIFY {s2} ({len(data2)}b) {data2.hex(' ')}  [CONVOY]")
-                            elif uuid2 == DATA_REQUEST:
-                                sp_buf.extend(data2); log(f"{now()}  NOTIFY {s2} ({len(data2)}b) {data2.hex(' ')}  [DATA_REQ]")
-                            else:
-                                log(f"{now()}  NOTIFY {s2} ({len(data2)}b) {data2.hex(' ')}")
-                        except asyncio.TimeoutError:
-                            pass
-                    await W(DATA_REQUEST, STEP_ACK)
-                    break
-
-            # tenta decodificar
-            got = False
-            for label_, buf in (("CONVOY", convoy), ("DATA_REQ", sp_buf)):
-                if len(buf) >= 18:
-                    log(f"\n-- decodificando {label_} ({len(buf)}b) --")
-                    if try_parse_steps(bytes(buf), log): got = True
             log("\n=== PASSOS OBTIDOS! ===" if got else
                 "\nAinda sem passos decodificaveis. Manda o log que eu ajusto o ultimo detalhe.")
 
@@ -232,8 +227,8 @@ async def main():
             t_end = loop.time() + 15
             while loop.time() < t_end:
                 try:
-                    uuid3, data3 = await asyncio.wait_for(events.get(), timeout=1.0)
-                    log(f"{now()}  NOTIFY {uuid3[4:8]} ({len(data3)}b) {data3.hex(' ')}")
+                    u3, d3 = await asyncio.wait_for(events.get(), timeout=1.0)
+                    route(u3, d3)
                 except asyncio.TimeoutError:
                     pass
 
