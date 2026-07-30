@@ -94,7 +94,7 @@ async def main():
     fh = open(logpath, "w", encoding="utf-8")
     def log(t): print(t); fh.write(t + "\n"); fh.flush()
 
-    log(f"# G-Shock init reativo v6 — {dt.datetime.now():%Y-%m-%d %H:%M:%S}\n")
+    log(f"# G-Shock init reativo v7 — {dt.datetime.now():%Y-%m-%d %H:%M:%S}\n")
     watch = await find_watch()
     if not watch:
         log("Nao achei o relogio. Modo CONNECT + feche o app da Casio no celular.")
@@ -158,6 +158,33 @@ async def main():
                         log(f"\n-- decodificando {label_} ({len(buf)}b) --")
                         if try_parse_steps(bytes(buf), log): got = True
 
+            async def probe_alt():
+                """Se o comando padrao nao respondeu, sonda tipos de dado alternativos."""
+                log("\n>>> SONDAGEM: testando comandos de dados alternativos em 0023")
+                for t in (0x10, 0x12, 0x13, 0x14, 0x20, 0x21, 0x40, 0x41):
+                    convoy.clear(); sp_buf.clear()
+                    await W(DATA_REQUEST, bytes([0x00, t, 0x00, 0x00, 0x00]))
+                    end = loop.time() + 2.5
+                    resp = False
+                    while loop.time() < end:
+                        try:
+                            u2, d2 = await asyncio.wait_for(events.get(), timeout=0.4)
+                            route(u2, d2); resp = True
+                        except asyncio.TimeoutError:
+                            pass
+                    await W(DATA_REQUEST, bytes([0x04, t, 0x00, 0x00, 0x00]))
+                    log(f"    tipo 0x{t:02x}: {'RESPONDEU!' if resp else 'sem resposta'}")
+
+            # ---- passo 0: escuta em silencio (o relogio manda 0x47 sozinho?) ----
+            log(">>> escutando 6s em silencio (o relogio manda algo sozinho?)")
+            t0 = loop.time() + 6
+            while loop.time() < t0:
+                try:
+                    u0, d0 = await asyncio.wait_for(events.get(), timeout=1.0)
+                    route(u0, d0)
+                except asyncio.TimeoutError:
+                    pass
+
             # dispara o init pedindo o nome
             log(">>> INIT: pedindo nome")
             await REQ(0x23)
@@ -178,6 +205,7 @@ async def main():
                         time_sent = True
                         await asyncio.sleep(1.0)
                         await do_fetch("(apos hora manual)")
+                        if not got: await probe_alt()
                         fetched = True
                     continue
 
@@ -212,6 +240,7 @@ async def main():
                             time_sent = True
                             await asyncio.sleep(0.6)
                             await do_fetch("(apos 0x47)")
+                            if not got: await probe_alt()
                             fetched = True
                         elif len(data) >= 2 and data[1] == 0x01 and not fetched:
                             await do_fetch("(init 0x4701)"); fetched = True
