@@ -34,6 +34,7 @@
       {% if usuario_logado %}
         <a href="{{ url_for('comparativo') }}" class="btn btn-outline-light btn-sm">Comparativo semanal</a>
         {% if usuario_admin %}
+          <a href="{{ url_for('ver_log') }}" class="btn btn-outline-light btn-sm">Log</a>
           <a href="{{ url_for('novo_usuario') }}" class="btn btn-outline-light btn-sm">+ Novo usuário</a>
           <a href="{{ url_for('importar_banco') }}" class="btn btn-outline-light btn-sm">Importar banco</a>
         {% endif %}

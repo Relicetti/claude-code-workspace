@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Log de atividades{% endblock %}
+{% block content %}
+
+<div class="mb-3">
+  <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary mb-2">&larr; voltar</a>
+  <h4 class="mb-0 etapa-titulo">Log de atividades</h4>
+  <div class="text-muted small">Tudo que a equipe fez, mais recente primeiro ({{ atividades|length }} registro(s))</div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0 align-middle">
+      <thead>
+        <tr>
+          <th style="white-space:nowrap;">Quando</th>
+          <th>Quem</th>
+          <th>Ação</th>
+          <th>Usina</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in atividades %}
+        <tr>
+          <td class="small text-muted" style="white-space:nowrap;">{{ a.quando_fmt }}</td>
+          <td>{{ a.usuario }}</td>
+          <td>{{ a.acao }}</td>
+          <td>{{ a.usina or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-center text-muted py-4">Nenhuma atividade registrada ainda.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

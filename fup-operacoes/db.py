@@ -67,6 +67,17 @@ CREATE TABLE IF NOT EXISTS snapshots (
     UNIQUE(semana, usina_id)
 );
 
+-- log de auditoria pra ações que não ficam registradas nas outras tabelas
+-- (cadastro/edição/exclusão de usina, cadastro de usuário, import). Sem FK
+-- pra usinas, pra o registro de exclusão sobreviver à remoção da usina.
+CREATE TABLE IF NOT EXISTS atividades (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    usuario TEXT NOT NULL,
+    acao TEXT NOT NULL,
+    usina_nome TEXT,
+    criado_em TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_historico_usina ON historico_etapas(usina_id);
 CREATE INDEX IF NOT EXISTS idx_pendencias_usina ON pendencias(usina_id);
 CREATE INDEX IF NOT EXISTS idx_snapshots_semana ON snapshots(semana);
@@ -347,6 +358,53 @@ def semanas_com_snapshot(conn):
 def snapshot_da_semana(conn, semana_iso):
     linhas = conn.execute("SELECT * FROM snapshots WHERE semana = ?", (semana_iso,)).fetchall()
     return {row["usina_id"]: dict(row) for row in linhas}
+
+
+# --- log de auditoria ---------------------------------------------------
+
+def registrar_atividade(conn, usuario, acao, usina_nome, criado_em):
+    conn.execute(
+        "INSERT INTO atividades (usuario, acao, usina_nome, criado_em) VALUES (?,?,?,?)",
+        (usuario, acao, usina_nome, criado_em),
+    )
+
+
+def listar_atividades(conn, limite=1000):
+    """Linha do tempo unificada de tudo que a equipe fez, juntando 3 fontes:
+    o log explícito (atividades), as pendências e as mudanças de etapa feitas
+    por usuários reais (ignora as da importação inicial)."""
+    eventos = []
+
+    for r in conn.execute(
+        "SELECT criado_em, usuario, acao, usina_nome FROM atividades"
+    ):
+        eventos.append({
+            "quando": r["criado_em"], "usuario": r["usuario"],
+            "acao": r["acao"], "usina": r["usina_nome"],
+        })
+
+    for r in conn.execute(
+        """SELECT p.criado_em, p.autor, p.texto, u.nome_ufv
+           FROM pendencias p JOIN usinas u ON u.id = p.usina_id
+           WHERE p.autor != 'Importação'"""
+    ):
+        eventos.append({
+            "quando": r["criado_em"], "usuario": r["autor"],
+            "acao": f"Pendência: {r['texto']}", "usina": r["nome_ufv"],
+        })
+
+    for r in conn.execute(
+        """SELECT h.data_entrada, h.autor, h.etapa, u.nome_ufv
+           FROM historico_etapas h JOIN usinas u ON u.id = h.usina_id
+           WHERE h.autor IS NOT NULL AND h.autor != 'Importação'"""
+    ):
+        eventos.append({
+            "quando": r["data_entrada"], "usuario": r["autor"],
+            "acao": f"Mudou para a etapa \"{r['etapa']}\"", "usina": r["nome_ufv"],
+        })
+
+    eventos.sort(key=lambda e: e["quando"] or "", reverse=True)
+    return eventos[:limite]
 
 
 # --- usuários / login -------------------------------------------------

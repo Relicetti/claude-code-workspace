@@ -153,6 +153,11 @@ def novo_usuario():
             datetime.now().isoformat(timespec="seconds"),
             is_admin=(tipo == "admin"), email=email,
         )
+        db.registrar_atividade(
+            conn, session["usuario_nome"],
+            f"Cadastrou o usuário {nome} ({'admin' if tipo == 'admin' else 'operador'})",
+            None, datetime.now().isoformat(timespec="seconds"),
+        )
 
     enviado, motivo = email_utils.enviar_boas_vindas(nome, email, username, senha, request.url_root.rstrip("/"))
     if enviado:
@@ -195,6 +200,11 @@ def importar_banco():
     # substitui o banco em uso e reaplica migrações de schema
     os.replace(destino_tmp, db.DB_PATH)
     db.iniciar_banco()
+    with db.conectar() as conn:
+        db.registrar_atividade(
+            conn, session.get("usuario_nome", "?"), "Importou o banco de dados",
+            None, datetime.now().isoformat(timespec="seconds"),
+        )
     flash(f"Banco importado com sucesso. {msg} Faça login novamente se necessário.", "success")
     return redirect(url_for("dashboard"))
 
@@ -460,6 +470,11 @@ def nova_usina():
             autor=session["usuario_nome"],
             criado_em=datetime.now().isoformat(timespec="seconds"),
         )
+        db.registrar_atividade(
+            conn, session["usuario_nome"], "Cadastrou a usina",
+            request.form.get("nome_ufv", "").strip(),
+            datetime.now().isoformat(timespec="seconds"),
+        )
     return redirect(url_for("ver_usina", usina_id=usina_id))
 
 
@@ -485,6 +500,11 @@ def editar_usina(usina_id):
             "executivo": request.form.get("executivo", "").strip(),
             "data_assinatura_contrato": request.form.get("data_assinatura", "").strip() or None,
         })
+        db.registrar_atividade(
+            conn, session["usuario_nome"], "Editou os dados da usina",
+            request.form.get("nome_ufv", "").strip(),
+            datetime.now().isoformat(timespec="seconds"),
+        )
     return redirect(url_for("ver_usina", usina_id=usina_id))
 
 
@@ -493,8 +513,25 @@ def excluir_usina(usina_id):
     if not session.get("usuario_admin"):
         return "Só administradores podem excluir usinas.", 403
     with db.conectar() as conn:
+        usina = db.buscar_usina(conn, usina_id)
+        nome = usina["nome_ufv"] if usina else f"id {usina_id}"
         db.excluir_usina(conn, usina_id)
+        db.registrar_atividade(
+            conn, session["usuario_nome"], "Excluiu a usina", nome,
+            datetime.now().isoformat(timespec="seconds"),
+        )
     return redirect(request.referrer or url_for("dashboard"))
+
+
+@app.route("/admin/log")
+def ver_log():
+    if not session.get("usuario_admin"):
+        return "Só administradores podem ver o log.", 403
+    with db.conectar() as conn:
+        atividades = db.listar_atividades(conn)
+    for a in atividades:
+        a["quando_fmt"] = (a["quando"] or "").replace("T", " ")
+    return render_template("log.html", atividades=atividades)
 
 
 if __name__ == "__main__":
