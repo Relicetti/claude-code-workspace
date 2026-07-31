@@ -62,6 +62,20 @@ def _dias_desde(data_iso, referencia=None):
     return (referencia - d).days
 
 
+def _parse_numero(valor):
+    """Converte texto de número em float, ou None. Aceita formato BR
+    (1.234,5) e US (1234.5)."""
+    valor = (valor or "").strip()
+    if not valor:
+        return None
+    if "," in valor:  # formato BR: ponto é milhar, vírgula é decimal
+        valor = valor.replace(".", "").replace(",", ".")
+    try:
+        return float(valor)
+    except ValueError:
+        return None
+
+
 def _eta_dias(etapa_atual, dias_na_etapa, medias):
     if etapa_atual not in db.ETAPAS:
         return None
@@ -491,6 +505,7 @@ def nova_usina():
             concessionaria=request.form.get("concessionaria", "").strip(),
             dono_carteira=request.form.get("dono_carteira", "").strip(),
             executivo=request.form.get("executivo", "").strip(),
+            geracao_media_mensal=_parse_numero(request.form.get("geracao_media_mensal")),
             data_assinatura=data_assinatura,
             etapa_inicial=request.form.get("etapa_inicial", db.ETAPAS[0]),
             hoje_iso=hoje_iso,
@@ -527,6 +542,7 @@ def editar_usina(usina_id):
             "concessionaria": request.form.get("concessionaria", "").strip(),
             "dono_carteira": request.form.get("dono_carteira", "").strip(),
             "executivo": request.form.get("executivo", "").strip(),
+            "geracao_media_mensal": _parse_numero(request.form.get("geracao_media_mensal")),
             "data_assinatura_contrato": request.form.get("data_assinatura", "").strip() or None,
         })
         db.registrar_atividade(

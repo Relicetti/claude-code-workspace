@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS usinas (
     concessionaria TEXT,
     dono_carteira TEXT,
     executivo TEXT,
+    geracao_media_mensal REAL,
     data_assinatura_contrato TEXT,
     etapa_atual TEXT NOT NULL,
     data_entrada_etapa_atual TEXT NOT NULL,
@@ -92,10 +93,12 @@ COLUNAS_NOVAS = [
     ("usuarios", "email", "TEXT"),
     ("pendencias", "concluida_em", "TEXT"),
     ("pendencias", "concluida_por", "TEXT"),
+    ("usinas", "geracao_media_mensal", "REAL"),
 ]
 
 CAMPOS_EDITAVEIS_USINA = [
-    "ug_raw", "nome_ufv", "concessionaria", "dono_carteira", "executivo", "data_assinatura_contrato",
+    "ug_raw", "nome_ufv", "concessionaria", "dono_carteira", "executivo",
+    "geracao_media_mensal", "data_assinatura_contrato",
 ]
 
 ETAPAS = [
@@ -307,15 +310,17 @@ def marcar_pendencia(conn, pendencia_id, concluir, usuario, quando):
 
 
 def criar_usina(conn, ug_raw, nome_ufv, concessionaria, dono_carteira, executivo,
-                 data_assinatura, etapa_inicial, hoje_iso, pendencia, responsavel, autor, criado_em):
+                 geracao_media_mensal, data_assinatura, etapa_inicial, hoje_iso,
+                 pendencia, responsavel, autor, criado_em):
     ug = normalizar_ug(ug_raw)
     cur = conn.execute(
         """INSERT INTO usinas
            (ug, ug_raw, nome_ufv, concessionaria, dono_carteira, executivo,
-            data_assinatura_contrato, etapa_atual, data_entrada_etapa_atual, status)
-           VALUES (?,?,?,?,?,?,?,?,?, 'ativa')""",
+            geracao_media_mensal, data_assinatura_contrato, etapa_atual,
+            data_entrada_etapa_atual, status)
+           VALUES (?,?,?,?,?,?,?,?,?,?, 'ativa')""",
         (ug, ug_raw, nome_ufv, concessionaria, dono_carteira, executivo,
-         data_assinatura or None, etapa_inicial, hoje_iso),
+         geracao_media_mensal, data_assinatura or None, etapa_inicial, hoje_iso),
     )
     usina_id = cur.lastrowid
     conn.execute(

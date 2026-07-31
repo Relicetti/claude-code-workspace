@@ -20,6 +20,7 @@
     <h4>{{ usina.nome_ufv }}</h4>
     <p class="text-muted mb-1">UG: {{ usina.ug_raw }} · Concessionária: {{ usina.concessionaria }}</p>
     <p class="text-muted mb-1">Carteira: {{ usina.dono_carteira or '—' }} · Executivo: {{ usina.executivo or '—' }}</p>
+    <p class="text-muted mb-1">Geração média mensal: {{ '{:,.0f} kWh'.format(usina.geracao_media_mensal).replace(',', '.') if usina.geracao_media_mensal is not none else '—' }}</p>
     <p class="mb-1">Status: <strong>{{ usina.status }}</strong> · Etapa atual: <strong>{{ usina.etapa_atual }}</strong></p>
     <p class="mb-1">Dias na etapa atual: <strong>{{ usina.dias_na_etapa if usina.dias_na_etapa is not none else '—' }}</strong></p>
     <p class="mb-1">Dias desde a assinatura do contrato: <strong>{{ usina.dias_desde_assinatura if usina.dias_desde_assinatura is not none else '—' }}</strong></p>
