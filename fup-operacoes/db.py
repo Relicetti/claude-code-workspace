@@ -165,6 +165,13 @@ def contar_por_status(conn, status):
     return row["qtd"]
 
 
+def ug_existe(conn, ug_raw):
+    ug = normalizar_ug(ug_raw)
+    if not ug:
+        return False
+    return conn.execute("SELECT 1 FROM usinas WHERE ug = ? LIMIT 1", (ug,)).fetchone() is not None
+
+
 def data_entrada_etapa_final_por_usina(conn, etapa):
     """Data em que cada usina entrou numa etapa final (Operação/Rescindida)."""
     linhas = conn.execute(

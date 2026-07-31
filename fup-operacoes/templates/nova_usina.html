@@ -2,7 +2,10 @@
 {% block title %}Nova usina{% endblock %}
 {% block content %}
 
-<a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary mb-3">&larr; voltar</a>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary">&larr; voltar</a>
+  <a href="{{ url_for('importar_usinas') }}" class="btn btn-sm btn-outline-primary">Importar várias (planilha)</a>
+</div>
 
 <div class="card shadow-sm" style="max-width: 640px;">
   <div class="card-body">

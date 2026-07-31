@@ -1,11 +1,19 @@
+import io
 import os
 from datetime import date, datetime, time as dtime, timedelta
 
-from flask import Flask, flash, redirect, render_template, request, session, url_for
+from flask import (Flask, flash, redirect, render_template, request, send_file,
+                   session, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import db
 import email_utils
+
+# cabeçalhos do modelo de planilha de importação em massa (ordem = colunas)
+COLUNAS_PLANILHA = [
+    "UG", "Nome UFV", "Concessionária", "Carteira", "Executivo",
+    "Geração média mensal (kWh)", "Data de assinatura (dd/mm/aaaa)", "Etapa inicial",
+]
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "chave-de-desenvolvimento-troque-em-producao")
@@ -520,6 +528,141 @@ def nova_usina():
             datetime.now().isoformat(timespec="seconds"),
         )
     return redirect(url_for("ver_usina", usina_id=usina_id))
+
+
+@app.route("/usinas/modelo")
+def modelo_planilha():
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Usinas"
+    ws.append(COLUNAS_PLANILHA)
+    for cel in ws[1]:
+        cel.font = Font(bold=True, color="FFFFFF")
+        cel.fill = PatternFill("solid", fgColor="1A3A5C")
+    # linha de exemplo pra guiar o preenchimento
+    ws.append(["12345678", "UFV EXEMPLO", "ENEL RJ", "", "", "12500",
+               "15/01/2026", db.ETAPAS[0]])
+    larguras = [16, 28, 20, 16, 16, 24, 26, 24]
+    for i, w in enumerate(larguras, start=1):
+        ws.column_dimensions[chr(64 + i)].width = w
+
+    # aba com as etapas válidas, pra consulta
+    ws2 = wb.create_sheet("Etapas válidas")
+    ws2.append(["Use um destes valores na coluna 'Etapa inicial':"])
+    for e in db.ETAPAS:
+        ws2.append([e])
+    ws2.column_dimensions["A"].width = 40
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return send_file(
+        buffer, as_attachment=True, download_name="modelo_usinas.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
+def _valor_celula(v):
+    return "" if v is None else str(v).strip()
+
+
+def _data_celula(v):
+    """Converte a célula de data (date do Excel ou texto dd/mm/aaaa) em ISO."""
+    if v is None or str(v).strip() == "":
+        return None
+    if hasattr(v, "date"):  # datetime do openpyxl
+        return v.date().isoformat()
+    txt = str(v).strip()
+    for fmt in ("%d/%m/%Y", "%d/%m/%y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(txt, fmt).date().isoformat()
+        except ValueError:
+            continue
+    return None
+
+
+@app.route("/usinas/importar", methods=["GET", "POST"])
+def importar_usinas():
+    if request.method == "GET":
+        return render_template("importar_usinas.html", colunas=COLUNAS_PLANILHA)
+
+    arquivo = request.files.get("planilha")
+    if not arquivo or not arquivo.filename:
+        flash("Selecione uma planilha .xlsx.", "warning")
+        return redirect(url_for("importar_usinas"))
+
+    from openpyxl import load_workbook
+    try:
+        wb = load_workbook(arquivo, data_only=True)
+    except Exception as e:
+        flash(f"Não consegui ler a planilha: {e}", "danger")
+        return redirect(url_for("importar_usinas"))
+
+    ws = wb["Usinas"] if "Usinas" in wb.sheetnames else wb.active
+
+    # mapa de coluna por cabeçalho (aceita a planilha na ordem do modelo)
+    header = [(_valor_celula(c.value)) for c in ws[1]]
+    idx = {nome: header.index(nome) for nome in COLUNAS_PLANILHA if nome in header}
+    if "UG" not in idx or "Nome UFV" not in idx:
+        flash("A planilha precisa ter pelo menos as colunas 'UG' e 'Nome UFV' (use o modelo).", "danger")
+        return redirect(url_for("importar_usinas"))
+
+    def cel(row, nome):
+        return row[idx[nome]] if nome in idx and idx[nome] < len(row) else None
+
+    hoje_iso = date.today().isoformat()
+    criadas = ignoradas = erros = 0
+    with db.conectar() as conn:
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if row is None:
+                continue
+            ug = _valor_celula(cel(row, "UG"))
+            nome = _valor_celula(cel(row, "Nome UFV"))
+            if not ug and not nome:
+                continue  # linha vazia
+            if not ug or not nome:
+                erros += 1
+                continue
+            if db.ug_existe(conn, ug):
+                ignoradas += 1
+                continue
+            etapa = _valor_celula(cel(row, "Etapa inicial"))
+            if etapa not in db.ETAPAS:
+                etapa = db.ETAPAS[0]
+            db.criar_usina(
+                conn,
+                ug_raw=ug,
+                nome_ufv=nome,
+                concessionaria=_valor_celula(cel(row, "Concessionária")),
+                dono_carteira=_valor_celula(cel(row, "Carteira")),
+                executivo=_valor_celula(cel(row, "Executivo")),
+                geracao_media_mensal=_parse_numero(_valor_celula(cel(row, "Geração média mensal (kWh)"))),
+                data_assinatura=_data_celula(cel(row, "Data de assinatura (dd/mm/aaaa)")),
+                etapa_inicial=etapa,
+                hoje_iso=hoje_iso,
+                pendencia="",
+                responsavel="",
+                autor=session["usuario_nome"],
+                criado_em=datetime.now().isoformat(timespec="seconds"),
+            )
+            criadas += 1
+        if criadas:
+            db.registrar_atividade(
+                conn, session["usuario_nome"],
+                f"Importou {criadas} usina(s) via planilha", None,
+                datetime.now().isoformat(timespec="seconds"),
+            )
+
+    partes = [f"{criadas} usina(s) criada(s)"]
+    if ignoradas:
+        partes.append(f"{ignoradas} ignorada(s) (UG já existia)")
+    if erros:
+        partes.append(f"{erros} linha(s) com erro (faltando UG ou nome)")
+    flash("Importação concluída: " + " · ".join(partes) + ".", "success" if criadas else "warning")
+    return redirect(url_for("dashboard"))
 
 
 @app.route("/usina/<int:usina_id>/editar", methods=["GET", "POST"])
