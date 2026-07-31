@@ -50,16 +50,8 @@
         <input type="date" name="data_assinatura" class="form-control">
       </div>
       <div class="mb-3">
-        <label class="form-label">Etapa inicial</label>
-        <select name="etapa_inicial" class="form-select">
-          {% for e in etapas %}
-            <option value="{{ e }}">{{ e }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="mb-3">
         <label class="form-label">Pendência inicial</label>
-        <textarea name="pendencia" class="form-control" rows="2"></textarea>
+        <textarea name="pendencia" class="form-control" rows="2" placeholder="Se preencher, a usina entra em &quot;Assinado c/ Pendência&quot;. Se deixar em branco, entra direto em &quot;TT Usina&quot;."></textarea>
       </div>
       <div class="mb-3">
         <label class="form-label">Responsável por essa pendência</label>

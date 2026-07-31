@@ -359,6 +359,7 @@ def ver_etapa(idx):
         etapas_finais=db.ETAPAS_FINAIS,
         situacoes=db.SITUACOES,
         total_etapas=len(db.ETAPAS),
+        fluxo=db.FLUXO,
     )
 
 
@@ -445,6 +446,8 @@ def ver_usina(usina_id):
         etapas=db.ETAPAS,
         etapas_finais=db.ETAPAS_FINAIS,
         situacoes=db.SITUACOES,
+        fluxo=db.FLUXO,
+        fluxo_desde_operacao=db.FLUXO_DESDE_OPERACAO,
     )
 
 
@@ -482,20 +485,49 @@ def concluir_pendencia(pendencia_id):
 @app.route("/usina/<int:usina_id>/mudar-etapa", methods=["POST"])
 def mudar_etapa(usina_id):
     nova_etapa = request.form.get("nova_etapa", "").strip()
-    if nova_etapa not in db.ETAPAS and nova_etapa not in db.ETAPAS_FINAIS:
-        return "Etapa inválida", 400
     hoje_iso = date.today().isoformat()
     with db.conectar() as conn:
-        if db.tem_pendencia_aberta(conn, usina_id):
-            usina = db.buscar_usina(conn, usina_id)
-            nome = usina["nome_ufv"] if usina else ""
+        usina = db.buscar_usina(conn, usina_id)
+        if usina is None:
+            return "Usina não encontrada", 404
+
+        destinos_validos = db.FLUXO.get(usina["etapa_atual"], [])
+        if nova_etapa not in destinos_validos:
             flash(
-                f"Não dá pra mudar a etapa de {nome}: há pendência(s) em aberto. "
+                f"Não dá pra mudar {usina['nome_ufv']} de \"{usina['etapa_atual']}\" direto pra "
+                f"\"{nova_etapa}\". O fluxo permite ir só pra: {', '.join(destinos_validos) or 'nenhuma (etapa final)'}.",
+                "danger",
+            )
+            return redirect(url_for("ver_usina", usina_id=usina_id))
+
+        if db.tem_pendencia_aberta(conn, usina_id):
+            flash(
+                f"Não dá pra mudar a etapa de {usina['nome_ufv']}: há pendência(s) em aberto. "
                 f"Marque todas como concluídas primeiro.", "warning",
             )
             return redirect(url_for("ver_usina", usina_id=usina_id))
         db.mudar_etapa(conn, usina_id, nova_etapa, hoje_iso, session["usuario_nome"])
     return redirect(request.referrer or url_for("dashboard"))
+
+
+@app.route("/usina/<int:usina_id>/reabrir-pipeline", methods=["POST"])
+def reabrir_pipeline(usina_id):
+    nova_etapa = request.form.get("nova_etapa", "").strip()
+    if nova_etapa not in db.FLUXO_DESDE_OPERACAO:
+        return "Etapa inválida", 400
+    hoje_iso = date.today().isoformat()
+    with db.conectar() as conn:
+        usina = db.buscar_usina(conn, usina_id)
+        if usina is None:
+            return "Usina não encontrada", 404
+        if usina["status"] != "operacao":
+            return "Essa usina não está em operação.", 400
+        db.reabrir_para_pipeline(conn, usina_id, nova_etapa, hoje_iso, session["usuario_nome"])
+        db.registrar_atividade(
+            conn, session["usuario_nome"], f"Reabriu do Operando para \"{nova_etapa}\"",
+            usina["nome_ufv"], datetime.now().isoformat(timespec="seconds"),
+        )
+    return redirect(url_for("ver_usina", usina_id=usina_id))
 
 
 @app.route("/usina/<int:usina_id>/situacao", methods=["POST"])
@@ -523,6 +555,8 @@ def nova_usina():
 
     hoje_iso = date.today().isoformat()
     data_assinatura = request.form.get("data_assinatura", "").strip() or None
+    pendencia = request.form.get("pendencia", "").strip()
+    etapa_inicial = "Assinado c/ Pendência" if pendencia else "TT Usina"
     with db.conectar() as conn:
         usina_id = db.criar_usina(
             conn,
@@ -533,9 +567,9 @@ def nova_usina():
             executivo=request.form.get("executivo", "").strip(),
             geracao_media_mensal=_parse_numero(request.form.get("geracao_media_mensal")),
             data_assinatura=data_assinatura,
-            etapa_inicial=request.form.get("etapa_inicial", db.ETAPAS[0]),
+            etapa_inicial=etapa_inicial,
             hoje_iso=hoje_iso,
-            pendencia=request.form.get("pendencia", "").strip(),
+            pendencia=pendencia,
             responsavel=request.form.get("responsavel", "").strip(),
             autor=session["usuario_nome"],
             criado_em=datetime.now().isoformat(timespec="seconds"),
@@ -562,7 +596,7 @@ def modelo_planilha():
         cel.fill = PatternFill("solid", fgColor="1A3A5C")
     # linha de exemplo pra guiar o preenchimento
     ws.append(["12345678", "UFV EXEMPLO", "ENEL RJ", "", "", "12500",
-               "15/01/2026", db.ETAPAS[0]])
+               "15/01/2026", "TT Usina"])
     larguras = [16, 28, 20, 16, 16, 24, 26, 24]
     for i, w in enumerate(larguras, start=1):
         ws.column_dimensions[chr(64 + i)].width = w
@@ -649,7 +683,7 @@ def importar_usinas():
                 continue
             etapa = _valor_celula(cel(row, "Etapa inicial"))
             if etapa not in db.ETAPAS:
-                etapa = db.ETAPAS[0]
+                etapa = "TT Usina"
             db.criar_usina(
                 conn,
                 ug_raw=ug,

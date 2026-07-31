@@ -32,17 +32,19 @@
 {% if usina.status == 'ativa' %}
 <div class="card shadow-sm mb-4">
   <div class="card-body">
+    {% set destinos = fluxo.get(usina.etapa_atual, []) %}
+    {% if destinos %}
     <form action="{{ url_for('mudar_etapa', usina_id=usina.id) }}" method="post" class="d-flex gap-2 mb-3">
       <select name="nova_etapa" class="form-select">
-        {% for e in etapas %}
-          <option value="{{ e }}" {{ 'selected' if e == usina.etapa_atual else '' }}>{{ e }}</option>
-        {% endfor %}
-        {% for e in etapas_finais %}
+        {% for e in destinos %}
           <option value="{{ e }}">{{ e }}</option>
         {% endfor %}
       </select>
       <button type="submit" class="btn btn-primary text-nowrap">Atualizar etapa</button>
     </form>
+    {% else %}
+      <p class="text-muted mb-3">Etapa final — sem próxima etapa no fluxo.</p>
+    {% endif %}
     <form action="{{ url_for('mudar_situacao', usina_id=usina.id) }}" method="post" class="d-flex gap-2 mb-0">
       <select name="situacao" class="form-select" onchange="this.form.submit()">
         {% for s in situacoes %}
@@ -50,6 +52,19 @@
         {% endfor %}
       </select>
       <button type="submit" class="btn btn-outline-primary text-nowrap">Situação da etapa</button>
+    </form>
+  </div>
+</div>
+{% elif usina.status == 'operacao' %}
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <form action="{{ url_for('reabrir_pipeline', usina_id=usina.id) }}" method="post" class="d-flex gap-2 mb-0">
+      <select name="nova_etapa" class="form-select">
+        {% for e in fluxo_desde_operacao %}
+          <option value="{{ e }}">{{ e }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn btn-primary text-nowrap">Reabrir pro pipeline</button>
     </form>
   </div>
 </div>

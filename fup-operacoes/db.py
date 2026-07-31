@@ -124,6 +124,25 @@ ETAPAS = [
 
 ETAPAS_FINAIS = ["Operação", "Rescindida"]
 
+# fluxo obrigatório: de cada etapa, pra quais a usina pode ir a seguir.
+# 1 destino = obrigatório; vários = a pessoa escolhe entre eles no dropdown.
+FLUXO = {
+    "Assinado c/ Pendência": ["TT Usina"],
+    "TT Usina": ["Separando Clientes"],
+    "Separando Clientes": ["Sem Clientes", "TT Cliente", "Aguardando Rateio"],
+    "Sem Clientes": ["Aguardando Rateio"],
+    "TT Cliente": ["Aguardando Rateio"],
+    "Aguardando Rateio": ["Aguardando Aprovação Rateio"],
+    "Aguardando Aprovação Rateio": ["Operação", "Refazer Rateio"],
+    "Refazer Rateio": ["Operação"],
+    "Consumo de Saldo Acumulado": ["Operação"],
+    "Rescisão": ["Rescindida"],
+}
+
+# a partir de "Operando" (status='operacao', fora do pipeline), a usina pode
+# voltar pro pipeline por um desses 3 pontos
+FLUXO_DESDE_OPERACAO = ["Refazer Rateio", "Consumo de Saldo Acumulado", "Rescisão"]
+
 
 @contextmanager
 def conectar():
@@ -256,9 +275,10 @@ def mudar_etapa(conn, usina_id, nova_etapa, hoje_iso, autor):
             "INSERT INTO historico_etapas (usina_id, etapa, data_entrada, data_saida, autor) VALUES (?,?,?,NULL,?)",
             (usina_id, nova_etapa, hoje_iso, autor),
         )
-        # ao entrar numa etapa nova, a situação reinicia em "Pendente"
+        # ao entrar numa etapa nova, a situação reinicia (ninguém começou ainda)
         conn.execute(
-            "UPDATE usinas SET etapa_atual = ?, data_entrada_etapa_atual = ?, situacao_etapa = 'Pendente' WHERE id = ?",
+            "UPDATE usinas SET etapa_atual = ?, data_entrada_etapa_atual = ?, "
+            "situacao_etapa = '-', situacao_atualizada_em = NULL, situacao_atualizada_por = NULL WHERE id = ?",
             (nova_etapa, hoje_iso, usina_id),
         )
 
@@ -267,6 +287,21 @@ def mudar_situacao(conn, usina_id, situacao, usuario, quando):
     conn.execute(
         "UPDATE usinas SET situacao_etapa = ?, situacao_atualizada_em = ?, situacao_atualizada_por = ? WHERE id = ?",
         (situacao, quando, usuario, usina_id),
+    )
+
+
+def reabrir_para_pipeline(conn, usina_id, nova_etapa, hoje_iso, autor):
+    """Usina 'Operando' volta pro pipeline ativo (Refazer Rateio, Consumo de
+    Saldo Acumulado ou Em Rescisão)."""
+    conn.execute(
+        "INSERT INTO historico_etapas (usina_id, etapa, data_entrada, data_saida, autor) VALUES (?,?,?,NULL,?)",
+        (usina_id, nova_etapa, hoje_iso, autor),
+    )
+    conn.execute(
+        """UPDATE usinas SET status = 'ativa', etapa_atual = ?, data_entrada_etapa_atual = ?,
+           situacao_etapa = '-', situacao_atualizada_em = NULL, situacao_atualizada_por = NULL
+           WHERE id = ?""",
+        (nova_etapa, hoje_iso, usina_id),
     )
 
 
