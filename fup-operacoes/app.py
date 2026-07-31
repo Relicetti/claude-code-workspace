@@ -357,6 +357,7 @@ def ver_etapa(idx):
         media=medias.get(etapa),
         etapas=db.ETAPAS,
         etapas_finais=db.ETAPAS_FINAIS,
+        situacoes=db.SITUACOES,
         total_etapas=len(db.ETAPAS),
     )
 
@@ -443,6 +444,7 @@ def ver_usina(usina_id):
         usuarios=usuarios,
         etapas=db.ETAPAS,
         etapas_finais=db.ETAPAS_FINAIS,
+        situacoes=db.SITUACOES,
     )
 
 
@@ -494,6 +496,22 @@ def mudar_etapa(usina_id):
             return redirect(url_for("ver_usina", usina_id=usina_id))
         db.mudar_etapa(conn, usina_id, nova_etapa, hoje_iso, session["usuario_nome"])
     return redirect(request.referrer or url_for("dashboard"))
+
+
+@app.route("/usina/<int:usina_id>/situacao", methods=["POST"])
+def mudar_situacao(usina_id):
+    situacao = request.form.get("situacao", "").strip()
+    if situacao not in db.SITUACOES:
+        return "Situação inválida", 400
+    agora = datetime.now().isoformat(timespec="seconds")
+    with db.conectar() as conn:
+        db.mudar_situacao(conn, usina_id, situacao, session["usuario_nome"], agora)
+        usina = db.buscar_usina(conn, usina_id)
+        db.registrar_atividade(
+            conn, session["usuario_nome"], f"Situação da etapa → \"{situacao}\"",
+            usina["nome_ufv"] if usina else None, agora,
+        )
+    return redirect(request.referrer or url_for("ver_usina", usina_id=usina_id))
 
 
 @app.route("/usinas/nova", methods=["GET", "POST"])

@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS usinas (
     data_assinatura_contrato TEXT,
     etapa_atual TEXT NOT NULL,
     data_entrada_etapa_atual TEXT NOT NULL,
+    situacao_etapa TEXT NOT NULL DEFAULT 'Pendente',
     status TEXT NOT NULL DEFAULT 'ativa'
 );
 
@@ -94,7 +95,14 @@ COLUNAS_NOVAS = [
     ("pendencias", "concluida_em", "TEXT"),
     ("pendencias", "concluida_por", "TEXT"),
     ("usinas", "geracao_media_mensal", "REAL"),
+    ("usinas", "situacao_etapa", "TEXT NOT NULL DEFAULT '-'"),
+    ("usinas", "situacao_atualizada_em", "TEXT"),
+    ("usinas", "situacao_atualizada_por", "TEXT"),
 ]
+
+# situação da usina DENTRO da etapa atual (diferente do status de ciclo de vida).
+# "-" = acabou de chegar na etapa, ninguém começou ainda (padrão).
+SITUACOES = ["-", "Pendente", "Em Andamento", "Concluído"]
 
 CAMPOS_EDITAVEIS_USINA = [
     "ug_raw", "nome_ufv", "concessionaria", "dono_carteira", "executivo",
@@ -248,10 +256,18 @@ def mudar_etapa(conn, usina_id, nova_etapa, hoje_iso, autor):
             "INSERT INTO historico_etapas (usina_id, etapa, data_entrada, data_saida, autor) VALUES (?,?,?,NULL,?)",
             (usina_id, nova_etapa, hoje_iso, autor),
         )
+        # ao entrar numa etapa nova, a situação reinicia em "Pendente"
         conn.execute(
-            "UPDATE usinas SET etapa_atual = ?, data_entrada_etapa_atual = ? WHERE id = ?",
+            "UPDATE usinas SET etapa_atual = ?, data_entrada_etapa_atual = ?, situacao_etapa = 'Pendente' WHERE id = ?",
             (nova_etapa, hoje_iso, usina_id),
         )
+
+
+def mudar_situacao(conn, usina_id, situacao, usuario, quando):
+    conn.execute(
+        "UPDATE usinas SET situacao_etapa = ?, situacao_atualizada_em = ?, situacao_atualizada_por = ? WHERE id = ?",
+        (situacao, quando, usuario, usina_id),
+    )
 
 
 def pendencias_usina(conn, usina_id):

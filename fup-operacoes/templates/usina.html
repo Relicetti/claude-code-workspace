@@ -21,7 +21,9 @@
     <p class="text-muted mb-1">UG: {{ usina.ug_raw }} · Concessionária: {{ usina.concessionaria }}</p>
     <p class="text-muted mb-1">Carteira: {{ usina.dono_carteira or '—' }} · Executivo: {{ usina.executivo or '—' }}</p>
     <p class="text-muted mb-1">Geração média mensal: {{ '{:,.0f} kWh'.format(usina.geracao_media_mensal).replace(',', '.') if usina.geracao_media_mensal is not none else '—' }}</p>
-    <p class="mb-1">Status: <strong>{{ usina.status }}</strong> · Etapa atual: <strong>{{ usina.etapa_atual }}</strong></p>
+    <p class="mb-1">Status: <strong>{{ usina.status }}</strong> · Etapa atual: <strong>{{ usina.etapa_atual }}</strong>
+      · Situação: <span class="badge {{ {'-':'bg-light text-muted border','Pendente':'bg-secondary','Em Andamento':'bg-warning text-dark','Concluído':'bg-success'}.get(usina.situacao_etapa, 'bg-secondary') }}">{{ usina.situacao_etapa }}</span>
+      {% if usina.situacao_atualizada_em %}<span class="text-muted small">(por {{ usina.situacao_atualizada_por }} em {{ usina.situacao_atualizada_em.replace('T', ' ') }})</span>{% endif %}</p>
     <p class="mb-1">Dias na etapa atual: <strong>{{ usina.dias_na_etapa if usina.dias_na_etapa is not none else '—' }}</strong></p>
     <p class="mb-1">Dias desde a assinatura do contrato: <strong>{{ usina.dias_desde_assinatura if usina.dias_desde_assinatura is not none else '—' }}</strong></p>
   </div>
@@ -30,7 +32,7 @@
 {% if usina.status == 'ativa' %}
 <div class="card shadow-sm mb-4">
   <div class="card-body">
-    <form action="{{ url_for('mudar_etapa', usina_id=usina.id) }}" method="post" class="d-flex gap-2 mb-0">
+    <form action="{{ url_for('mudar_etapa', usina_id=usina.id) }}" method="post" class="d-flex gap-2 mb-3">
       <select name="nova_etapa" class="form-select">
         {% for e in etapas %}
           <option value="{{ e }}" {{ 'selected' if e == usina.etapa_atual else '' }}>{{ e }}</option>
@@ -40,6 +42,14 @@
         {% endfor %}
       </select>
       <button type="submit" class="btn btn-primary text-nowrap">Atualizar etapa</button>
+    </form>
+    <form action="{{ url_for('mudar_situacao', usina_id=usina.id) }}" method="post" class="d-flex gap-2 mb-0">
+      <select name="situacao" class="form-select" onchange="this.form.submit()">
+        {% for s in situacoes %}
+          <option value="{{ s }}" {{ 'selected' if s == usina.situacao_etapa else '' }}>{{ s }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn btn-outline-primary text-nowrap">Situação da etapa</button>
     </form>
   </div>
 </div>

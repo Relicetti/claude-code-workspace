@@ -29,6 +29,7 @@
           <th>Usina</th>
           <th>Concessionária</th>
           <th>Carteira</th>
+          <th data-nosort>Situação</th>
           <th>Dias na etapa</th>
           <th>Dias desde assinatura</th>
           <th>ETA operação (est.)</th>
@@ -42,6 +43,15 @@
           <td><a href="{{ url_for('ver_usina', usina_id=u.id) }}">{{ u.nome_ufv }}</a></td>
           <td>{{ u.concessionaria }}</td>
           <td>{{ u.dono_carteira }}</td>
+          <td style="min-width: 140px;">
+            <form action="{{ url_for('mudar_situacao', usina_id=u.id) }}" method="post">
+              <select name="situacao" class="form-select form-select-sm" onchange="this.form.submit()">
+                {% for s in situacoes %}
+                  <option value="{{ s }}" {{ 'selected' if s == u.situacao_etapa else '' }}>{{ s }}</option>
+                {% endfor %}
+              </select>
+            </form>
+          </td>
           <td>
             {{ u.dias_na_etapa if u.dias_na_etapa is not none else '—' }}
             {% if u.atrasada %}<span class="badge bg-danger badge-eta">acima da média</span>{% endif %}
@@ -73,7 +83,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="8" class="text-center text-muted py-4">Nenhuma usina nesta etapa.</td></tr>
+        <tr><td colspan="9" class="text-center text-muted py-4">Nenhuma usina nesta etapa.</td></tr>
         {% endfor %}
       </tbody>
     </table>
