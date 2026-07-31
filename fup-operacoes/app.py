@@ -321,7 +321,7 @@ def ver_operacao():
         u["data_operacao"] = datas_operacao.get(u["id"])
         u["dias_em_operacao"] = _dias_desde(u["data_operacao"], hoje)
 
-    return render_template("operacao.html", usinas=usinas)
+    return render_template("operacao.html", usinas=usinas, fluxo_desde_operacao=db.FLUXO_DESDE_OPERACAO)
 
 
 @app.route("/rescindidas")
