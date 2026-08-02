@@ -139,6 +139,13 @@ FLUXO = {
     "Rescisão": ["Rescindida"],
 }
 
+# de qualquer etapa do pipeline (menos a própria "Rescisão"), a usina também
+# pode ir direto pra "Rescisão" -- um contrato pode ser rescindido a qualquer
+# momento, não só quando está em operação.
+for _etapa in list(FLUXO.keys()):
+    if _etapa != "Rescisão" and "Rescisão" not in FLUXO[_etapa]:
+        FLUXO[_etapa].append("Rescisão")
+
 # a partir de "Operando" (status='operacao', fora do pipeline), a usina pode
 # voltar pro pipeline por um desses 3 pontos
 FLUXO_DESDE_OPERACAO = ["Refazer Rateio", "Consumo de Saldo Acumulado", "Rescisão"]
