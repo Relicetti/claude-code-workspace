@@ -369,7 +369,10 @@ def comparativo():
         semanas = db.semanas_com_snapshot(conn)
         semana_escolhida = request.args.get("semana") or (semanas[0] if semanas else None)
         snapshot = db.snapshot_da_semana(conn, semana_escolhida) if semana_escolhida else {}
+        contadores_antes = db.contadores_da_semana(conn, semana_escolhida) if semana_escolhida else {}
         usinas_atuais, _ = _usinas_ativas_com_metricas(conn)
+        qtd_operacao_agora = db.contar_por_status(conn, "operacao")
+        qtd_rescindida_agora = db.contar_por_status(conn, "rescindida")
 
     atuais_por_id = {u["id"]: u for u in usinas_atuais}
 
@@ -409,6 +412,10 @@ def comparativo():
         etapas=db.ETAPAS,
         contagem_antes=contagem_antes,
         contagem_agora=contagem_agora,
+        qtd_operacao_antes=contadores_antes.get("operacao"),
+        qtd_operacao_agora=qtd_operacao_agora,
+        qtd_rescindida_antes=contadores_antes.get("rescindida"),
+        qtd_rescindida_agora=qtd_rescindida_agora,
         avancaram=avancaram,
         novas=novas,
         foram_operacao=foram_operacao,

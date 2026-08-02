@@ -56,9 +56,44 @@
           </td>
         </tr>
         {% endfor %}
+        <tr class="table-group-divider fw-semibold">
+          <td>Em Operação</td>
+          <td>{{ qtd_operacao_antes if qtd_operacao_antes is not none else '—' }}</td>
+          <td>{{ qtd_operacao_agora }}</td>
+          <td>
+            {% if qtd_operacao_antes is not none %}
+              {% set delta = qtd_operacao_agora - qtd_operacao_antes %}
+              <span class="{{ 'text-success' if delta > 0 else ('text-danger' if delta < 0 else 'text-muted') }}">
+                {{ '%+d' % delta }}
+              </span>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        <tr class="fw-semibold">
+          <td>Rescindidas</td>
+          <td>{{ qtd_rescindida_antes if qtd_rescindida_antes is not none else '—' }}</td>
+          <td>{{ qtd_rescindida_agora }}</td>
+          <td>
+            {% if qtd_rescindida_antes is not none %}
+              {% set delta = qtd_rescindida_agora - qtd_rescindida_antes %}
+              <span class="{{ 'text-success' if delta > 0 else ('text-danger' if delta < 0 else 'text-muted') }}">
+                {{ '%+d' % delta }}
+              </span>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+        </tr>
       </tbody>
     </table>
   </div>
+  {% if qtd_operacao_antes is none %}
+    <div class="card-footer bg-white text-muted small">
+      O retrato de {{ semana_escolhida }} é anterior a essa métrica, por isso não dá pra comparar Em Operação/Rescindidas com ele. A partir do próximo retrato semanal isso já aparece certinho.
+    </div>
+  {% endif %}
 </div>
 
 <div class="row">

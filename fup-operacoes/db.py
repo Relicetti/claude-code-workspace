@@ -80,6 +80,15 @@ CREATE TABLE IF NOT EXISTS atividades (
     criado_em TEXT NOT NULL
 );
 
+-- total de usinas por status (operacao/rescindida) no momento de cada
+-- retrato semanal, pra comparar mês a mês além do pipeline ativo.
+CREATE TABLE IF NOT EXISTS contadores_semana (
+    semana TEXT NOT NULL,
+    status TEXT NOT NULL,
+    quantidade INTEGER NOT NULL,
+    PRIMARY KEY (semana, status)
+);
+
 CREATE INDEX IF NOT EXISTS idx_historico_usina ON historico_etapas(usina_id);
 CREATE INDEX IF NOT EXISTS idx_pendencias_usina ON pendencias(usina_id);
 CREATE INDEX IF NOT EXISTS idx_snapshots_semana ON snapshots(semana);
@@ -444,12 +453,27 @@ def tirar_snapshot(conn, semana_iso, criado_em):
                VALUES (?,?,?,?,?,?,?)""",
             (semana_iso, u["id"], u["nome_ufv"], u["etapa_atual"], u["status"], dias_na_etapa, criado_em),
         )
+
+    for status in ("operacao", "rescindida"):
+        conn.execute(
+            "INSERT OR REPLACE INTO contadores_semana (semana, status, quantidade) VALUES (?,?,?)",
+            (semana_iso, status, contar_por_status(conn, status)),
+        )
     return True
 
 
 def semanas_com_snapshot(conn):
     linhas = conn.execute("SELECT DISTINCT semana FROM snapshots ORDER BY semana DESC").fetchall()
     return [r["semana"] for r in linhas]
+
+
+def contadores_da_semana(conn, semana_iso):
+    """Total de usinas em operação/rescindida no momento do retrato dessa
+    semana. Retorna {} se o retrato é de antes dessa métrica existir."""
+    linhas = conn.execute(
+        "SELECT status, quantidade FROM contadores_semana WHERE semana = ?", (semana_iso,)
+    ).fetchall()
+    return {r["status"]: r["quantidade"] for r in linhas}
 
 
 def snapshot_da_semana(conn, semana_iso):
