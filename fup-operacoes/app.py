@@ -378,15 +378,26 @@ def comparativo():
         contagem_antes[etapa] = sum(1 for s in snapshot.values() if s["etapa"] == etapa)
         contagem_agora[etapa] = sum(1 for u in usinas_atuais if u["etapa_atual"] == etapa)
 
-    avancaram, novas, saidas = [], [], []
-    for usina_id, s in snapshot.items():
-        atual = atuais_por_id.get(usina_id)
-        if atual is None:
-            saidas.append({"nome_ufv": s["nome_ufv"], "etapa_antes": s["etapa"]})
-        elif atual["etapa_atual"] != s["etapa"]:
-            avancaram.append({
-                "usina": atual, "etapa_antes": s["etapa"], "etapa_agora": atual["etapa_atual"],
-            })
+    avancaram, novas, foram_operacao, foram_rescisao, saidas_outras = [], [], [], [], []
+    with db.conectar() as conn:
+        for usina_id, s in snapshot.items():
+            atual = atuais_por_id.get(usina_id)
+            if atual is not None:
+                if atual["etapa_atual"] != s["etapa"]:
+                    avancaram.append({
+                        "usina": atual, "etapa_antes": s["etapa"], "etapa_agora": atual["etapa_atual"],
+                    })
+                continue
+
+            usina_agora = db.buscar_usina(conn, usina_id)
+            if usina_agora is None:
+                saidas_outras.append({"nome_ufv": s["nome_ufv"], "etapa_antes": s["etapa"], "motivo": "excluída"})
+            elif usina_agora["status"] == "operacao":
+                foram_operacao.append({"nome_ufv": s["nome_ufv"], "etapa_antes": s["etapa"], "usina_id": usina_id})
+            elif usina_agora["status"] == "rescindida":
+                foram_rescisao.append({"nome_ufv": s["nome_ufv"], "etapa_antes": s["etapa"], "usina_id": usina_id})
+            else:
+                saidas_outras.append({"nome_ufv": s["nome_ufv"], "etapa_antes": s["etapa"], "motivo": None})
     for u in usinas_atuais:
         if u["id"] not in snapshot:
             novas.append(u)
@@ -400,7 +411,9 @@ def comparativo():
         contagem_agora=contagem_agora,
         avancaram=avancaram,
         novas=novas,
-        saidas=saidas,
+        foram_operacao=foram_operacao,
+        foram_rescisao=foram_rescisao,
+        saidas_outras=saidas_outras,
         total_antes=len(snapshot),
         total_agora=len(usinas_atuais),
     )

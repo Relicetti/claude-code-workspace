@@ -79,10 +79,13 @@
   </div>
   <div class="col-md-4 mb-4">
     <div class="card shadow-sm h-100">
-      <div class="card-header bg-white">Saíram do pipeline ({{ saidas|length }})</div>
+      <div class="card-header bg-white">Foram para Operação ({{ foram_operacao|length }})</div>
       <ul class="list-group list-group-flush">
-        {% for s in saidas %}
-          <li class="list-group-item small">{{ s.nome_ufv }}<br><span class="text-muted">estava em {{ s.etapa_antes }}</span></li>
+        {% for s in foram_operacao %}
+          <li class="list-group-item small">
+            <a href="{{ url_for('ver_usina', usina_id=s.usina_id) }}">{{ s.nome_ufv }}</a><br>
+            <span class="text-muted">estava em {{ s.etapa_antes }}</span>
+          </li>
         {% else %}
           <li class="list-group-item small text-muted">Nenhuma.</li>
         {% endfor %}
@@ -97,6 +100,36 @@
           <li class="list-group-item small">
             <a href="{{ url_for('ver_usina', usina_id=u.id) }}">{{ u.nome_ufv }}</a><br>
             <span class="text-muted">{{ u.etapa_atual }}</span>
+          </li>
+        {% else %}
+          <li class="list-group-item small text-muted">Nenhuma.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+  <div class="col-md-4 mb-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-white">Foram para Rescisão ({{ foram_rescisao|length }})</div>
+      <ul class="list-group list-group-flush">
+        {% for s in foram_rescisao %}
+          <li class="list-group-item small">
+            <a href="{{ url_for('ver_usina', usina_id=s.usina_id) }}">{{ s.nome_ufv }}</a><br>
+            <span class="text-muted">estava em {{ s.etapa_antes }}</span>
+          </li>
+        {% else %}
+          <li class="list-group-item small text-muted">Nenhuma.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+  <div class="col-md-4 mb-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-white">Outras saídas ({{ saidas_outras|length }})</div>
+      <ul class="list-group list-group-flush">
+        {% for s in saidas_outras %}
+          <li class="list-group-item small">
+            {{ s.nome_ufv }}<br>
+            <span class="text-muted">estava em {{ s.etapa_antes }}{% if s.motivo %} · {{ s.motivo }}{% endif %}</span>
           </li>
         {% else %}
           <li class="list-group-item small text-muted">Nenhuma.</li>
