@@ -44,12 +44,14 @@
           <td>{{ u.concessionaria }}</td>
           <td>{{ u.dono_carteira }}</td>
           <td style="min-width: 140px;">
-            <form action="{{ url_for('mudar_situacao', usina_id=u.id) }}" method="post">
-              <select name="situacao" class="form-select form-select-sm" onchange="this.form.submit()">
+            <form action="{{ url_for('mudar_situacao', usina_id=u.id) }}" method="post" class="form-situacao d-flex flex-column gap-1">
+              <select name="situacao" class="form-select form-select-sm select-situacao">
                 {% for s in situacoes %}
                   <option value="{{ s }}" {{ 'selected' if s == u.situacao_etapa else '' }}>{{ s }}</option>
                 {% endfor %}
               </select>
+              <input type="date" name="data_extra" class="form-control form-control-sm input-data-extra" style="display:none;">
+              <button type="submit" class="btn btn-sm btn-outline-primary btn-data-extra" style="display:none;">OK</button>
             </form>
           </td>
           <td>
@@ -91,5 +93,36 @@
     </table>
   </div>
 </div>
+
+<script>
+(function () {
+  var pedeData = {{ 'true' if etapa_pede_data else 'false' }};
+  document.querySelectorAll('.form-situacao').forEach(function (form) {
+    var select = form.querySelector('.select-situacao');
+    var dataInput = form.querySelector('.input-data-extra');
+    var botao = form.querySelector('.btn-data-extra');
+
+    function atualizar() {
+      if (pedeData && (select.value === 'Em Andamento' || select.value === 'Concluído')) {
+        dataInput.style.display = '';
+        dataInput.required = true;
+        dataInput.title = select.value === 'Em Andamento' ? 'Data do protocolo' : 'Data da aprovação';
+        botao.style.display = '';
+      } else {
+        dataInput.style.display = 'none';
+        dataInput.required = false;
+        dataInput.value = '';
+        botao.style.display = 'none';
+      }
+    }
+
+    select.addEventListener('change', function () {
+      atualizar();
+      if (dataInput.style.display === 'none') form.submit();
+    });
+    atualizar();
+  });
+})();
+</script>
 
 {% endblock %}

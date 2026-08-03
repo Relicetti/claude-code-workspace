@@ -24,6 +24,13 @@
     <p class="mb-1">Status: <strong>{{ usina.status }}</strong> · Etapa atual: <strong>{{ usina.etapa_atual }}</strong>
       · Situação: <span class="badge {{ {'-':'bg-light text-muted border','Pendente':'bg-secondary','Em Andamento':'bg-warning text-dark','Concluído':'bg-success'}.get(usina.situacao_etapa, 'bg-secondary') }}">{{ usina.situacao_etapa }}</span>
       {% if usina.situacao_atualizada_em %}<span class="text-muted small">(por {{ usina.situacao_atualizada_por }} em {{ usina.situacao_atualizada_em.replace('T', ' ') }})</span>{% endif %}</p>
+    {% if usina.data_protocolo or usina.data_aprovacao %}
+      <p class="text-muted mb-1 small">
+        {% if usina.data_protocolo %}Data do protocolo: <strong>{{ usina.data_protocolo }}</strong>{% endif %}
+        {% if usina.data_protocolo and usina.data_aprovacao %} · {% endif %}
+        {% if usina.data_aprovacao %}Data da aprovação: <strong>{{ usina.data_aprovacao }}</strong>{% endif %}
+      </p>
+    {% endif %}
     <p class="mb-1">Dias na etapa atual: <strong>{{ usina.dias_na_etapa if usina.dias_na_etapa is not none else '—' }}</strong></p>
     <p class="mb-1">Dias desde a assinatura do contrato: <strong>{{ usina.dias_desde_assinatura if usina.dias_desde_assinatura is not none else '—' }}</strong></p>
   </div>
@@ -45,16 +52,45 @@
     {% else %}
       <p class="text-muted mb-3">Etapa final — sem próxima etapa no fluxo.</p>
     {% endif %}
-    <form action="{{ url_for('mudar_situacao', usina_id=usina.id) }}" method="post" class="d-flex gap-2 mb-0">
-      <select name="situacao" class="form-select" onchange="this.form.submit()">
+    <form action="{{ url_for('mudar_situacao', usina_id=usina.id) }}" method="post" class="d-flex gap-2 mb-0"
+          id="form-situacao" data-pede-data="{{ 'true' if etapa_pede_data else 'false' }}">
+      <select name="situacao" id="select-situacao" class="form-select">
         {% for s in situacoes %}
           <option value="{{ s }}" {{ 'selected' if s == usina.situacao_etapa else '' }}>{{ s }}</option>
         {% endfor %}
       </select>
+      <input type="date" name="data_extra" id="input-data-extra" class="form-control" style="display:none; max-width: 180px;">
       <button type="submit" class="btn btn-outline-primary text-nowrap">Situação da etapa</button>
     </form>
   </div>
 </div>
+<script>
+(function () {
+  var form = document.getElementById('form-situacao');
+  if (!form) return;
+  var select = document.getElementById('select-situacao');
+  var dataInput = document.getElementById('input-data-extra');
+  var pedeData = form.dataset.pedeData === 'true';
+
+  function atualizar() {
+    if (pedeData && (select.value === 'Em Andamento' || select.value === 'Concluído')) {
+      dataInput.style.display = '';
+      dataInput.required = true;
+      dataInput.title = select.value === 'Em Andamento' ? 'Data do protocolo' : 'Data da aprovação';
+    } else {
+      dataInput.style.display = 'none';
+      dataInput.required = false;
+      dataInput.value = '';
+    }
+  }
+
+  select.addEventListener('change', function () {
+    atualizar();
+    if (dataInput.style.display === 'none') form.submit();
+  });
+  atualizar();
+})();
+</script>
 {% elif usina.status == 'operacao' %}
 <div class="card shadow-sm mb-4">
   <div class="card-body">

@@ -394,6 +394,7 @@ def ver_etapa(idx):
         situacoes=db.SITUACOES,
         total_etapas=len(db.ETAPAS),
         fluxo=db.FLUXO,
+        etapa_pede_data=etapa in db.ETAPAS_COM_DATA_SITUACAO,
     )
 
 
@@ -502,6 +503,7 @@ def ver_usina(usina_id):
         situacoes=db.SITUACOES,
         fluxo=db.FLUXO,
         fluxo_desde_operacao=db.FLUXO_DESDE_OPERACAO,
+        etapa_pede_data=usina["etapa_atual"] in db.ETAPAS_COM_DATA_SITUACAO,
     )
 
 
@@ -589,13 +591,36 @@ def mudar_situacao(usina_id):
     situacao = request.form.get("situacao", "").strip()
     if situacao not in db.SITUACOES:
         return "Situação inválida", 400
+    data_extra = request.form.get("data_extra", "").strip() or None
     agora = datetime.now().isoformat(timespec="seconds")
     with db.conectar() as conn:
-        db.mudar_situacao(conn, usina_id, situacao, session["usuario_nome"], agora)
         usina = db.buscar_usina(conn, usina_id)
+        if usina is None:
+            return "Usina não encontrada", 404
+
+        data_protocolo = data_aprovacao = None
+        detalhe_data = ""
+        if usina["etapa_atual"] in db.ETAPAS_COM_DATA_SITUACAO:
+            if situacao == "Em Andamento":
+                if not data_extra:
+                    flash("Informe a data do protocolo pra marcar como \"Em Andamento\".", "warning")
+                    return redirect(request.referrer or url_for("ver_usina", usina_id=usina_id))
+                data_protocolo = data_extra
+                detalhe_data = f" (protocolo: {data_protocolo})"
+            elif situacao == "Concluído":
+                if not data_extra:
+                    flash("Informe a data da aprovação pra marcar como \"Concluído\".", "warning")
+                    return redirect(request.referrer or url_for("ver_usina", usina_id=usina_id))
+                data_aprovacao = data_extra
+                detalhe_data = f" (aprovação: {data_aprovacao})"
+
+        db.mudar_situacao(
+            conn, usina_id, situacao, session["usuario_nome"], agora,
+            data_protocolo=data_protocolo, data_aprovacao=data_aprovacao,
+        )
         db.registrar_atividade(
-            conn, session["usuario_nome"], f"Situação da etapa → \"{situacao}\"",
-            usina["nome_ufv"] if usina else None, agora,
+            conn, session["usuario_nome"], f"Situação da etapa → \"{situacao}\"{detalhe_data}",
+            usina["nome_ufv"], agora,
         )
     return redirect(request.referrer or url_for("ver_usina", usina_id=usina_id))
 

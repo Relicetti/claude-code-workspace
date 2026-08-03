@@ -133,7 +133,13 @@ COLUNAS_NOVAS = [
     ("usinas", "tipo_conexao", "TEXT"),
     ("usinas", "potencia_ca", "TEXT"),
     ("usinas", "potencia_cc", "TEXT"),
+    ("usinas", "data_protocolo", "TEXT"),
+    ("usinas", "data_aprovacao", "TEXT"),
 ]
+
+# nessas etapas, mudar a situação da etapa pra "Em Andamento" exige a data do
+# protocolo, e pra "Concluído" exige a data da aprovação.
+ETAPAS_COM_DATA_SITUACAO = ["TT Usina", "Aguardando Aprovação Rateio"]
 
 # situação da usina DENTRO da etapa atual (diferente do status de ciclo de vida).
 # "-" = acabou de chegar na etapa, ninguém começou ainda (padrão).
@@ -327,11 +333,17 @@ def mudar_etapa(conn, usina_id, nova_etapa, hoje_iso, autor):
         )
 
 
-def mudar_situacao(conn, usina_id, situacao, usuario, quando):
-    conn.execute(
-        "UPDATE usinas SET situacao_etapa = ?, situacao_atualizada_em = ?, situacao_atualizada_por = ? WHERE id = ?",
-        (situacao, quando, usuario, usina_id),
-    )
+def mudar_situacao(conn, usina_id, situacao, usuario, quando, data_protocolo=None, data_aprovacao=None):
+    sets = ["situacao_etapa = ?", "situacao_atualizada_em = ?", "situacao_atualizada_por = ?"]
+    valores = [situacao, quando, usuario]
+    if data_protocolo:
+        sets.append("data_protocolo = ?")
+        valores.append(data_protocolo)
+    if data_aprovacao:
+        sets.append("data_aprovacao = ?")
+        valores.append(data_aprovacao)
+    valores.append(usina_id)
+    conn.execute(f"UPDATE usinas SET {', '.join(sets)} WHERE id = ?", valores)
 
 
 def reabrir_para_pipeline(conn, usina_id, nova_etapa, hoje_iso, autor):
