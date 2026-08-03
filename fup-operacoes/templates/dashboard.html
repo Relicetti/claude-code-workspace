@@ -8,16 +8,28 @@
     <div class="text-muted small">{{ total_ativas }} no pipeline · {{ qtd_operacao }} em operação{% if qtd_rescindidas %} · {{ qtd_rescindidas }} rescindidas{% endif %}</div>
   </div>
   <form method="get" class="d-flex gap-2">
-    <input type="text" name="pessoa" class="form-control form-control-sm" placeholder="Buscar por pessoa (carteira, executivo, responsável) ou nome da usina" value="{{ pessoa }}" style="min-width: 320px;">
+    <input type="text" name="pessoa" class="form-control form-control-sm" placeholder="Buscar por pessoa (carteira, executivo, responsável) ou nome da usina" value="{{ pessoa }}" style="min-width: 280px;">
+    <select name="etapa_filtro" class="form-select form-select-sm" style="max-width: 220px;">
+      <option value="">Todas as etapas</option>
+      {% for e in etapas_filtro %}
+        <option value="{{ e }}" {{ 'selected' if e == etapa_filtro else '' }}>{{ e }}</option>
+      {% endfor %}
+    </select>
     <button type="submit" class="btn btn-sm btn-primary text-nowrap">Buscar</button>
-    {% if pessoa %}<a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary text-nowrap">Limpar</a>{% endif %}
+    {% if pessoa or etapa_filtro %}<a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary text-nowrap">Limpar</a>{% endif %}
   </form>
 </div>
 
-{% if pessoa %}
+{% if pessoa or etapa_filtro %}
 
   <div class="card shadow-sm mb-4">
-    <div class="card-header bg-white">Usinas na carteira/executivo de "{{ pessoa }}" ({{ usinas_pessoa|length }})</div>
+    <div class="card-header bg-white">
+      Usinas
+      {% if pessoa %}na carteira/executivo/nome de "{{ pessoa }}"{% endif %}
+      {% if pessoa and etapa_filtro %} e {% endif %}
+      {% if etapa_filtro %}na etapa "{{ etapa_filtro }}"{% endif %}
+      ({{ usinas_pessoa|length }})
+    </div>
     <div class="table-responsive">
       <table class="table table-sm table-hover mb-0 align-middle table-sortable">
         <thead>
@@ -40,6 +52,7 @@
     </div>
   </div>
 
+  {% if pessoa %}
   <div class="card shadow-sm mb-4">
     <div class="card-header bg-white">Pendências de "{{ pessoa }}" ({{ pendencias_pessoa|length }})</div>
     <div class="table-responsive">
@@ -62,6 +75,7 @@
       </table>
     </div>
   </div>
+  {% endif %}
 
 {% else %}
 

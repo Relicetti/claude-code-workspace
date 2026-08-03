@@ -270,6 +270,7 @@ def importar_banco():
 @app.route("/")
 def dashboard():
     pessoa = request.args.get("pessoa", "").strip()
+    etapa_filtro = request.args.get("etapa_filtro", "").strip()
 
     with db.conectar() as conn:
         usinas, medias = _usinas_ativas_com_metricas(conn)
@@ -277,12 +278,13 @@ def dashboard():
         qtd_rescindidas = db.contar_por_status(conn, "rescindida")
 
         usinas_pessoa = pendencias_pessoa = None
-        if pessoa:
-            usinas_pessoa = [dict(u) for u in db.buscar_usinas_ativas_por_pessoa(conn, pessoa)]
+        if pessoa or etapa_filtro:
+            usinas_pessoa = [dict(u) for u in db.buscar_usinas_ativas_por_pessoa(conn, pessoa, etapa_filtro)]
             hoje = date.today()
             for u in usinas_pessoa:
                 u["dias_na_etapa"] = _dias_desde(u["data_entrada_etapa_atual"], hoje)
-            pendencias_pessoa = [dict(p) for p in db.buscar_pendencias_por_pessoa(conn, pessoa)]
+            if pessoa:
+                pendencias_pessoa = [dict(p) for p in db.buscar_pendencias_por_pessoa(conn, pessoa)]
 
     def card_etapa(etapa, titulo=None, cor=None):
         idx = db.ETAPAS.index(etapa)
@@ -339,8 +341,10 @@ def dashboard():
         qtd_rescindidas=qtd_rescindidas,
         total_geral=len(usinas) + qtd_operacao,
         pessoa=pessoa,
+        etapa_filtro=etapa_filtro,
         usinas_pessoa=usinas_pessoa,
         pendencias_pessoa=pendencias_pessoa,
+        etapas_filtro=db.ETAPAS,
     )
 
 

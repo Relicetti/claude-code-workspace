@@ -263,16 +263,21 @@ def buscar_usina(conn, usina_id):
     return conn.execute("SELECT * FROM usinas WHERE id = ?", (usina_id,)).fetchone()
 
 
-def buscar_usinas_ativas_por_pessoa(conn, termo):
+def buscar_usinas_ativas_por_pessoa(conn, termo=None, etapa=None):
     """Usinas ativas onde a pessoa é a carteira ou o executivo, ou onde o
-    termo bate com o nome da usina (busca parcial)."""
-    coringa = f"%{termo}%"
-    return conn.execute(
-        """SELECT * FROM usinas WHERE status = 'ativa'
-           AND (dono_carteira LIKE ? OR executivo LIKE ? OR nome_ufv LIKE ?)
-           ORDER BY nome_ufv""",
-        (coringa, coringa, coringa),
-    ).fetchall()
+    termo bate com o nome da usina (busca parcial); opcionalmente também
+    filtra por etapa atual."""
+    condicoes = ["status = 'ativa'"]
+    params = []
+    if termo:
+        coringa = f"%{termo}%"
+        condicoes.append("(dono_carteira LIKE ? OR executivo LIKE ? OR nome_ufv LIKE ?)")
+        params += [coringa, coringa, coringa]
+    if etapa:
+        condicoes.append("etapa_atual = ?")
+        params.append(etapa)
+    sql = f"SELECT * FROM usinas WHERE {' AND '.join(condicoes)} ORDER BY nome_ufv"
+    return conn.execute(sql, params).fetchall()
 
 
 def buscar_pendencias_por_pessoa(conn, termo):
