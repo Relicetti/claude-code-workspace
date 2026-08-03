@@ -34,7 +34,6 @@
           <th>Dias desde assinatura</th>
           <th>ETA operação (est.)</th>
           <th>Pendência</th>
-          <th data-nosort>Mudar etapa</th>
         </tr>
       </thead>
       <tbody>
@@ -43,16 +42,8 @@
           <td><a href="{{ url_for('ver_usina', usina_id=u.id) }}">{{ u.nome_ufv }}</a></td>
           <td>{{ u.concessionaria }}</td>
           <td>{{ u.dono_carteira }}</td>
-          <td style="min-width: 140px;">
-            <form action="{{ url_for('mudar_situacao', usina_id=u.id) }}" method="post" class="form-situacao d-flex flex-column gap-1">
-              <select name="situacao" class="form-select form-select-sm select-situacao">
-                {% for s in situacoes %}
-                  <option value="{{ s }}" {{ 'selected' if s == u.situacao_etapa else '' }}>{{ s }}</option>
-                {% endfor %}
-              </select>
-              <input type="date" name="data_extra" class="form-control form-control-sm input-data-extra" style="display:none;">
-              <button type="submit" class="btn btn-sm btn-outline-primary btn-data-extra" style="display:none;">OK</button>
-            </form>
+          <td>
+            <span class="badge {{ {'-':'bg-light text-muted border','Pendente':'bg-secondary','Em Andamento':'bg-warning text-dark','Concluído':'bg-success'}.get(u.situacao_etapa, 'bg-secondary') }}">{{ u.situacao_etapa }}</span>
           </td>
           <td>
             {{ u.dias_na_etapa if u.dias_na_etapa is not none else '—' }}
@@ -70,59 +61,13 @@
               </div>
             {% endif %}
           </td>
-          <td style="min-width: 220px;">
-            {% set destinos = fluxo.get(u.etapa_atual, []) %}
-            {% if destinos %}
-            <form action="{{ url_for('mudar_etapa', usina_id=u.id) }}" method="post" class="d-flex gap-1">
-              <select name="nova_etapa" class="form-select form-select-sm">
-                {% for e in destinos %}
-                  <option value="{{ e }}">{{ e }}</option>
-                {% endfor %}
-              </select>
-              <button type="submit" class="btn btn-sm btn-outline-primary">OK</button>
-            </form>
-            {% else %}
-              <span class="text-muted small">etapa final</span>
-            {% endif %}
-          </td>
         </tr>
         {% else %}
-        <tr><td colspan="9" class="text-center text-muted py-4">Nenhuma usina nesta etapa.</td></tr>
+        <tr><td colspan="8" class="text-center text-muted py-4">Nenhuma usina nesta etapa.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
-
-<script>
-(function () {
-  var pedeData = {{ 'true' if etapa_pede_data else 'false' }};
-  document.querySelectorAll('.form-situacao').forEach(function (form) {
-    var select = form.querySelector('.select-situacao');
-    var dataInput = form.querySelector('.input-data-extra');
-    var botao = form.querySelector('.btn-data-extra');
-
-    function atualizar() {
-      if (pedeData && (select.value === 'Em Andamento' || select.value === 'Concluído')) {
-        dataInput.style.display = '';
-        dataInput.required = true;
-        dataInput.title = select.value === 'Em Andamento' ? 'Data do protocolo' : 'Data da aprovação';
-        botao.style.display = '';
-      } else {
-        dataInput.style.display = 'none';
-        dataInput.required = false;
-        dataInput.value = '';
-        botao.style.display = 'none';
-      }
-    }
-
-    select.addEventListener('change', function () {
-      atualizar();
-      if (dataInput.style.display === 'none') form.submit();
-    });
-    atualizar();
-  });
-})();
-</script>
 
 {% endblock %}
