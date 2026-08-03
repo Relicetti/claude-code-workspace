@@ -89,9 +89,32 @@ CREATE TABLE IF NOT EXISTS contadores_semana (
     PRIMARY KEY (semana, status)
 );
 
+-- contratos assinados no Autentique detectados pela sincronização diária,
+-- aguardando revisão humana antes de virarem usina de verdade no pipeline.
+CREATE TABLE IF NOT EXISTS contratos_pendentes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    codigo_contrato TEXT NOT NULL UNIQUE,
+    nome_ufv TEXT,
+    concessionaria TEXT,
+    ug_raw TEXT,
+    geracao_media_mensal REAL,
+    tipo_conexao TEXT,
+    potencia_ca TEXT,
+    potencia_cc TEXT,
+    data_assinatura_contrato TEXT,
+    arquivo_pdf TEXT,
+    detectado_em TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pendente',
+    usina_id INTEGER REFERENCES usinas(id),
+    revisado_por TEXT,
+    revisado_em TEXT,
+    observacao TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_historico_usina ON historico_etapas(usina_id);
 CREATE INDEX IF NOT EXISTS idx_pendencias_usina ON pendencias(usina_id);
 CREATE INDEX IF NOT EXISTS idx_snapshots_semana ON snapshots(semana);
+CREATE INDEX IF NOT EXISTS idx_contratos_pendentes_status ON contratos_pendentes(status);
 """
 
 # migrações incrementais em bancos já existentes (coluna, tabela, tipo)
@@ -107,6 +130,9 @@ COLUNAS_NOVAS = [
     ("usinas", "situacao_etapa", "TEXT NOT NULL DEFAULT '-'"),
     ("usinas", "situacao_atualizada_em", "TEXT"),
     ("usinas", "situacao_atualizada_por", "TEXT"),
+    ("usinas", "tipo_conexao", "TEXT"),
+    ("usinas", "potencia_ca", "TEXT"),
+    ("usinas", "potencia_cc", "TEXT"),
 ]
 
 # situação da usina DENTRO da etapa atual (diferente do status de ciclo de vida).
@@ -116,6 +142,7 @@ SITUACOES = ["-", "Pendente", "Em Andamento", "Concluído"]
 CAMPOS_EDITAVEIS_USINA = [
     "ug_raw", "nome_ufv", "concessionaria", "dono_carteira", "executivo",
     "geracao_media_mensal", "data_assinatura_contrato",
+    "tipo_conexao", "potencia_ca", "potencia_cc",
 ]
 
 ETAPAS = [
@@ -229,13 +256,14 @@ def buscar_usina(conn, usina_id):
 
 
 def buscar_usinas_ativas_por_pessoa(conn, termo):
-    """Usinas ativas onde a pessoa é a carteira ou o executivo (busca parcial)."""
+    """Usinas ativas onde a pessoa é a carteira ou o executivo, ou onde o
+    termo bate com o nome da usina (busca parcial)."""
     coringa = f"%{termo}%"
     return conn.execute(
         """SELECT * FROM usinas WHERE status = 'ativa'
-           AND (dono_carteira LIKE ? OR executivo LIKE ?)
+           AND (dono_carteira LIKE ? OR executivo LIKE ? OR nome_ufv LIKE ?)
            ORDER BY nome_ufv""",
-        (coringa, coringa),
+        (coringa, coringa, coringa),
     ).fetchall()
 
 
@@ -385,16 +413,18 @@ def marcar_pendencia(conn, pendencia_id, concluir, usuario, quando):
 
 def criar_usina(conn, ug_raw, nome_ufv, concessionaria, dono_carteira, executivo,
                  geracao_media_mensal, data_assinatura, etapa_inicial, hoje_iso,
-                 pendencia, responsavel, autor, criado_em):
+                 pendencia, responsavel, autor, criado_em,
+                 tipo_conexao=None, potencia_ca=None, potencia_cc=None):
     ug = normalizar_ug(ug_raw)
     cur = conn.execute(
         """INSERT INTO usinas
            (ug, ug_raw, nome_ufv, concessionaria, dono_carteira, executivo,
             geracao_media_mensal, data_assinatura_contrato, etapa_atual,
-            data_entrada_etapa_atual, status)
-           VALUES (?,?,?,?,?,?,?,?,?,?, 'ativa')""",
+            data_entrada_etapa_atual, status, tipo_conexao, potencia_ca, potencia_cc)
+           VALUES (?,?,?,?,?,?,?,?,?,?, 'ativa', ?,?,?)""",
         (ug, ug_raw, nome_ufv, concessionaria, dono_carteira, executivo,
-         geracao_media_mensal, data_assinatura or None, etapa_inicial, hoje_iso),
+         geracao_media_mensal, data_assinatura or None, etapa_inicial, hoje_iso,
+         tipo_conexao, potencia_ca, potencia_cc),
     )
     usina_id = cur.lastrowid
     conn.execute(
@@ -595,3 +625,65 @@ def validar_banco_importado(caminho):
     finally:
         if conn is not None:
             conn.close()
+
+
+# --- contratos pendentes (sincronização com Autentique) -----------------
+
+def codigo_contrato_existe(conn, codigo_contrato):
+    return conn.execute(
+        "SELECT 1 FROM contratos_pendentes WHERE codigo_contrato = ? LIMIT 1", (codigo_contrato,)
+    ).fetchone() is not None
+
+
+def inserir_contrato_pendente(conn, dados, detectado_em):
+    """dados: dict com codigo_contrato, nome_ufv, concessionaria, ug_raw,
+    geracao_media_mensal, tipo_conexao, potencia_ca, potencia_cc,
+    data_assinatura_contrato, arquivo_pdf, observacao (todos opcionais exceto
+    codigo_contrato)."""
+    conn.execute(
+        """INSERT INTO contratos_pendentes
+           (codigo_contrato, nome_ufv, concessionaria, ug_raw, geracao_media_mensal,
+            tipo_conexao, potencia_ca, potencia_cc, data_assinatura_contrato,
+            arquivo_pdf, detectado_em, status, observacao)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?, 'pendente', ?)
+           ON CONFLICT(codigo_contrato) DO NOTHING""",
+        (
+            dados["codigo_contrato"], dados.get("nome_ufv"), dados.get("concessionaria"),
+            dados.get("ug_raw"), dados.get("geracao_media_mensal"), dados.get("tipo_conexao"),
+            dados.get("potencia_ca"), dados.get("potencia_cc"), dados.get("data_assinatura_contrato"),
+            dados.get("arquivo_pdf"), detectado_em, dados.get("observacao"),
+        ),
+    )
+
+
+def listar_contratos_pendentes(conn):
+    return conn.execute(
+        "SELECT * FROM contratos_pendentes WHERE status = 'pendente' ORDER BY detectado_em DESC"
+    ).fetchall()
+
+
+def contar_contratos_pendentes(conn):
+    row = conn.execute(
+        "SELECT COUNT(*) AS qtd FROM contratos_pendentes WHERE status = 'pendente'"
+    ).fetchone()
+    return row["qtd"]
+
+
+def buscar_contrato_pendente(conn, contrato_id):
+    return conn.execute("SELECT * FROM contratos_pendentes WHERE id = ?", (contrato_id,)).fetchone()
+
+
+def aprovar_contrato_pendente(conn, contrato_id, usina_id, usuario, quando):
+    conn.execute(
+        """UPDATE contratos_pendentes SET status = 'aprovada', usina_id = ?,
+           revisado_por = ?, revisado_em = ? WHERE id = ?""",
+        (usina_id, usuario, quando, contrato_id),
+    )
+
+
+def rejeitar_contrato_pendente(conn, contrato_id, usuario, quando, motivo):
+    conn.execute(
+        """UPDATE contratos_pendentes SET status = 'rejeitada', observacao = ?,
+           revisado_por = ?, revisado_em = ? WHERE id = ?""",
+        (motivo, usuario, quando, contrato_id),
+    )

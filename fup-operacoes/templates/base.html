@@ -38,6 +38,10 @@
           <a href="{{ url_for('novo_usuario') }}" class="btn btn-outline-light btn-sm">+ Novo usuário</a>
           <a href="{{ url_for('importar_banco') }}" class="btn btn-outline-light btn-sm">Importar banco</a>
         {% endif %}
+        <a href="{{ url_for('pendentes_autentique') }}" class="btn btn-outline-light btn-sm position-relative">
+          Pendentes Autentique
+          {% if qtd_contratos_pendentes %}<span class="badge bg-danger ms-1">{{ qtd_contratos_pendentes }}</span>{% endif %}
+        </a>
         <a href="{{ url_for('nova_usina') }}" class="btn btn-light btn-sm">+ Nova usina</a>
         <span class="text-white small">{{ usuario_logado }}</span>
         <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm">Sair</a>

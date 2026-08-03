@@ -56,9 +56,14 @@ def exigir_login():
 
 @app.context_processor
 def injetar_usuario():
+    qtd_pendentes = 0
+    if "usuario_id" in session:
+        with db.conectar() as conn:
+            qtd_pendentes = db.contar_contratos_pendentes(conn)
     return {
         "usuario_logado": session.get("usuario_nome"),
         "usuario_admin": session.get("usuario_admin", False),
+        "qtd_contratos_pendentes": qtd_pendentes,
     }
 
 
@@ -564,6 +569,72 @@ def mudar_situacao(usina_id):
             usina["nome_ufv"] if usina else None, agora,
         )
     return redirect(request.referrer or url_for("ver_usina", usina_id=usina_id))
+
+
+@app.route("/pendentes")
+def pendentes_autentique():
+    with db.conectar() as conn:
+        pendentes = db.listar_contratos_pendentes(conn)
+        usuarios = db.listar_usuarios(conn)
+    return render_template("pendentes.html", pendentes=pendentes, usuarios=usuarios)
+
+
+@app.route("/pendentes/<int:contrato_id>/aprovar", methods=["POST"])
+def aprovar_pendente(contrato_id):
+    hoje_iso = date.today().isoformat()
+    agora = datetime.now().isoformat(timespec="seconds")
+    with db.conectar() as conn:
+        pendente = db.buscar_contrato_pendente(conn, contrato_id)
+        if not pendente or pendente["status"] != "pendente":
+            flash("Essa pendência já foi revisada ou não existe.", "warning")
+            return redirect(url_for("pendentes_autentique"))
+
+        ug_raw = request.form.get("ug_raw", "").strip() or pendente["ug_raw"]
+        nome_ufv = request.form.get("nome_ufv", "").strip() or pendente["nome_ufv"]
+        if not ug_raw or not nome_ufv:
+            flash("UG e Nome UFV são obrigatórios pra aprovar.", "danger")
+            return redirect(url_for("pendentes_autentique"))
+
+        usina_id = db.criar_usina(
+            conn,
+            ug_raw=ug_raw,
+            nome_ufv=nome_ufv,
+            concessionaria=request.form.get("concessionaria", "").strip() or pendente["concessionaria"],
+            dono_carteira=request.form.get("dono_carteira", "").strip(),
+            executivo=request.form.get("executivo", "").strip(),
+            geracao_media_mensal=_parse_numero(request.form.get("geracao_media_mensal")) or pendente["geracao_media_mensal"],
+            data_assinatura=pendente["data_assinatura_contrato"],
+            etapa_inicial="TT Usina",
+            hoje_iso=hoje_iso,
+            pendencia="",
+            responsavel="",
+            autor=session["usuario_nome"],
+            criado_em=agora,
+            tipo_conexao=pendente["tipo_conexao"],
+            potencia_ca=pendente["potencia_ca"],
+            potencia_cc=pendente["potencia_cc"],
+        )
+        db.aprovar_contrato_pendente(conn, contrato_id, usina_id, session["usuario_nome"], agora)
+        db.registrar_atividade(
+            conn, session["usuario_nome"], "Aprovou contrato do Autentique e cadastrou a usina",
+            nome_ufv, agora,
+        )
+    flash(f"Usina \"{nome_ufv}\" cadastrada com sucesso.", "success")
+    return redirect(url_for("ver_usina", usina_id=usina_id))
+
+
+@app.route("/pendentes/<int:contrato_id>/rejeitar", methods=["POST"])
+def rejeitar_pendente(contrato_id):
+    motivo = request.form.get("motivo", "").strip()
+    agora = datetime.now().isoformat(timespec="seconds")
+    with db.conectar() as conn:
+        db.rejeitar_contrato_pendente(conn, contrato_id, session["usuario_nome"], agora, motivo)
+        db.registrar_atividade(
+            conn, session["usuario_nome"], f"Rejeitou pendência do Autentique ({motivo or 'sem motivo'})",
+            None, agora,
+        )
+    flash("Pendência rejeitada.", "success")
+    return redirect(url_for("pendentes_autentique"))
 
 
 @app.route("/usinas/nova", methods=["GET", "POST"])

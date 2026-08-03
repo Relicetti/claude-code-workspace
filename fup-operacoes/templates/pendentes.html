@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Pendentes do Autentique{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">Contratos assinados aguardando aprovação ({{ pendentes|length }})</h4>
+  <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary">&larr; voltar</a>
+</div>
+<p class="text-muted small">
+  Detectados automaticamente pela sincronização diária com o Autentique. Confira os dados
+  extraídos do contrato, preencha carteira/executivo e aprove pra criar a usina no pipeline
+  (entra direto em "TT Usina"), ou rejeite se não for o caso.
+</p>
+
+{% if not pendentes %}
+  <div class="alert alert-info">Nenhuma pendência no momento.</div>
+{% endif %}
+
+{% for p in pendentes %}
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-start mb-2">
+      <div>
+        <h5 class="mb-0">{{ p.nome_ufv or "(usina não identificada no contrato)" }}</h5>
+        <div class="text-muted small">Contrato {{ p.codigo_contrato }} · assinado em {{ p.data_assinatura_contrato or "?" }}</div>
+      </div>
+      {% if p.tipo_conexao %}<span class="badge bg-secondary">{{ p.tipo_conexao }}</span>{% endif %}
+    </div>
+
+    {% if p.observacao %}
+      <div class="alert alert-warning py-1 px-2 small">{{ p.observacao }}</div>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('aprovar_pendente', contrato_id=p.id) }}">
+      <div class="row g-2">
+        <div class="col-md-4">
+          <label class="form-label small mb-0">UG</label>
+          <input type="text" name="ug_raw" class="form-control form-control-sm" value="{{ p.ug_raw or '' }}" required>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small mb-0">Nome UFV</label>
+          <input type="text" name="nome_ufv" class="form-control form-control-sm" value="{{ p.nome_ufv or '' }}" required>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small mb-0">Concessionária</label>
+          <input type="text" name="concessionaria" class="form-control form-control-sm" value="{{ p.concessionaria or '' }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small mb-0">Carteira</label>
+          <select name="dono_carteira" class="form-select form-select-sm">
+            <option value="">—</option>
+            {% for u in usuarios %}<option value="{{ u.nome }}">{{ u.nome }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small mb-0">Executivo</label>
+          <select name="executivo" class="form-select form-select-sm">
+            <option value="">—</option>
+            {% for u in usuarios %}<option value="{{ u.nome }}">{{ u.nome }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small mb-0">Geração média mensal (kWh)</label>
+          <input type="text" name="geracao_media_mensal" class="form-control form-control-sm" value="{{ p.geracao_media_mensal or '' }}">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small mb-0">Potência CA</label>
+          <input type="text" class="form-control form-control-sm" value="{{ p.potencia_ca or '-' }}" disabled>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small mb-0">Potência CC</label>
+          <input type="text" class="form-control form-control-sm" value="{{ p.potencia_cc or '-' }}" disabled>
+        </div>
+      </div>
+      <div class="d-flex gap-2 mt-3">
+        <button type="submit" class="btn btn-sm btn-success">✓ Aprovar e cadastrar usina</button>
+      </div>
+    </form>
+    <form method="post" action="{{ url_for('rejeitar_pendente', contrato_id=p.id) }}" class="mt-2 d-flex gap-2 align-items-center">
+      <input type="text" name="motivo" class="form-control form-control-sm" placeholder="Motivo da rejeição (opcional)" style="max-width: 400px;">
+      <button type="submit" class="btn btn-sm btn-outline-danger">✕ Rejeitar</button>
+    </form>
+  </div>
+</div>
+{% endfor %}
+
+{% endblock %}

@@ -8,7 +8,7 @@
     <div class="text-muted small">{{ total_ativas }} no pipeline · {{ qtd_operacao }} em operação{% if qtd_rescindidas %} · {{ qtd_rescindidas }} rescindidas{% endif %}</div>
   </div>
   <form method="get" class="d-flex gap-2">
-    <input type="text" name="pessoa" class="form-control form-control-sm" placeholder="Buscar por pessoa (carteira, executivo ou responsável)" value="{{ pessoa }}" style="min-width: 320px;">
+    <input type="text" name="pessoa" class="form-control form-control-sm" placeholder="Buscar por pessoa (carteira, executivo, responsável) ou nome da usina" value="{{ pessoa }}" style="min-width: 320px;">
     <button type="submit" class="btn btn-sm btn-primary text-nowrap">Buscar</button>
     {% if pessoa %}<a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary text-nowrap">Limpar</a>{% endif %}
   </form>
