@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Minha conta{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-center">
+  <div class="card shadow-sm mt-4" style="max-width: 420px; width: 100%;">
+    <div class="card-body">
+      <h4 class="mb-3">Trocar senha</h4>
+      {% if erro %}<div class="alert alert-danger py-2">{{ erro }}</div>{% endif %}
+      <form method="post">
+        <div class="mb-3">
+          <label class="form-label">Senha atual</label>
+          <input type="password" name="senha_atual" class="form-control" required autofocus>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Nova senha</label>
+          <input type="password" name="senha_nova" class="form-control" required minlength="4">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Confirmar nova senha</label>
+          <input type="password" name="senha_confirmacao" class="form-control" required minlength="4">
+        </div>
+        <button type="submit" class="btn btn-primary w-100">Salvar nova senha</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

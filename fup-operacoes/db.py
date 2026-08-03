@@ -583,6 +583,10 @@ def criar_usuario(conn, nome, username, senha_hash, criado_em, is_admin=False, e
     return cur.lastrowid
 
 
+def atualizar_senha(conn, usuario_id, senha_hash):
+    conn.execute("UPDATE usuarios SET senha_hash = ? WHERE id = ?", (senha_hash, usuario_id))
+
+
 def bootstrap_admin(gerar_hash):
     """Cria um admin inicial a partir de variáveis de ambiente, se ainda não
     existir nenhum. Necessário no Railway: num banco vazio, sem isso ninguém

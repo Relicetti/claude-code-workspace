@@ -154,6 +154,35 @@ def logout():
     return redirect(url_for("login"))
 
 
+@app.route("/minha-conta", methods=["GET", "POST"])
+def minha_conta():
+    if request.method == "GET":
+        return render_template("minha_conta.html", erro=None)
+
+    senha_atual = request.form.get("senha_atual", "")
+    senha_nova = request.form.get("senha_nova", "")
+    senha_confirmacao = request.form.get("senha_confirmacao", "")
+
+    with db.conectar() as conn:
+        usuario = db.buscar_usuario(conn, session["usuario_id"])
+
+        if not check_password_hash(usuario["senha_hash"], senha_atual):
+            return render_template("minha_conta.html", erro="Senha atual incorreta.")
+        if len(senha_nova) < 4:
+            return render_template("minha_conta.html", erro="A nova senha precisa ter pelo menos 4 caracteres.")
+        if senha_nova != senha_confirmacao:
+            return render_template("minha_conta.html", erro="A confirmação não bate com a nova senha.")
+
+        db.atualizar_senha(conn, usuario["id"], generate_password_hash(senha_nova))
+        db.registrar_atividade(
+            conn, session["usuario_nome"], "Trocou a própria senha", None,
+            datetime.now().isoformat(timespec="seconds"),
+        )
+
+    flash("Senha alterada com sucesso.", "success")
+    return redirect(url_for("dashboard"))
+
+
 @app.route("/usuarios/novo", methods=["GET", "POST"])
 def novo_usuario():
     if not session.get("usuario_admin"):

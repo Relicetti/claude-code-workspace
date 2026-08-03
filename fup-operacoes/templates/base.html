@@ -43,7 +43,7 @@
           {% if qtd_contratos_pendentes %}<span class="badge bg-danger ms-1">{{ qtd_contratos_pendentes }}</span>{% endif %}
         </a>
         <a href="{{ url_for('nova_usina') }}" class="btn btn-light btn-sm">+ Nova usina</a>
-        <span class="text-white small">{{ usuario_logado }}</span>
+        <a href="{{ url_for('minha_conta') }}" class="text-white small text-decoration-none">{{ usuario_logado }}</a>
         <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm">Sair</a>
       {% endif %}
     </div>
