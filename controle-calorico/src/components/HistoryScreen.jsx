@@ -1,4 +1,5 @@
 import HistoryChart from './HistoryChart.jsx'
+import WeeklyClosings from './WeeklyClosings.jsx'
 
 export default function HistoryScreen({ onClose }) {
   return (
@@ -12,6 +13,7 @@ export default function HistoryScreen({ onClose }) {
       <div className="history-screen-body">
         <p className="history-screen-hint">Toque no grafico pra ver os valores de cada dia.</p>
         <HistoryChart large />
+        <WeeklyClosings />
       </div>
     </div>
   )
