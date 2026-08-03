@@ -135,6 +135,8 @@ COLUNAS_NOVAS = [
     ("usinas", "potencia_cc", "TEXT"),
     ("usinas", "data_protocolo", "TEXT"),
     ("usinas", "data_aprovacao", "TEXT"),
+    ("historico_etapas", "data_protocolo", "TEXT"),
+    ("historico_etapas", "data_aprovacao", "TEXT"),
 ]
 
 # nessas etapas, mudar a situação da etapa pra "Em Andamento" exige a data do
@@ -334,16 +336,23 @@ def mudar_etapa(conn, usina_id, nova_etapa, hoje_iso, autor):
 
 
 def mudar_situacao(conn, usina_id, situacao, usuario, quando, data_protocolo=None, data_aprovacao=None):
-    sets = ["situacao_etapa = ?", "situacao_atualizada_em = ?", "situacao_atualizada_por = ?"]
-    valores = [situacao, quando, usuario]
+    conn.execute(
+        "UPDATE usinas SET situacao_etapa = ?, situacao_atualizada_em = ?, situacao_atualizada_por = ? WHERE id = ?",
+        (situacao, quando, usuario, usina_id),
+    )
+    # guarda a data no histórico da etapa atual (a que está em aberto), não na
+    # usina em si -- senão a próxima etapa que também pedir data (ex: TT Usina
+    # e depois Aguardando Aprovação Rateio) sobrescreveria a data anterior.
     if data_protocolo:
-        sets.append("data_protocolo = ?")
-        valores.append(data_protocolo)
+        conn.execute(
+            "UPDATE historico_etapas SET data_protocolo = ? WHERE usina_id = ? AND data_saida IS NULL",
+            (data_protocolo, usina_id),
+        )
     if data_aprovacao:
-        sets.append("data_aprovacao = ?")
-        valores.append(data_aprovacao)
-    valores.append(usina_id)
-    conn.execute(f"UPDATE usinas SET {', '.join(sets)} WHERE id = ?", valores)
+        conn.execute(
+            "UPDATE historico_etapas SET data_aprovacao = ? WHERE usina_id = ? AND data_saida IS NULL",
+            (data_aprovacao, usina_id),
+        )
 
 
 def reabrir_para_pipeline(conn, usina_id, nova_etapa, hoje_iso, autor):

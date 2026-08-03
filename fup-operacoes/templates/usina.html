@@ -170,7 +170,7 @@
   <div class="card-header bg-white">Linha do tempo</div>
   <div class="table-responsive">
     <table class="table table-sm mb-0">
-      <thead><tr><th>Etapa</th><th>Entrada</th><th>Saída</th><th>Dias</th><th>Alterado por</th></tr></thead>
+      <thead><tr><th>Etapa</th><th>Entrada</th><th>Saída</th><th>Dias</th><th>Protocolo</th><th>Aprovação</th><th>Alterado por</th></tr></thead>
       <tbody>
         {% for h in historico %}
         <tr>
@@ -178,6 +178,8 @@
           <td>{{ h.data_entrada }}</td>
           <td>{{ h.data_saida or 'em andamento' }}</td>
           <td>{{ h.dias }}</td>
+          <td>{{ h.data_protocolo or '—' }}</td>
+          <td>{{ h.data_aprovacao or '—' }}</td>
           <td>{{ h.autor or '—' }}</td>
         </tr>
         {% endfor %}

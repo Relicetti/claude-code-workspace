@@ -492,6 +492,13 @@ def ver_usina(usina_id):
     usina["dias_na_etapa"] = _dias_desde(usina["data_entrada_etapa_atual"], hoje)
     usina["dias_desde_assinatura"] = _dias_desde(usina["data_assinatura_contrato"], hoje)
 
+    # a data de protocolo/aprovação é da etapa em aberto agora, não da usina
+    # como um todo (senão uma etapa mais recente que também pede data
+    # sobrescreveria a data registrada numa etapa anterior)
+    etapa_em_aberto = next((h for h in historico if h["data_saida"] is None), None)
+    usina["data_protocolo"] = etapa_em_aberto["data_protocolo"] if etapa_em_aberto else None
+    usina["data_aprovacao"] = etapa_em_aberto["data_aprovacao"] if etapa_em_aberto else None
+
     return render_template(
         "usina.html",
         usina=usina,
