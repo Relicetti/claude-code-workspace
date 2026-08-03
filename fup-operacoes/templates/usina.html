@@ -46,6 +46,7 @@
           <option value="{{ s }}" {{ 'selected' if s == usina.situacao_etapa else '' }}>{{ s }}</option>
         {% endfor %}
       </select>
+      <span id="label-data-extra" class="align-self-center text-muted small text-nowrap" style="display:none;"></span>
       <input type="date" name="data_extra" id="input-data-extra" class="form-control" style="display:none; max-width: 180px;">
       <button type="submit" class="btn btn-outline-primary text-nowrap">Situação da etapa</button>
     </form>
@@ -57,17 +58,22 @@
   if (!form) return;
   var select = document.getElementById('select-situacao');
   var dataInput = document.getElementById('input-data-extra');
+  var label = document.getElementById('label-data-extra');
   var pedeData = form.dataset.pedeData === 'true';
 
   function atualizar() {
     if (pedeData && (select.value === 'Em Andamento' || select.value === 'Concluído')) {
+      var texto = select.value === 'Em Andamento' ? 'Data do protocolo' : 'Data da aprovação';
       dataInput.style.display = '';
       dataInput.required = true;
-      dataInput.title = select.value === 'Em Andamento' ? 'Data do protocolo' : 'Data da aprovação';
+      dataInput.title = texto;
+      label.style.display = '';
+      label.textContent = texto;
     } else {
       dataInput.style.display = 'none';
       dataInput.required = false;
       dataInput.value = '';
+      label.style.display = 'none';
     }
   }
 
