@@ -547,7 +547,10 @@ def mudar_etapa(usina_id):
         if usina is None:
             return "Usina não encontrada", 404
 
-        destinos_validos = db.FLUXO.get(usina["etapa_atual"], [])
+        if session.get("usuario_admin"):
+            destinos_validos = db.ETAPAS + db.ETAPAS_FINAIS
+        else:
+            destinos_validos = db.FLUXO.get(usina["etapa_atual"], [])
         if nova_etapa not in destinos_validos:
             flash(
                 f"Não dá pra mudar {usina['nome_ufv']} de \"{usina['etapa_atual']}\" direto pra "
