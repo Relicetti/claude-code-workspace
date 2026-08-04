@@ -57,7 +57,7 @@ def carregar_token():
         return json.load(f)["token"]
 
 
-def buscar_pagina(token, pagina, tentativas=5):
+def buscar_pagina(token, pagina, tentativas=3):
     ultimo_erro = None
     for tentativa in range(1, tentativas + 1):
         try:
@@ -65,7 +65,7 @@ def buscar_pagina(token, pagina, tentativas=5):
                 "https://api.autentique.com.br/v2/graphql",
                 json={"query": GRAPHQL_QUERY, "variables": {"page": pagina}},
                 headers={"Authorization": f"Bearer {token}"},
-                timeout=60,
+                timeout=30,
             )
             r.raise_for_status()
             corpo = r.json()
@@ -74,7 +74,7 @@ def buscar_pagina(token, pagina, tentativas=5):
             return corpo["data"]["documents"]
         except Exception as e:
             ultimo_erro = e
-            time.sleep(tentativa * 5)
+            time.sleep(tentativa * 3)
     raise ultimo_erro
 
 
@@ -159,16 +159,16 @@ def extrair_campos_pdf(caminho_ou_stream):
     return extrair_tabela_anexo1(texto)
 
 
-def baixar_pdf_do_autentique(url, tentativas=5):
+def baixar_pdf_do_autentique(url, tentativas=3):
     ultimo_erro = None
     for tentativa in range(1, tentativas + 1):
         try:
-            r = requests.get(url, timeout=60)
+            r = requests.get(url, timeout=30)
             r.raise_for_status()
             return io.BytesIO(r.content)
         except Exception as e:
             ultimo_erro = e
-            time.sleep(tentativa * 5)
+            time.sleep(tentativa * 3)
     raise ultimo_erro
 
 
@@ -233,6 +233,7 @@ def principal():
                 "observacao": observacao,
             }
             db.inserir_contrato_pendente(conn, dados, datetime.now().isoformat(timespec="seconds"))
+            conn.commit()  # salva na hora -- se o resto da sincronização travar/cair, isso não se perde
             novos += 1
             log(f"  Novo pendente: {codigo} ({dados.get('nome_ufv') or 'usina não identificada'})")
 
