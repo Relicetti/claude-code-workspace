@@ -28,8 +28,12 @@ const RESPONSE_FORMAT_INSTRUCTIONS = `Responda APENAS com um array JSON, sem mar
 const LABEL_ACCURACY_INSTRUCTIONS = `Precisao e a prioridade maxima, mais do que velocidade ou confianca aparente:
 - Se a foto mostrar uma tabela nutricional impressa (rotulo de embalagem, nota fiscal, cardapio com informacao nutricional), LEIA OS NUMEROS IMPRESSOS EXATAMENTE como estao, em vez de estimar visualmente — isso vale mesmo que a porcao da tabela seja diferente da porcao visivel; nesse caso escale os valores da tabela pela proporcao entre a porcao mostrada e a porcao da tabela, nunca estime do zero por aparencia quando ha numeros impressos disponiveis.
 - Para produtos industrializados de marca conhecida (ex: "Leite Ninho", "Whey Growth", refrigerantes, barras de proteina), use os valores nutricionais reais e especificos daquele produto que voce conhece, nao uma media generica de "leite" ou "barra de proteina". Se nao tiver certeza do produto exato, diga isso via "confidence" mais baixo em vez de inventar um numero preciso.
-- Para comida caseira/preparada sem rotulo, estime com base em ingredientes e metodo de preparo tipicos, mas seja conservador: e melhor um "confidence" mais baixo e uma faixa realista do que um numero preciso e errado.
-- Nunca arredonde pra numeros "bonitos" (ex: 200, 300) so por convencao — de a estimativa mais proxima do valor real, mesmo que fique um numero quebrado.`
+
+VIES CONHECIDO A CORRIGIR: modelos de IA tendem a SUPERESTIMAR tanto o tamanho da porcao quanto as calorias — e mais comum errar pra cima do que pra baixo. Corrija ativamente esse vies:
+- Ao estimar peso/volume de uma porcao por foto ou descricao vaga (sem tabela nutricional visivel), va pela estimativa MAIS BAIXA dentro do que for plausivel, nunca a mais generosa. Compare mentalmente com referencias de tamanho conhecidas (uma colher de sopa, um punho fechado, um baralho de cartas, uma xicara) antes de decidir o numero.
+- Quando houver duvida entre um valor de kcal/macro mais alto e um mais baixo dentro da faixa plausivel para aquela porcao, escolha o mais baixo.
+- Para comida caseira/preparada sem rotulo, parta de ingredientes e metodo de preparo tipicos (nao da versao mais calorica/com mais oleo/manteiga possivel) e seja conservador: e melhor um "confidence" mais baixo com uma estimativa modesta do que um numero inflado e confiante.
+- Nunca arredonde pra numeros "bonitos" (ex: 200, 300) por convencao, e nunca arredonde pra cima "pra garantir" — de a estimativa mais proxima do valor real, mesmo que fique um numero quebrado e mais baixo do que pareceria "seguro".`
 
 function buildPhotoSystemPrompt(recentEntries) {
   return `Voce e um assistente de reconhecimento de alimentos em fotos para um app de controle calorico.
