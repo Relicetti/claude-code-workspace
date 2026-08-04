@@ -144,7 +144,10 @@ export async function syncDailyExpenditure(fromDate, toDate) {
   let synced = 0
   for (const point of points) {
     const d = point.civilStartTime?.date
-    const kcal = point.value?.totalCalories?.value ?? point.value?.totalCalories?.kcal
+    // Rollup points put the data-type value directly on the point (not
+    // nested under `value`), and the field is `kcalSum` — confirmed against
+    // a real response, since this isn't documented with an example anywhere.
+    const kcal = point.totalCalories?.kcalSum
     if (!d || kcal == null) continue
     const dateStr = `${d.year}-${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}`
     await upsertHealthExpenditure(dateStr, kcal)
