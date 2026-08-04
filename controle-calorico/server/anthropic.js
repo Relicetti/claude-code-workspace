@@ -25,10 +25,18 @@ const RESPONSE_FORMAT_INSTRUCTIONS = `Responda APENAS com um array JSON, sem mar
 
 "name" e o nome do alimento, sem incluir a quantidade no texto (a quantidade vai no campo separado). "quantity" e a quantidade estimada da porcao (um numero, ex: 220, 1, 2). "unit" e a unidade dessa quantidade (ex: "g", "ml", "unidade", "fatia", "colher"). Os valores de kcal/proteina/carboidrato/gordura/cafeina/agua devem corresponder exatamente a essa quantidade e unidade informadas — se a quantidade for editada depois, esses valores serao escalados proporcionalmente, entao a proporcao entre eles precisa estar correta. "caffeine" e a estimativa de cafeina em miligramas (0 se nao aplicavel). "water" e a estimativa de volume de agua em mililitros (0 se nao aplicavel). "confidence" e um numero de 0 a 1 indicando sua confianca na identificacao e estimativa. Se nao identificar nenhum alimento, responda com um array vazio [].`
 
+const LABEL_ACCURACY_INSTRUCTIONS = `Precisao e a prioridade maxima, mais do que velocidade ou confianca aparente:
+- Se a foto mostrar uma tabela nutricional impressa (rotulo de embalagem, nota fiscal, cardapio com informacao nutricional), LEIA OS NUMEROS IMPRESSOS EXATAMENTE como estao, em vez de estimar visualmente — isso vale mesmo que a porcao da tabela seja diferente da porcao visivel; nesse caso escale os valores da tabela pela proporcao entre a porcao mostrada e a porcao da tabela, nunca estime do zero por aparencia quando ha numeros impressos disponiveis.
+- Para produtos industrializados de marca conhecida (ex: "Leite Ninho", "Whey Growth", refrigerantes, barras de proteina), use os valores nutricionais reais e especificos daquele produto que voce conhece, nao uma media generica de "leite" ou "barra de proteina". Se nao tiver certeza do produto exato, diga isso via "confidence" mais baixo em vez de inventar um numero preciso.
+- Para comida caseira/preparada sem rotulo, estime com base em ingredientes e metodo de preparo tipicos, mas seja conservador: e melhor um "confidence" mais baixo e uma faixa realista do que um numero preciso e errado.
+- Nunca arredonde pra numeros "bonitos" (ex: 200, 300) so por convencao — de a estimativa mais proxima do valor real, mesmo que fique um numero quebrado.`
+
 function buildPhotoSystemPrompt(recentEntries) {
   return `Voce e um assistente de reconhecimento de alimentos em fotos para um app de controle calorico.
 
 Analise a foto enviada e identifique cada alimento e bebida visivel, estimando a quantidade da porcao (em gramas, mililitros ou unidades, o que fizer mais sentido) pelo tamanho/volume aparente na imagem. Para bebidas com cafeina (cafe, cha, energetico, refrigerante de cola), estime o teor de cafeina em miligramas pela porcao visivel; para itens sem cafeina, retorne 0. Para agua e outras bebidas com alto teor de agua (agua, agua com gas, cha, sucos diluidos), estime o volume de agua em mililitros pela porcao visivel; para itens sem agua relevante, retorne 0.
+
+${LABEL_ACCURACY_INSTRUCTIONS}
 
 ${buildKnownFoodsSection(recentEntries)}${RESPONSE_FORMAT_INSTRUCTIONS}`
 }
@@ -37,6 +45,8 @@ function buildTextSystemPrompt(recentEntries) {
   return `Voce e um assistente de estimativa nutricional para um app de controle calorico.
 
 O usuario vai descrever em texto o que comeu ou bebeu (pode ser um ou varios itens na mesma descricao). Identifique cada alimento e bebida mencionado, extraia ou estime a quantidade da porcao (em gramas, mililitros ou unidades — use porcoes tipicas/usuais quando a quantidade nao for especificada) e estime kcal, proteina, carboidrato e gordura para essa quantidade. Para bebidas com cafeina (cafe, cha, energetico, refrigerante de cola), estime o teor de cafeina em miligramas; para itens sem cafeina, retorne 0. Para agua e outras bebidas com alto teor de agua, estime o volume de agua em mililitros; para itens sem agua relevante, retorne 0.
+
+${LABEL_ACCURACY_INSTRUCTIONS}
 
 ${buildKnownFoodsSection(recentEntries)}${RESPONSE_FORMAT_INSTRUCTIONS}`
 }
