@@ -1,5 +1,7 @@
 import os
+import re
 import sqlite3
+import unicodedata
 from contextlib import contextmanager
 from datetime import datetime
 
@@ -224,6 +226,33 @@ def normalizar_ug(valor):
     if valor is None:
         return ""
     return "".join(ch for ch in str(valor).upper() if ch.isalnum())
+
+
+def normalizar_nome_usina(nome):
+    """Normaliza o nome de uma usina pra comparação: remove acentos, o
+    prefixo "UFV", pontuação e espaços extras."""
+    if not nome:
+        return ""
+    nfkd = unicodedata.normalize("NFKD", str(nome))
+    n = "".join(c for c in nfkd if not unicodedata.combining(c)).upper()
+    n = re.sub(r"^UFV\s+", "", n)
+    n = re.sub(r"[^A-Z0-9 ]", " ", n)
+    n = re.sub(r"\s+", " ", n).strip()
+    return n
+
+
+def buscar_usina_parecida(conn, nome_ufv):
+    """Acha uma usina já cadastrada (qualquer status) com nome igual ao
+    informado depois de normalizado -- usado pra sinalizar possível
+    duplicata na sincronização com o Autentique, já que a UG extraída do
+    PDF nem sempre bate com a UG cadastrada."""
+    nome_norm = normalizar_nome_usina(nome_ufv)
+    if not nome_norm:
+        return None
+    for row in conn.execute("SELECT nome_ufv, ug_raw, status FROM usinas"):
+        if normalizar_nome_usina(row["nome_ufv"]) == nome_norm:
+            return row
+    return None
 
 
 def listar_ativas(conn):

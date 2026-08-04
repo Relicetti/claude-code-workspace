@@ -204,6 +204,21 @@ def principal():
             if ug_raw and db.ug_existe(conn, ug_raw):
                 continue
 
+            # a extração da UG do PDF às vezes pega o número errado (a
+            # "Unidade Consumidora" nem sempre está onde o regex espera), o
+            # que faz o check acima passar batido numa usina que já existe.
+            # Como segunda checagem, mais confiável, compara pelo nome.
+            observacao = None
+            if not campos.get("usina"):
+                observacao = "Não achou UFV no Anexo I (verificar contrato manualmente)."
+            else:
+                parecida = db.buscar_usina_parecida(conn, campos["usina"])
+                if parecida:
+                    observacao = (
+                        f"Possível duplicata: já existe \"{parecida['nome_ufv']}\" "
+                        f"(UG {parecida['ug_raw']}, status {parecida['status']}) no sistema. Confira antes de aprovar."
+                    )
+
             dados = {
                 "codigo_contrato": codigo,
                 "nome_ufv": campos.get("usina"),
@@ -215,7 +230,7 @@ def principal():
                 "potencia_cc": campos.get("potencia_cc"),
                 "data_assinatura_contrato": doc["data_ultima_assinatura"],
                 "arquivo_pdf": doc.get("url_pdf"),
-                "observacao": None if campos.get("usina") else "Não achou UFV no Anexo I (verificar contrato manualmente).",
+                "observacao": observacao,
             }
             db.inserir_contrato_pendente(conn, dados, datetime.now().isoformat(timespec="seconds"))
             novos += 1
