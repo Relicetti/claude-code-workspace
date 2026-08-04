@@ -20,9 +20,11 @@ import {
   setDayType,
   setExtraExpenditure,
   getDayTypesInRange,
+  getGoogleHealthTokens,
 } from './dataStore.js'
 import { analyzePhoto, analyzeTextDescription } from './anthropic.js'
 import { DAY_TYPES } from './dayTypes.js'
+import * as googleHealth from './googleHealth.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
@@ -111,6 +113,67 @@ app.put(
   asyncHandler(async (req, res) => {
     const extra = Number(req.body.extra) || 0
     res.json(await setExtraExpenditure(req.params.date, extra))
+  })
+)
+
+// A single-process personal app doesn't need a session store — an in-memory
+// nonce is enough to check the OAuth callback's `state` matches a request we
+// actually issued.
+let pendingOAuthState = null
+
+app.get(
+  '/api/health-connect/status',
+  asyncHandler(async (req, res) => {
+    const tokens = await getGoogleHealthTokens()
+    res.json({
+      configured: googleHealth.isConfigured(),
+      connected: !!tokens,
+      connectedAt: tokens?.connectedAt || null,
+    })
+  })
+)
+
+app.get('/api/health-connect/auth-url', (req, res) => {
+  try {
+    pendingOAuthState = crypto.randomUUID()
+    res.json({ url: googleHealth.getAuthUrl(pendingOAuthState) })
+  } catch (err) {
+    res.status(400).json({ error: err.message })
+  }
+})
+
+app.get(
+  '/api/health-connect/callback',
+  asyncHandler(async (req, res) => {
+    const { code, state, error } = req.query
+    if (error) {
+      return res.status(400).send(`Autorizacao negada pelo Google: ${error}`)
+    }
+    if (!code || !state || state !== pendingOAuthState) {
+      return res.status(400).send('Estado invalido. Tente conectar novamente pelo app.')
+    }
+    pendingOAuthState = null
+    await googleHealth.exchangeCodeForTokens(code)
+    res.redirect('/')
+  })
+)
+
+app.post(
+  '/api/health-connect/disconnect',
+  asyncHandler(async (req, res) => {
+    await googleHealth.disconnect()
+    res.json({ ok: true })
+  })
+)
+
+app.post(
+  '/api/health-connect/sync',
+  asyncHandler(async (req, res) => {
+    const { from, to } = req.body
+    if (!from || !to) {
+      return res.status(400).json({ error: 'from e to sao obrigatorios' })
+    }
+    res.json(await googleHealth.syncDailyExpenditure(from, to))
   })
 )
 

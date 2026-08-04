@@ -4,7 +4,7 @@ function formatDeficit(value) {
   return `${rounded} kcal`
 }
 
-export default function DeficitSummary({ expenditure, extra, calorieGoal, consumedKcal }) {
+export default function DeficitSummary({ expenditure, expenditureSource, extra, calorieGoal, consumedKcal }) {
   if (!expenditure) return null
 
   const totalExpenditure = expenditure + (extra || 0)
@@ -14,7 +14,11 @@ export default function DeficitSummary({ expenditure, extra, calorieGoal, consum
   return (
     <div className="deficit-summary">
       <div className="deficit-summary-row">
-        <span>Gasto estimado{extra ? ' (com extra)' : ''}</span>
+        <span>
+          {expenditureSource === 'synced' ? 'Gasto real (Fitbit)' : 'Gasto estimado'}
+          {extra ? ' (com extra)' : ''}
+          {expenditureSource === 'synced' && <span className="synced-badge">●</span>}
+        </span>
         <strong>{Math.round(totalExpenditure)} kcal</strong>
       </div>
       {extra ? (

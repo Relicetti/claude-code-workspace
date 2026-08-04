@@ -79,5 +79,21 @@ export async function initSchema() {
     );
     ALTER TABLE food_db ADD COLUMN IF NOT EXISTS quantity DOUBLE PRECISION;
     ALTER TABLE food_db ADD COLUMN IF NOT EXISTS unit TEXT;
+
+    CREATE TABLE IF NOT EXISTS google_health_tokens (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      access_token TEXT NOT NULL,
+      refresh_token TEXT NOT NULL,
+      expires_at BIGINT NOT NULL,
+      scope TEXT,
+      connected_at BIGINT NOT NULL,
+      CONSTRAINT google_health_tokens_single_row CHECK (id = 1)
+    );
+
+    CREATE TABLE IF NOT EXISTS health_expenditure (
+      log_date TEXT PRIMARY KEY,
+      kcal DOUBLE PRECISION NOT NULL,
+      synced_at BIGINT NOT NULL
+    );
   `)
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import HealthConnectCard from './HealthConnectCard.jsx'
 
 export default function SettingsModal({ settings, onSave, onClearDay, onClose }) {
   const [form, setForm] = useState(settings)
@@ -33,6 +34,9 @@ export default function SettingsModal({ settings, onSave, onClearDay, onClose })
             Meta de creatina (g)
             <input type="number" value={form.creatineGoal} onChange={(e) => update('creatineGoal', e.target.value)} />
           </label>
+
+          <HealthConnectCard />
+
           <div className="modal-actions">
             <button
               type="button"

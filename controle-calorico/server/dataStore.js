@@ -160,9 +160,66 @@ function dayTypeRowToEntry(date, row) {
   }
 }
 
+// If Google Health has real synced data for a date, it replaces the preset/
+// manual estimate as the effective `expenditure` — `expenditureSource` tells
+// the UI whether a number is measured or estimated.
+function mergeRealExpenditure(entry, realKcal) {
+  if (realKcal == null) return { ...entry, expenditureSource: 'preset' }
+  return { ...entry, expenditure: realKcal, expenditureSource: 'synced' }
+}
+
+export async function getHealthExpenditureInRange(fromDate, toDate) {
+  const { rows } = await query(
+    'SELECT log_date, kcal FROM health_expenditure WHERE log_date >= $1 AND log_date <= $2',
+    [fromDate, toDate]
+  )
+  return new Map(rows.map((r) => [r.log_date, r.kcal]))
+}
+
+export async function upsertHealthExpenditure(date, kcal) {
+  await query(
+    `INSERT INTO health_expenditure (log_date, kcal, synced_at)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (log_date) DO UPDATE SET kcal = EXCLUDED.kcal, synced_at = EXCLUDED.synced_at`,
+    [date, kcal, Date.now()]
+  )
+}
+
+export async function getGoogleHealthTokens() {
+  const { rows } = await query('SELECT * FROM google_health_tokens WHERE id = 1')
+  if (rows.length === 0) return null
+  return {
+    accessToken: rows[0].access_token,
+    refreshToken: rows[0].refresh_token,
+    expiresAt: Number(rows[0].expires_at),
+    scope: rows[0].scope,
+    connectedAt: Number(rows[0].connected_at),
+  }
+}
+
+export async function saveGoogleHealthTokens(tokens) {
+  const current = await getGoogleHealthTokens()
+  await query(
+    `INSERT INTO google_health_tokens (id, access_token, refresh_token, expires_at, scope, connected_at)
+     VALUES (1, $1, $2, $3, $4, $5)
+     ON CONFLICT (id) DO UPDATE SET
+       access_token = EXCLUDED.access_token,
+       refresh_token = EXCLUDED.refresh_token,
+       expires_at = EXCLUDED.expires_at,
+       scope = EXCLUDED.scope`,
+    [tokens.accessToken, tokens.refreshToken, tokens.expiresAt, tokens.scope || null, current?.connectedAt || Date.now()]
+  )
+}
+
+export async function clearGoogleHealthTokens() {
+  await query('DELETE FROM google_health_tokens WHERE id = 1')
+}
+
 export async function getDayType(date) {
   const { rows } = await query('SELECT * FROM day_activity WHERE log_date = $1', [date])
-  return dayTypeRowToEntry(date, rows[0])
+  const entry = dayTypeRowToEntry(date, rows[0])
+  const realMap = await getHealthExpenditureInRange(date, date)
+  return mergeRealExpenditure(entry, realMap.get(date))
 }
 
 export async function setDayType(date, dayType) {
@@ -205,7 +262,15 @@ export async function setExtraExpenditure(date, extra) {
 
 export async function getDayTypesInRange(fromDate, toDate) {
   const { rows } = await query('SELECT * FROM day_activity WHERE log_date >= $1 AND log_date <= $2', [fromDate, toDate])
-  return rows.map((row) => dayTypeRowToEntry(row.log_date, row))
+  const byDate = new Map(rows.map((row) => [row.log_date, row]))
+  const realMap = await getHealthExpenditureInRange(fromDate, toDate)
+  // Union of dates the user explicitly set a day type for AND dates with real
+  // synced data, so a day with Fitbit data still shows the true expenditure
+  // even if the user never touched the day-type selector that day.
+  const allDates = new Set([...byDate.keys(), ...realMap.keys()])
+  return Array.from(allDates)
+    .sort()
+    .map((date) => mergeRealExpenditure(dayTypeRowToEntry(date, byDate.get(date)), realMap.get(date)))
 }
 
 export async function addLogEntry(date, entry) {

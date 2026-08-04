@@ -83,4 +83,9 @@ export const api = {
   analyzePhoto: (imageBase64, mediaType) =>
     request('/analyze-photo', { method: 'POST', body: JSON.stringify({ imageBase64, mediaType }) }),
   analyzeText: (description) => request('/analyze-text', { method: 'POST', body: JSON.stringify({ description }) }),
+  getHealthConnectStatus: () => request('/health-connect/status'),
+  getHealthConnectAuthUrl: () => request('/health-connect/auth-url'),
+  disconnectHealthConnect: () => request('/health-connect/disconnect', { method: 'POST' }),
+  syncHealthConnect: (from, to) =>
+    request('/health-connect/sync', { method: 'POST', body: JSON.stringify({ from, to }) }),
 }
