@@ -160,12 +160,12 @@ function dayTypeRowToEntry(date, row) {
   }
 }
 
-// If Google Health has real synced data for a date, it replaces the preset/
-// manual estimate as the effective `expenditure` — `expenditureSource` tells
-// the UI whether a number is measured or estimated.
-function mergeRealExpenditure(entry, realKcal) {
-  if (realKcal == null) return { ...entry, expenditureSource: 'preset' }
-  return { ...entry, expenditure: realKcal, expenditureSource: 'synced' }
+// `expenditure` stays the predicted/estimated value (from the day-type preset
+// or manual pick) untouched. When Google Health has real synced data for a
+// date, it's attached separately as `realExpenditure` so the UI can show
+// predicted vs. realized side by side instead of one overwriting the other.
+function attachRealExpenditure(entry, realKcal) {
+  return { ...entry, realExpenditure: realKcal ?? null }
 }
 
 export async function getHealthExpenditureInRange(fromDate, toDate) {
@@ -219,7 +219,7 @@ export async function getDayType(date) {
   const { rows } = await query('SELECT * FROM day_activity WHERE log_date = $1', [date])
   const entry = dayTypeRowToEntry(date, rows[0])
   const realMap = await getHealthExpenditureInRange(date, date)
-  return mergeRealExpenditure(entry, realMap.get(date))
+  return attachRealExpenditure(entry, realMap.get(date))
 }
 
 export async function setDayType(date, dayType) {
@@ -270,7 +270,7 @@ export async function getDayTypesInRange(fromDate, toDate) {
   const allDates = new Set([...byDate.keys(), ...realMap.keys()])
   return Array.from(allDates)
     .sort()
-    .map((date) => mergeRealExpenditure(dayTypeRowToEntry(date, byDate.get(date)), realMap.get(date)))
+    .map((date) => attachRealExpenditure(dayTypeRowToEntry(date, byDate.get(date)), realMap.get(date)))
 }
 
 export async function addLogEntry(date, entry) {

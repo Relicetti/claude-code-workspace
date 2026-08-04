@@ -4,23 +4,31 @@ function formatDeficit(value) {
   return `${rounded} kcal`
 }
 
-export default function DeficitSummary({ expenditure, expenditureSource, extra, calorieGoal, consumedKcal }) {
+export default function DeficitSummary({ expenditure, realExpenditure, extra, calorieGoal, consumedKcal }) {
   if (!expenditure) return null
 
-  const totalExpenditure = expenditure + (extra || 0)
+  const plannedTotal = expenditure + (extra || 0)
+  const realTotal = realExpenditure != null ? realExpenditure + (extra || 0) : null
   const plannedDeficit = expenditure - calorieGoal
-  const actualDeficit = totalExpenditure - consumedKcal
+  // "Deficit real" reflects what actually happened today: prefer the synced
+  // Fitbit expenditure when we have it, fall back to the estimate otherwise.
+  const actualDeficit = (realTotal ?? plannedTotal) - consumedKcal
 
   return (
     <div className="deficit-summary">
       <div className="deficit-summary-row">
-        <span>
-          {expenditureSource === 'synced' ? 'Gasto real (Fitbit)' : 'Gasto estimado'}
-          {extra ? ' (com extra)' : ''}
-          {expenditureSource === 'synced' && <span className="synced-badge">●</span>}
-        </span>
-        <strong>{Math.round(totalExpenditure)} kcal</strong>
+        <span>Gasto previsto{extra ? ' (com extra)' : ''}</span>
+        <strong>{Math.round(plannedTotal)} kcal</strong>
       </div>
+      {realTotal != null && (
+        <div className="deficit-summary-row">
+          <span>
+            Gasto realizado (Fitbit)
+            <span className="synced-badge">●</span>
+          </span>
+          <strong>{Math.round(realTotal)} kcal</strong>
+        </div>
+      )}
       {extra ? (
         <div className="deficit-summary-row deficit-summary-extra">
           <span>+ Atividade extra</span>

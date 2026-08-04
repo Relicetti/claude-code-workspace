@@ -272,11 +272,53 @@ process.on('uncaughtException', (err) => {
   console.error('Uncaught exception:', err)
 })
 
+// The app's dates are all in the user's local calendar (Brasilia time), but
+// Railway runs the server in UTC — computing "today" naively would roll the
+// day over ~3h early and sync an unfinished day. Format "now" directly in
+// the target timezone instead of doing manual offset arithmetic (also
+// sidesteps DST, which Brazil doesn't observe anyway).
+const USER_TIMEZONE = 'America/Sao_Paulo'
+const dateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: USER_TIMEZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
+function localDateKey(date) {
+  return dateFormatter.format(date)
+}
+
+let lastAutoSyncDate = null
+
+// Runs shortly after the user's local midnight (checked periodically, since
+// a precise cron isn't needed) so "yesterday" is fully closed out before we
+// pull it — syncing mid-day would only capture a partial day's expenditure.
+async function runAutoSyncIfDue() {
+  if (!googleHealth.isConfigured()) return
+  const today = localDateKey(new Date())
+  if (today === lastAutoSyncDate) return
+
+  const tokens = await getGoogleHealthTokens()
+  if (!tokens) return
+
+  const fromDate = localDateKey(new Date(Date.now() - 13 * 24 * 60 * 60 * 1000))
+  try {
+    const result = await googleHealth.syncDailyExpenditure(fromDate, today)
+    console.log(`Auto-sync Google Health: ${result.synced}/${result.total} dias`)
+    lastAutoSyncDate = today
+  } catch (err) {
+    console.error('Falha no auto-sync do Google Health:', err.message)
+  }
+}
+
 initSchema()
   .then(() => {
     app.listen(PORT, () => {
       console.log(`API rodando em http://localhost:${PORT}`)
     })
+    runAutoSyncIfDue()
+    setInterval(runAutoSyncIfDue, 15 * 60 * 1000)
   })
   .catch((err) => {
     console.error('Falha ao inicializar o banco de dados:', err)

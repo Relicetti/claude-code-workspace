@@ -54,9 +54,10 @@ export default function WeeklyClosings() {
             const dt = dayTypeByDate.get(date) || DEFAULT_PRESET
             const kcal = kcalByDate.get(date) || 0
             const total = dt.expenditure + (dt.extraExpenditure || 0)
+            const realTotal = (dt.realExpenditure ?? dt.expenditure) + (dt.extraExpenditure || 0)
             expenditure += total
             plannedDeficit += dt.expenditure - dt.calorieGoal
-            actualDeficit += total - kcal
+            actualDeficit += realTotal - kcal
           }
           return {
             monday,

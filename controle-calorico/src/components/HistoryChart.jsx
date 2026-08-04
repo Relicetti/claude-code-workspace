@@ -305,11 +305,19 @@ export default function HistoryChart({ large = false }) {
             {hovered.dayGoal.expenditure ? (
               <div className="history-detail-deficit">
                 <div className="history-detail-item">
-                  <span className="history-detail-label">Gasto estimado{hovered.dayGoal.extraExpenditure ? ' (com extra)' : ''}</span>
+                  <span className="history-detail-label">Gasto previsto{hovered.dayGoal.extraExpenditure ? ' (com extra)' : ''}</span>
                   <span className="history-detail-value">
                     {Math.round(hovered.dayGoal.expenditure + (hovered.dayGoal.extraExpenditure || 0))} kcal
                   </span>
                 </div>
+                {hovered.dayGoal.realExpenditure != null ? (
+                  <div className="history-detail-item">
+                    <span className="history-detail-label">Gasto realizado (Fitbit)</span>
+                    <span className="history-detail-value">
+                      {Math.round(hovered.dayGoal.realExpenditure + (hovered.dayGoal.extraExpenditure || 0))} kcal
+                    </span>
+                  </div>
+                ) : null}
                 {hovered.dayGoal.extraExpenditure ? (
                   <div className="history-detail-item">
                     <span className="history-detail-label">+ Atividade extra</span>
@@ -326,7 +334,9 @@ export default function HistoryChart({ large = false }) {
                   <span className="history-detail-label">Deficit real</span>
                   <span className="history-detail-value">
                     {formatDeficit(
-                      hovered.dayGoal.expenditure + (hovered.dayGoal.extraExpenditure || 0) - hovered.row.kcal
+                      (hovered.dayGoal.realExpenditure ?? hovered.dayGoal.expenditure) +
+                        (hovered.dayGoal.extraExpenditure || 0) -
+                        hovered.row.kcal
                     )}
                   </span>
                 </div>

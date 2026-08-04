@@ -150,7 +150,14 @@ export async function syncDailyExpenditure(fromDate, toDate) {
     await upsertHealthExpenditure(dateStr, kcal)
     synced += 1
   }
-  return { synced, total: points.length }
+  const result = { synced, total: points.length }
+  // Diagnostic aid: if nothing could be extracted, surface the raw shape of
+  // the first point so a schema mismatch (like Google renaming a field) is
+  // visible in the response instead of silently syncing zero days.
+  if (synced === 0 && points.length > 0) {
+    result.sample = points[0]
+  }
+  return result
 }
 
 export async function disconnect() {

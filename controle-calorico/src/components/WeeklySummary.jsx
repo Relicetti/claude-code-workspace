@@ -36,9 +36,12 @@ export default function WeeklySummary({ dateKey, entries, dayType }) {
           const dt = dayTypeByDate.get(date) || DEFAULT_PRESET
           const kcal = kcalByDate.get(date) || 0
           const total = dt.expenditure + (dt.extraExpenditure || 0)
+          // Deficit real usa o gasto medido pelo Fitbit quando existir; sem
+          // sync pro dia, cai de volta pra estimativa do tipo de dia.
+          const realTotal = (dt.realExpenditure ?? dt.expenditure) + (dt.extraExpenditure || 0)
           expenditure += total
           plannedDeficit += dt.expenditure - dt.calorieGoal
-          actualDeficit += total - kcal
+          actualDeficit += realTotal - kcal
         }
         setTotals({ days: keys.length, expenditure, plannedDeficit, actualDeficit })
       })

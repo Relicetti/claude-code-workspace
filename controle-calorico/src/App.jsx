@@ -186,7 +186,7 @@ export default function App() {
         <MacroBars consumed={consumed} goals={goals} />
         <DeficitSummary
           expenditure={dayType.expenditure}
-          expenditureSource={dayType.expenditureSource}
+          realExpenditure={dayType.realExpenditure}
           extra={dayType.extraExpenditure}
           calorieGoal={goals.calorieGoal}
           consumedKcal={consumed.kcal}
