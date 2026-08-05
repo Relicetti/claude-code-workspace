@@ -585,6 +585,16 @@ body {
   margin: 0 0 12px;
 }
 
+.log-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.log-section-header h3 {
+  margin: 0;
+}
+
 .daily-log {
   display: flex;
   flex-direction: column;

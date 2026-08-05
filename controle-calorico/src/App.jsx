@@ -14,6 +14,7 @@ import DateNav from './components/DateNav.jsx'
 import DeficitSummary from './components/DeficitSummary.jsx'
 import WeeklySummary from './components/WeeklySummary.jsx'
 import ExtraExpenditure from './components/ExtraExpenditure.jsx'
+import { formatLogExport, downloadTextFile } from './exportLog.js'
 
 export default function App() {
   const [dateKey, setDateKey] = useState(todayKey())
@@ -208,7 +209,17 @@ export default function App() {
       <ReviewCards candidates={candidates} onAdd={handleAddCandidate} onDiscard={handleDiscardCandidate} />
 
       <section className="log-section">
-        <h3>{dateKey === todayKey() ? 'Hoje' : 'Registros do dia'}</h3>
+        <div className="log-section-header">
+          <h3>{dateKey === todayKey() ? 'Hoje' : 'Registros do dia'}</h3>
+          <button
+            type="button"
+            className="btn-icon"
+            aria-label="Exportar registros do dia"
+            onClick={() => downloadTextFile(`registro-${dateKey}.txt`, formatLogExport(dateKey, dayType, entries))}
+          >
+            📤
+          </button>
+        </div>
         <DailyLog entries={entries} onRemove={handleRemoveEntry} onEdit={handleUpdateEntry} />
       </section>
 
