@@ -84,8 +84,11 @@ def exportar_excel():
     for m in resultado["meses"]:
         ws.append([m["mes"], round(m["energia_ca_kwh"], 1), round(m["fc"], 1)])
 
-    linha_total = ["Total / Média", round(resultado["energia_ca_total_kwh"], 1), round(resultado["fc_medio_anual"], 1)]
-    ws.append(linha_total)
+    ws.append(["Total anual", round(resultado["energia_ca_total_kwh"], 1), None])
+    for cel in ws[ws.max_row]:
+        cel.font = Font(bold=True)
+
+    ws.append(["Média mensal", round(resultado["energia_ca_media_mensal_kwh"], 1), round(resultado["fc_medio_anual"], 1)])
     for cel in ws[ws.max_row]:
         cel.font = Font(bold=True)
 

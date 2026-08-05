@@ -117,6 +117,7 @@ def calcular_geracao(lat, lon, potencia_cc_kwp, potencia_ca_kw,
 
     energia_dc_total = sum(energia_dc_mes)
     energia_ca_total = sum(energia_ca_mes)
+    energia_ca_media_mensal = energia_ca_total / 12
     perdas_clipping = energia_dc_total - energia_ca_total
     horas_ano = sum(horas_count_mes) or 1
     fc_medio_anual = (energia_ca_total / (potencia_ca_kw * horas_ano) * 100) if potencia_ca_kw else 0
@@ -127,6 +128,7 @@ def calcular_geracao(lat, lon, potencia_cc_kwp, potencia_ca_kw,
         "meses": meses,
         "energia_dc_total_kwh": energia_dc_total,
         "energia_ca_total_kwh": energia_ca_total,
+        "energia_ca_media_mensal_kwh": energia_ca_media_mensal,
         "perdas_clipping_kwh": perdas_clipping,
         "perdas_clipping_pct": (perdas_clipping / energia_dc_total * 100) if energia_dc_total else 0,
         "fc_medio_anual": fc_medio_anual,
