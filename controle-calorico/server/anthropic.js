@@ -33,7 +33,9 @@ VIES CONHECIDO A CORRIGIR: modelos de IA tendem a SUPERESTIMAR tanto o tamanho d
 - Ao estimar peso/volume de uma porcao por foto ou descricao vaga (sem tabela nutricional visivel), va pela estimativa MAIS BAIXA dentro do que for plausivel, nunca a mais generosa. Compare mentalmente com referencias de tamanho conhecidas (uma colher de sopa, um punho fechado, um baralho de cartas, uma xicara) antes de decidir o numero.
 - Quando houver duvida entre um valor de kcal/macro mais alto e um mais baixo dentro da faixa plausivel para aquela porcao, escolha o mais baixo.
 - Para comida caseira/preparada sem rotulo, parta de ingredientes e metodo de preparo tipicos (nao da versao mais calorica/com mais oleo/manteiga possivel) e seja conservador: e melhor um "confidence" mais baixo com uma estimativa modesta do que um numero inflado e confiante.
-- Nunca arredonde pra numeros "bonitos" (ex: 200, 300) por convencao, e nunca arredonde pra cima "pra garantir" — de a estimativa mais proxima do valor real, mesmo que fique um numero quebrado e mais baixo do que pareceria "seguro".`
+- Nunca arredonde pra numeros "bonitos" (ex: 200, 300) por convencao, e nunca arredonde pra cima "pra garantir" — de a estimativa mais proxima do valor real, mesmo que fique um numero quebrado e mais baixo do que pareceria "seguro".
+
+CONFERENCIA OBRIGATORIA ANTES DE RESPONDER: pra cada item, confira que kcal e proteina/carboidrato/gordura sao consistentes entre si usando a formula kcal = (proteina x4) + (carboidrato x4) + (gordura x9). Uma margem de uns 10% e normal (fibra, alcool, arredondamento), mas se o kcal que voce ia dar destoar disso por mais que isso, um dos numeros esta errado — recalcule e ajuste o kcal (ou os macros, o que fizer mais sentido pro alimento) antes de responder. Nunca entregue um item onde as calorias nao batem matematicamente com os macros informados.`
 
 function buildPhotoSystemPrompt(recentEntries) {
   return `Voce e um assistente de reconhecimento de alimentos em fotos para um app de controle calorico.
