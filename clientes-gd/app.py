@@ -20,17 +20,34 @@ os.makedirs(UPLOADS_DIR, exist_ok=True)
 os.makedirs(UPLOADS_FATURAS_DIR, exist_ok=True)
 os.makedirs(UPLOADS_DOCS_DIR, exist_ok=True)
 
-TIPOS_DOCUMENTO_CLIENTE = ["RG", "CPF", "Comprovante de residência", "Outro"]
+TIPOS_DOCUMENTO_CLIENTE = ["RG", "CPF", "Comprovante de residência", "Cartão CNPJ", "Outro"]
 # obrigatórios pra fechar o cadastro e poder enviar o contrato pra
 # assinatura -- "Comprovante de residência" é a própria fatura de energia
-# atualizada, não um documento à parte.
-TIPOS_DOCUMENTO_OBRIGATORIOS = ["RG", "CPF", "Comprovante de residência"]
+# atualizada, não um documento à parte. "Cartão CNPJ" só entra quando o
+# cliente é pessoa jurídica (CPF/CNPJ com 14 dígitos); RG/CPF nesse caso
+# são entendidos como do representante legal.
+TIPOS_DOCUMENTO_OBRIGATORIOS_BASE = ["RG", "CPF", "Comprovante de residência"]
+
+
+def _cliente_e_pessoa_juridica(cliente):
+    return (cliente.get("tipo_documento") or "CPF") == "CNPJ"
+
+
+def _tipos_documento_obrigatorios(cliente):
+    obrigatorios = list(TIPOS_DOCUMENTO_OBRIGATORIOS_BASE)
+    if _cliente_e_pessoa_juridica(cliente):
+        obrigatorios.append("Cartão CNPJ")
+    return obrigatorios
 
 
 def _documentos_obrigatorios_faltando(cliente_id):
     with db.conectar() as conn:
+        cliente = db.buscar_cliente(conn, cliente_id)
+        if cliente is None:
+            return []
+        cliente = dict(cliente)
         tipos_presentes = {d["tipo"] for d in db.listar_documentos_cliente(conn, cliente_id)}
-    return [t for t in TIPOS_DOCUMENTO_OBRIGATORIOS if t not in tipos_presentes]
+    return [t for t in _tipos_documento_obrigatorios(cliente) if t not in tipos_presentes]
 
 
 def _agora():
@@ -200,6 +217,7 @@ def novo_cliente():
     with db.conectar() as conn:
         cliente_id = db.criar_cliente(
             conn, nome,
+            request.form.get("tipo_documento", "CPF"),
             request.form.get("cpf_cnpj", "").strip() or None,
             request.form.get("email", "").strip() or None,
             request.form.get("telefone", "").strip() or None,
@@ -237,7 +255,7 @@ def ver_cliente(cliente_id):
         historico_rateio=historico_rateio,
         faturas=faturas,
         atividades=atividades,
-        documentos_obrigatorios=TIPOS_DOCUMENTO_OBRIGATORIOS,
+        documentos_obrigatorios=_tipos_documento_obrigatorios(cliente),
         documentos_faltando=_documentos_obrigatorios_faltando(cliente_id),
     )
 
@@ -255,6 +273,7 @@ def editar_cliente(cliente_id):
 
         db.atualizar_cliente(conn, cliente_id, {
             "nome": request.form.get("nome", "").strip(),
+            "tipo_documento": request.form.get("tipo_documento", "CPF"),
             "cpf_cnpj": request.form.get("cpf_cnpj", "").strip(),
             "email": request.form.get("email", "").strip(),
             "telefone": request.form.get("telefone", "").strip(),
@@ -280,11 +299,12 @@ def documentos_cliente(cliente_id):
             return "Cliente não encontrado", 404
 
         if request.method == "GET":
+            cliente = dict(cliente)
             documentos = [dict(d) for d in db.listar_documentos_cliente(conn, cliente_id)]
             return render_template(
-                "documentos_cliente.html", cliente=dict(cliente),
+                "documentos_cliente.html", cliente=cliente,
                 documentos=documentos, tipos=TIPOS_DOCUMENTO_CLIENTE,
-                documentos_obrigatorios=TIPOS_DOCUMENTO_OBRIGATORIOS,
+                documentos_obrigatorios=_tipos_documento_obrigatorios(cliente),
                 documentos_faltando=_documentos_obrigatorios_faltando(cliente_id),
             )
 

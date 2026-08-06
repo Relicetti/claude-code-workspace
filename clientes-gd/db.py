@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS usinas_gd (
 CREATE TABLE IF NOT EXISTS clientes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nome TEXT NOT NULL,
+    tipo_documento TEXT NOT NULL DEFAULT 'CPF',
     cpf_cnpj TEXT,
     email TEXT,
     telefone TEXT,
@@ -294,19 +295,19 @@ def buscar_cliente(conn, cliente_id):
     return conn.execute("SELECT * FROM clientes WHERE id = ?", (cliente_id,)).fetchone()
 
 
-def criar_cliente(conn, nome, cpf_cnpj, email, telefone, endereco, uc, concessionaria,
+def criar_cliente(conn, nome, tipo_documento, cpf_cnpj, email, telefone, endereco, uc, concessionaria,
                    usina_gd_id, criado_em):
     cur = conn.execute(
         """INSERT INTO clientes
-           (nome, cpf_cnpj, email, telefone, endereco, uc, concessionaria, usina_gd_id, status, criado_em)
-           VALUES (?,?,?,?,?,?,?,?, 'pendente_assinatura', ?)""",
-        (nome.strip(), cpf_cnpj, email, telefone, endereco, uc, concessionaria,
+           (nome, tipo_documento, cpf_cnpj, email, telefone, endereco, uc, concessionaria, usina_gd_id, status, criado_em)
+           VALUES (?,?,?,?,?,?,?,?,?, 'pendente_assinatura', ?)""",
+        (nome.strip(), tipo_documento or "CPF", cpf_cnpj, email, telefone, endereco, uc, concessionaria,
          usina_gd_id or None, criado_em),
     )
     return cur.lastrowid
 
 
-CAMPOS_EDITAVEIS_CLIENTE = ["nome", "cpf_cnpj", "email", "telefone", "endereco", "uc", "concessionaria"]
+CAMPOS_EDITAVEIS_CLIENTE = ["nome", "tipo_documento", "cpf_cnpj", "email", "telefone", "endereco", "uc", "concessionaria"]
 
 
 def atualizar_cliente(conn, cliente_id, campos):
