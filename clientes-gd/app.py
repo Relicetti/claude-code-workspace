@@ -21,6 +21,16 @@ os.makedirs(UPLOADS_FATURAS_DIR, exist_ok=True)
 os.makedirs(UPLOADS_DOCS_DIR, exist_ok=True)
 
 TIPOS_DOCUMENTO_CLIENTE = ["RG", "CPF", "Comprovante de residência", "Outro"]
+# obrigatórios pra fechar o cadastro e poder enviar o contrato pra
+# assinatura -- "Comprovante de residência" é a própria fatura de energia
+# atualizada, não um documento à parte.
+TIPOS_DOCUMENTO_OBRIGATORIOS = ["RG", "CPF", "Comprovante de residência"]
+
+
+def _documentos_obrigatorios_faltando(cliente_id):
+    with db.conectar() as conn:
+        tipos_presentes = {d["tipo"] for d in db.listar_documentos_cliente(conn, cliente_id)}
+    return [t for t in TIPOS_DOCUMENTO_OBRIGATORIOS if t not in tipos_presentes]
 
 
 def _agora():
@@ -227,6 +237,8 @@ def ver_cliente(cliente_id):
         historico_rateio=historico_rateio,
         faturas=faturas,
         atividades=atividades,
+        documentos_obrigatorios=TIPOS_DOCUMENTO_OBRIGATORIOS,
+        documentos_faltando=_documentos_obrigatorios_faltando(cliente_id),
     )
 
 
@@ -272,6 +284,8 @@ def documentos_cliente(cliente_id):
             return render_template(
                 "documentos_cliente.html", cliente=dict(cliente),
                 documentos=documentos, tipos=TIPOS_DOCUMENTO_CLIENTE,
+                documentos_obrigatorios=TIPOS_DOCUMENTO_OBRIGATORIOS,
+                documentos_faltando=_documentos_obrigatorios_faltando(cliente_id),
             )
 
         tipo = request.form.get("tipo", "Outro")
@@ -360,6 +374,14 @@ def _enviar_contrato_para_assinatura(contrato_id, contrato, cliente):
     Autentique. Flasheia o resultado (sucesso ou motivo de não ter enviado)
     -- usada tanto pelo botão manual "Enviar p/ assinatura" quanto pelo
     fluxo automático "Gerar e enviar". Retorna True se enviou de fato."""
+    faltando = _documentos_obrigatorios_faltando(cliente["id"])
+    if faltando:
+        flash(
+            f"Cadastro incompleto: falta anexar {', '.join(faltando)} na aba Documentos "
+            f"antes de enviar o contrato para assinatura.", "danger",
+        )
+        return False
+
     assinador = obter_assinatura()
     if not assinador.configurado():
         flash(
@@ -406,6 +428,14 @@ def gerar_e_enviar_contrato(cliente_id, contrato_id):
         if contrato is None or cliente is None or contrato["cliente_id"] != cliente_id:
             return "Contrato não encontrado", 404
         contrato, cliente = dict(contrato), dict(cliente)
+
+    faltando = _documentos_obrigatorios_faltando(cliente_id)
+    if faltando:
+        flash(
+            f"Cadastro incompleto: falta anexar {', '.join(faltando)} na aba Documentos "
+            f"antes de gerar e enviar o contrato.", "danger",
+        )
+        return redirect(url_for("ver_cliente", cliente_id=cliente_id))
 
     try:
         pdf_bytes = contratos_gerador.gerar_termo_adesao_pdf(cliente, contrato)

@@ -6,6 +6,27 @@
 
 <h4 class="mb-3">Documentos de {{ cliente.nome }}</h4>
 
+<div class="card mb-4" style="max-width: 560px;">
+  <div class="card-body">
+    <h6 class="mb-2">Obrigatórios para enviar o contrato para assinatura</h6>
+    <ul class="list-unstyled mb-0 small">
+      {% for tipo in documentos_obrigatorios %}
+      <li class="mb-1">
+        {% if tipo in documentos_faltando %}
+          <span class="text-danger">○</span> {{ tipo }}
+        {% else %}
+          <span class="text-success">●</span> {{ tipo }}
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="form-text mt-2 mb-0">
+      "Comprovante de residência" é a própria fatura de energia atualizada da UC — não precisa
+      de outro comprovante separado.
+    </p>
+  </div>
+</div>
+
 <div class="card shadow-sm mb-4" style="max-width: 560px;">
   <div class="card-body">
     <h6 class="mb-3">Anexar novo documento</h6>

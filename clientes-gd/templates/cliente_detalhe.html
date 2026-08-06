@@ -15,6 +15,13 @@
   </div>
 </div>
 
+{% if documentos_faltando %}
+<div class="alert alert-warning py-2 small mb-3">
+  Cadastro incompleto: falta anexar <strong>{{ documentos_faltando | join(', ') }}</strong> em
+  <a href="{{ url_for('documentos_cliente', cliente_id=cliente.id) }}">Documentos</a> antes de enviar o contrato para assinatura.
+</div>
+{% endif %}
+
 <div class="row g-3">
   <div class="col-md-6">
     <div class="card shadow-sm h-100">
@@ -83,10 +90,10 @@
               <td class="d-flex gap-1 flex-wrap">
                 {% if c.status in ("rascunho", "aguardando_assinatura") %}
                 <form method="post" action="{{ url_for('gerar_e_enviar_contrato', cliente_id=cliente.id, contrato_id=c.id) }}" class="d-inline">
-                  <button type="submit" class="btn btn-sm btn-primary">⚡ Gerar e enviar p/ assinatura</button>
+                  <button type="submit" class="btn btn-sm btn-primary" {{ "disabled title='Complete os documentos obrigatórios primeiro'" | safe if documentos_faltando }}>⚡ Gerar e enviar p/ assinatura</button>
                 </form>
                 <form method="post" action="{{ url_for('enviar_assinatura', contrato_id=c.id) }}" class="d-inline">
-                  <button type="submit" class="btn btn-sm btn-outline-primary">
+                  <button type="submit" class="btn btn-sm btn-outline-primary" {{ "disabled title='Complete os documentos obrigatórios primeiro'" | safe if documentos_faltando }}>
                     {{ "Reenviar" if c.status == "aguardando_assinatura" else "Enviar" }} PDF anexado
                   </button>
                 </form>
