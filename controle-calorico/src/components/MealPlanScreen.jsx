@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { api } from '../api.js'
-import { WEEKDAY_MEALS, MEAL_PLAN_TOTALS, SATURDAY_ADJUSTMENTS } from '../mealPlan.js'
+import { DAY_PLAN_TABS } from '../mealPlan.js'
 
 function TrainingDivider({ meal }) {
   return (
@@ -98,6 +98,9 @@ function MealCard({ meal }) {
 }
 
 export default function MealPlanScreen({ onClose }) {
+  const [tabKey, setTabKey] = useState(DAY_PLAN_TABS[0].key)
+  const tab = DAY_PLAN_TABS.find((t) => t.key === tabKey)
+
   return (
     <div className="history-screen">
       <header className="history-screen-header">
@@ -107,23 +110,38 @@ export default function MealPlanScreen({ onClose }) {
         <h2>Plano Alimentar</h2>
       </header>
       <div className="history-screen-body">
+        <div className="meal-plan-tabs">
+          {DAY_PLAN_TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              className={`meal-plan-tab${t.key === tabKey ? ' meal-plan-tab-active' : ''}`}
+              onClick={() => setTabKey(t.key)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
         <div className="meal-plan-totals">
-          Segunda a Sexta — {MEAL_PLAN_TOTALS.kcal} kcal · P {MEAL_PLAN_TOTALS.protein}g · C {MEAL_PLAN_TOTALS.carbs}g
-          · G {MEAL_PLAN_TOTALS.fat}g
+          {tab.label} — {tab.totals.kcal} kcal · P {tab.totals.protein}g · C {tab.totals.carbs}g · G {tab.totals.fat}g
         </div>
 
-        {WEEKDAY_MEALS.map((meal) =>
-          meal.isTrainingBlock ? <TrainingDivider meal={meal} key={meal.key} /> : <MealCard meal={meal} key={meal.key} />
+        {tab.meals &&
+          tab.meals.map((meal) =>
+            meal.isTrainingBlock ? <TrainingDivider meal={meal} key={meal.key} /> : <MealCard meal={meal} key={meal.key} />
+          )}
+
+        {tab.notes && (
+          <div className="meal-plan-saturday">
+            <h4 className="history-chart-title">Ajustes</h4>
+            <ul>
+              {tab.notes.map((line, i) => (
+                <li key={i}>{line}</li>
+              ))}
+            </ul>
+          </div>
         )}
-
-        <div className="meal-plan-saturday">
-          <h4 className="history-chart-title">Ajuste pro sabado</h4>
-          <ul>
-            {SATURDAY_ADJUSTMENTS.map((line, i) => (
-              <li key={i}>{line}</li>
-            ))}
-          </ul>
-        </div>
       </div>
     </div>
   )
