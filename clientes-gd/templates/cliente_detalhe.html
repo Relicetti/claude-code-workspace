@@ -60,10 +60,13 @@
   <div class="col-12">
     <div class="card shadow-sm">
       <div class="card-body">
-        <h5 class="mb-3">Contratos / termo de adesão</h5>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="mb-0">Contratos / termo de adesão</h5>
+          <a href="{{ url_for('novo_contrato', cliente_id=cliente.id) }}" class="btn btn-sm btn-primary">+ Novo contrato</a>
+        </div>
         {% if contratos %}
-        <table class="table table-sm mb-0">
-          <thead><tr><th>Tipo</th><th>Desconto contratado</th><th>Status</th><th>Criado em</th></tr></thead>
+        <table class="table table-sm mb-3">
+          <thead><tr><th>Tipo</th><th>Desconto contratado</th><th>Status</th><th>Criado em</th><th></th></tr></thead>
           <tbody>
             {% for c in contratos %}
             <tr>
@@ -71,10 +74,37 @@
               <td>{{ (c.percentual_desconto_contratado * 100) | round(2) if c.percentual_desconto_contratado else "—" }}%</td>
               <td>{{ c.status }}</td>
               <td>{{ c.criado_em }}</td>
+              <td>
+                {% if c.status in ("rascunho", "aguardando_assinatura") %}
+                <form method="post" action="{{ url_for('enviar_assinatura', contrato_id=c.id) }}" class="d-inline">
+                  <button type="submit" class="btn btn-sm btn-outline-primary">
+                    {{ "Reenviar" if c.status == "aguardando_assinatura" else "Enviar" }} p/ assinatura
+                  </button>
+                </form>
+                {% endif %}
+              </td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
+        <details class="small">
+          <summary class="text-muted" style="cursor:pointer;">Registrar documento já assinado manualmente (fora da Autentique)</summary>
+          <form method="post" action="{{ url_for('upload_documento_assinado', cliente_id=cliente.id) }}" enctype="multipart/form-data" class="mt-2 d-flex gap-2 align-items-end">
+            <div>
+              <label class="form-label">Contrato</label>
+              <select name="contrato_id" class="form-select form-select-sm">
+                {% for c in contratos %}
+                  <option value="{{ c.id }}">#{{ c.id }} — {{ c.tipo }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="form-label">PDF assinado</label>
+              <input type="file" name="arquivo" accept="application/pdf" class="form-control form-control-sm">
+            </div>
+            <button type="submit" class="btn btn-sm btn-outline-secondary">Registrar</button>
+          </form>
+        </details>
         {% else %}
         <p class="text-muted mb-0">Nenhum contrato cadastrado ainda.</p>
         {% endif %}

@@ -1,10 +1,17 @@
+import hashlib
 import os
 from datetime import datetime
 
+import requests
 from flask import Flask, flash, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.utils import secure_filename
 
 import db
+from assinatura import obter_assinatura
+
+UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "uploads", "contratos")
+os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 
 def _agora():
@@ -30,7 +37,7 @@ app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024  # upload de PDF (fatura/con
 db.iniciar_banco()
 db.bootstrap_admin(generate_password_hash)
 
-ROTAS_PUBLICAS = {"login", "static"}
+ROTAS_PUBLICAS = {"login", "static", "webhook_autentique"}
 
 
 @app.before_request
@@ -240,6 +247,163 @@ def editar_cliente(cliente_id):
             request.form.get("nome", "").strip(), _agora(),
         )
     return redirect(url_for("ver_cliente", cliente_id=cliente_id))
+
+
+# --- contratos / assinatura eletrônica --------------------------------
+
+@app.route("/cliente/<int:cliente_id>/contrato/novo", methods=["GET", "POST"])
+def novo_contrato(cliente_id):
+    with db.conectar() as conn:
+        cliente = db.buscar_cliente(conn, cliente_id)
+    if cliente is None:
+        return "Cliente não encontrado", 404
+
+    if request.method == "GET":
+        return render_template("contrato_form.html", cliente=dict(cliente), tipos=db.TIPOS_CONTRATO)
+
+    tipo = request.form.get("tipo", "termo_adesao")
+    percentual = _parse_numero(request.form.get("percentual_desconto"))
+    percentual_fracao = (percentual / 100) if percentual is not None else None
+    data_inicio = request.form.get("data_inicio_vigencia", "").strip() or None
+    arquivo = request.files.get("arquivo")
+
+    with db.conectar() as conn:
+        contrato_id = db.criar_contrato(conn, cliente_id, tipo, percentual_fracao, data_inicio, _agora())
+        db.registrar_atividade(
+            conn, session["usuario_nome"], f"Criou contrato ({tipo})", cliente["nome"], _agora(),
+        )
+
+    if arquivo and arquivo.filename:
+        destino = os.path.join(UPLOADS_DIR, f"{contrato_id}.pdf")
+        arquivo.save(destino)
+        flash("Contrato criado e documento anexado. Agora envie para assinatura.", "success")
+    else:
+        flash("Contrato criado como rascunho. Anexe o PDF antes de enviar para assinatura.", "warning")
+
+    return redirect(url_for("ver_cliente", cliente_id=cliente_id))
+
+
+@app.route("/contrato/<int:contrato_id>/enviar-assinatura", methods=["POST"])
+def enviar_assinatura(contrato_id):
+    with db.conectar() as conn:
+        contrato = db.buscar_contrato(conn, contrato_id)
+        if contrato is None:
+            return "Contrato não encontrado", 404
+        cliente = db.buscar_cliente(conn, contrato["cliente_id"])
+
+    assinador = obter_assinatura()
+    if not assinador.configurado():
+        flash(
+            "Assinatura eletrônica não configurada (falta ASSINATURA_AUTENTIQUE_API_TOKEN). "
+            "Crie a conta na Autentique e defina a variável de ambiente para habilitar o envio.",
+            "warning",
+        )
+        return redirect(url_for("ver_cliente", cliente_id=contrato["cliente_id"]))
+
+    arquivo_path = os.path.join(UPLOADS_DIR, f"{contrato_id}.pdf")
+    if not os.path.exists(arquivo_path):
+        flash("Anexe o PDF do contrato antes de enviar para assinatura.", "danger")
+        return redirect(url_for("ver_cliente", cliente_id=contrato["cliente_id"]))
+
+    if not cliente["email"]:
+        flash("O cliente precisa ter um e-mail cadastrado para receber o convite de assinatura.", "danger")
+        return redirect(url_for("ver_cliente", cliente_id=contrato["cliente_id"]))
+
+    try:
+        documento_externo_id = assinador.enviar_documento(
+            dict(contrato), arquivo_path, cliente["nome"], cliente["email"],
+        )
+    except Exception as e:
+        flash(f"Falha ao enviar para assinatura: {e}", "danger")
+        return redirect(url_for("ver_cliente", cliente_id=contrato["cliente_id"]))
+
+    with db.conectar() as conn:
+        db.registrar_envio_assinatura(conn, contrato_id, "autentique", documento_externo_id, _agora())
+        db.mudar_status_contrato(conn, contrato_id, "aguardando_assinatura")
+        db.registrar_atividade(
+            conn, session["usuario_nome"], "Enviou o contrato para assinatura (Autentique)",
+            cliente["nome"], _agora(),
+        )
+    flash(f"Contrato enviado para assinatura de {cliente['nome']}.", "success")
+    return redirect(url_for("ver_cliente", cliente_id=contrato["cliente_id"]))
+
+
+@app.route("/cliente/<int:cliente_id>/contrato/upload-assinado", methods=["POST"])
+def upload_documento_assinado(cliente_id):
+    """Caminho alternativo: se o contrato já foi assinado fora do fluxo
+    Autentique (ex: papel escaneado), permite registrar manualmente."""
+    contrato_id = request.form.get("contrato_id")
+    arquivo = request.files.get("arquivo")
+    if not contrato_id or not arquivo or not arquivo.filename:
+        flash("Selecione o contrato e o arquivo PDF assinado.", "warning")
+        return redirect(url_for("ver_cliente", cliente_id=cliente_id))
+
+    nome_seguro = secure_filename(f"assinado_{contrato_id}.pdf")
+    destino = os.path.join(UPLOADS_DIR, nome_seguro)
+    arquivo.save(destino)
+    conteudo = open(destino, "rb").read()
+    hash_sha256 = hashlib.sha256(conteudo).hexdigest()
+
+    with db.conectar() as conn:
+        db.registrar_upload_manual_assinado(conn, contrato_id, destino, hash_sha256, _agora(), _agora())
+        db.mudar_status_contrato(conn, contrato_id, "assinado")
+        db.mudar_status_cliente(conn, cliente_id, "ativo")
+        cliente = db.buscar_cliente(conn, cliente_id)
+        db.registrar_atividade(
+            conn, session["usuario_nome"], "Registrou documento assinado (upload manual)",
+            cliente["nome"] if cliente else None, _agora(),
+        )
+    flash("Documento assinado registrado.", "success")
+    return redirect(url_for("ver_cliente", cliente_id=cliente_id))
+
+
+@app.route("/webhook/autentique", methods=["POST"])
+def webhook_autentique():
+    assinador = obter_assinatura()
+    token_recebido = request.args.get("token")
+    if not assinador.validar_webhook(token_recebido):
+        return "", 403
+
+    payload = request.get_json(silent=True) or {}
+    evento_chave = hashlib.sha256(str(sorted(payload.items())).encode("utf-8")).hexdigest()
+
+    with db.conectar() as conn:
+        novo = db.registrar_webhook(conn, "autentique", evento_chave, str(payload), _agora())
+        if not novo:
+            return "", 200  # já processado antes (reenvio do provedor) -- idempotente
+
+        resultado = assinador.processar_webhook(payload)
+        if resultado and resultado["assinado"]:
+            arquivo_path = None
+            hash_sha256 = None
+            if resultado.get("arquivo_url"):
+                try:
+                    resp = requests.get(resultado["arquivo_url"], timeout=30)
+                    resp.raise_for_status()
+                    nome_seguro = secure_filename(f"assinado_{resultado['documento_externo_id']}.pdf")
+                    arquivo_path = os.path.join(UPLOADS_DIR, nome_seguro)
+                    with open(arquivo_path, "wb") as f:
+                        f.write(resp.content)
+                    hash_sha256 = hashlib.sha256(resp.content).hexdigest()
+                except Exception:
+                    pass  # documento fica marcado assinado mesmo sem baixar o arquivo final
+
+            contrato_id = db.confirmar_assinatura(
+                conn, resultado["documento_externo_id"], arquivo_path, hash_sha256, _agora(),
+            )
+            if contrato_id:
+                db.mudar_status_contrato(conn, contrato_id, "assinado")
+                contrato = db.buscar_contrato(conn, contrato_id)
+                cliente = db.buscar_cliente(conn, contrato["cliente_id"]) if contrato else None
+                if cliente:
+                    db.mudar_status_cliente(conn, cliente["id"], "ativo")
+                db.registrar_atividade(
+                    conn, "Autentique (webhook)", "Contrato assinado eletronicamente",
+                    cliente["nome"] if cliente else None, _agora(),
+                )
+        db.marcar_webhook_processado(conn, "autentique", evento_chave)
+
+    return "", 200
 
 
 if __name__ == "__main__":

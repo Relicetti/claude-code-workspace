@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Novo contrato{% endblock %}
+{% block content %}
+
+<a href="{{ url_for('ver_cliente', cliente_id=cliente.id) }}" class="btn btn-sm btn-outline-secondary mb-3">&larr; voltar</a>
+
+<div class="card shadow-sm" style="max-width: 560px;">
+  <div class="card-body">
+    <h4 class="mb-1">Novo contrato</h4>
+    <p class="text-muted small mb-3">Cliente: {{ cliente.nome }}</p>
+    <form method="post" enctype="multipart/form-data">
+      <div class="mb-3">
+        <label class="form-label">Tipo</label>
+        <select name="tipo" class="form-select">
+          {% for t in tipos %}
+            <option value="{{ t }}">{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Desconto contratado (%)</label>
+        <input type="text" name="percentual_desconto" class="form-control" inputmode="decimal" placeholder="ex: 20">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Início de vigência</label>
+        <input type="date" name="data_inicio_vigencia" class="form-control">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">PDF do contrato (a ser enviado para assinatura)</label>
+        <input type="file" name="arquivo" accept="application/pdf" class="form-control">
+        <div class="form-text">Opcional agora — pode ser anexado depois, antes de enviar para assinatura.</div>
+      </div>
+      <button type="submit" class="btn btn-primary">Criar contrato</button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
