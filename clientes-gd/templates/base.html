@@ -22,6 +22,9 @@
     <a class="navbar-brand fw-bold mb-0" href="{{ url_for('dashboard') }}">⚡ Gestão de Clientes GD</a>
     <div class="d-flex align-items-center gap-2">
       {% if usuario_logado %}
+        <a href="{{ url_for('usineiros_lista') }}" class="btn btn-outline-light btn-sm">Usineiros</a>
+        <a href="{{ url_for('usinas_gd_lista') }}" class="btn btn-outline-light btn-sm">Usinas GD</a>
+        <a href="{{ url_for('novo_cliente') }}" class="btn btn-light btn-sm">+ Novo cliente</a>
         <span class="text-white small">{{ usuario_logado }}</span>
         <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm">Sair</a>
       {% endif %}

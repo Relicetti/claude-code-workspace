@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}{{ cliente.nome }}{% endblock %}
+{% block content %}
+
+<a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary mb-3">&larr; voltar</a>
+
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <h4 class="mb-1">{{ cliente.nome }}</h4>
+    <span class="badge badge-status-{{ cliente.status }}">{{ cliente.status }}</span>
+  </div>
+  <a href="{{ url_for('editar_cliente', cliente_id=cliente.id) }}" class="btn btn-sm btn-outline-secondary">Editar</a>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h5 class="mb-3">Dados do cliente</h5>
+        <dl class="row mb-0 small">
+          <dt class="col-5">CPF/CNPJ</dt><dd class="col-7">{{ cliente.cpf_cnpj or "—" }}</dd>
+          <dt class="col-5">E-mail</dt><dd class="col-7">{{ cliente.email or "—" }}</dd>
+          <dt class="col-5">Telefone</dt><dd class="col-7">{{ cliente.telefone or "—" }}</dd>
+          <dt class="col-5">Endereço</dt><dd class="col-7">{{ cliente.endereco or "—" }}</dd>
+          <dt class="col-5">UC</dt><dd class="col-7">{{ cliente.uc or "—" }}</dd>
+          <dt class="col-5">Concessionária</dt><dd class="col-7">{{ cliente.concessionaria or "—" }}</dd>
+          <dt class="col-5">Usina GD</dt><dd class="col-7">{{ usina.nome_usina if usina else "—" }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h5 class="mb-3">Rateio</h5>
+        {% if rateio_atual %}
+          <p class="mb-2"><strong>{{ (rateio_atual.percentual_rateio * 100) | round(2) }}%</strong> vigente desde {{ rateio_atual.mes_inicio }}</p>
+        {% else %}
+          <p class="text-muted mb-0">Sem rateio cadastrado ainda.</p>
+        {% endif %}
+        {% if historico_rateio|length > 1 %}
+        <table class="table table-sm mt-3 mb-0">
+          <thead><tr><th>%</th><th>Início</th><th>Fim</th></tr></thead>
+          <tbody>
+            {% for r in historico_rateio %}
+            <tr>
+              <td>{{ (r.percentual_rateio * 100) | round(2) }}%</td>
+              <td>{{ r.mes_inicio }}</td>
+              <td>{{ r.mes_fim or "vigente" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5 class="mb-3">Contratos / termo de adesão</h5>
+        {% if contratos %}
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Tipo</th><th>Desconto contratado</th><th>Status</th><th>Criado em</th></tr></thead>
+          <tbody>
+            {% for c in contratos %}
+            <tr>
+              <td>{{ c.tipo }}</td>
+              <td>{{ (c.percentual_desconto_contratado * 100) | round(2) if c.percentual_desconto_contratado else "—" }}%</td>
+              <td>{{ c.status }}</td>
+              <td>{{ c.criado_em }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="text-muted mb-0">Nenhum contrato cadastrado ainda.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5 class="mb-3">Faturas</h5>
+        {% if faturas %}
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Mês</th><th>kWh compensado</th><th>Valor cobrado</th><th>Status</th></tr></thead>
+          <tbody>
+            {% for f in faturas %}
+            <tr>
+              <td>{{ f.mes_referencia }}</td>
+              <td>{{ f.energia_compensada_kwh or "—" }}</td>
+              <td>{{ "R$ %.2f"|format(f.valor_cobrado) if f.valor_cobrado else "—" }}</td>
+              <td>{{ f.status }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="text-muted mb-0">Nenhuma fatura gerada ainda.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5 class="mb-3">Atividade</h5>
+        {% if atividades %}
+        <ul class="list-unstyled mb-0 small">
+          {% for a in atividades %}
+          <li class="mb-1"><span class="text-muted">{{ a.criado_em }}</span> — {{ a.usuario }}: {{ a.acao }}</li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted mb-0">Sem atividade registrada ainda.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

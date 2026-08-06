@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}{{ "Editar cliente" if cliente else "Novo cliente" }}{% endblock %}
+{% block content %}
+
+{% if cliente %}
+<a href="{{ url_for('ver_cliente', cliente_id=cliente.id) }}" class="btn btn-sm btn-outline-secondary mb-3">&larr; voltar</a>
+{% else %}
+<a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary mb-3">&larr; voltar</a>
+{% endif %}
+
+<div class="card shadow-sm" style="max-width: 640px;">
+  <div class="card-body">
+    <h4 class="mb-3">{{ "Editar cliente" if cliente else "Cadastrar novo cliente" }}</h4>
+    <form method="post">
+      <div class="mb-3">
+        <label class="form-label">Nome</label>
+        <input type="text" name="nome" class="form-control" required autofocus value="{{ cliente.nome if cliente else '' }}">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">CPF/CNPJ</label>
+        <input type="text" name="cpf_cnpj" class="form-control" value="{{ cliente.cpf_cnpj if cliente else '' }}">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">E-mail</label>
+        <input type="email" name="email" class="form-control" value="{{ cliente.email if cliente else '' }}">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Telefone</label>
+        <input type="text" name="telefone" class="form-control" value="{{ cliente.telefone if cliente else '' }}">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Endereço</label>
+        <input type="text" name="endereco" class="form-control" value="{{ cliente.endereco if cliente else '' }}">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">UC (unidade consumidora)</label>
+        <input type="text" name="uc" class="form-control" value="{{ cliente.uc if cliente else '' }}">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Concessionária</label>
+        <input type="text" name="concessionaria" class="form-control" value="{{ cliente.concessionaria if cliente else '' }}">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Usina GD</label>
+        <select name="usina_gd_id" class="form-select">
+          <option value="">—</option>
+          {% for u in usinas %}
+            <option value="{{ u.id }}" {% if cliente and cliente.usina_gd_id == u.id %}selected{% endif %}>{{ u.nome_usina }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">{{ "Salvar" if cliente else "Cadastrar" }}</button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

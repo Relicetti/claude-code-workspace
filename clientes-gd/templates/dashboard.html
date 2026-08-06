@@ -21,7 +21,7 @@
       </thead>
       <tbody>
         {% for c in clientes %}
-        <tr>
+        <tr class="cursor-pointer" onclick="window.location='{{ url_for('ver_cliente', cliente_id=c.id) }}'" style="cursor:pointer;">
           <td>{{ c.nome }}</td>
           <td>{{ c.uc or "—" }}</td>
           <td>{{ c.concessionaria or "—" }}</td>
