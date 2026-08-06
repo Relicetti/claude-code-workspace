@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Painel{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">Clientes</h4>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    {% if clientes %}
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>UC</th>
+          <th>Concessionária</th>
+          <th>Usina GD</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in clientes %}
+        <tr>
+          <td>{{ c.nome }}</td>
+          <td>{{ c.uc or "—" }}</td>
+          <td>{{ c.concessionaria or "—" }}</td>
+          <td>{{ c.nome_usina or "—" }}</td>
+          <td><span class="badge badge-status-{{ c.status }}">{{ c.status }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted mb-0">Nenhum cliente cadastrado ainda.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <h5 class="mb-3">Atividade recente</h5>
+    {% if atividades %}
+    <ul class="list-unstyled mb-0 small">
+      {% for a in atividades %}
+      <li class="mb-1"><span class="text-muted">{{ a.criado_em }}</span> — {{ a.usuario }}: {{ a.acao }}{% if a.cliente_nome %} ({{ a.cliente_nome }}){% endif %}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-muted mb-0">Sem atividade registrada ainda.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

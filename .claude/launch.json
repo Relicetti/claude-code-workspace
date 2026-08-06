@@ -48,6 +48,12 @@
       "runtimeExecutable": "fup-operacoes/.venv/Scripts/python.exe",
       "runtimeArgs": ["fup-operacoes/app.py"],
       "port": 5010
+    },
+    {
+      "name": "clientes-gd",
+      "runtimeExecutable": "py",
+      "runtimeArgs": ["-m", "flask", "--app", "clientes-gd/app", "run", "--port", "5011"],
+      "port": 5011
     }
   ]
 }

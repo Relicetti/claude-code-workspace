@@ -1,0 +1,6 @@
+clientes_gd.db
+__pycache__/
+*.pyc
+.env
+uploads/
+.venv/
