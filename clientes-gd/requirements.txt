@@ -4,4 +4,3 @@ requests>=2.31
 gunicorn==23.0.0
 openpyxl>=3.1
 anthropic>=0.25
-python-dotenv>=1.0

@@ -61,6 +61,12 @@ CREATE TABLE IF NOT EXISTS contratos (
     percentual_desconto_contratado REAL,
     data_inicio_vigencia TEXT,
     status TEXT NOT NULL DEFAULT 'rascunho',
+    -- usados pelo motor de cálculo de tarifa (tarifas/calculos.py, portado
+    -- do alexandria-tarifas): cobra_band = cobra bandeira tarifária do
+    -- cliente; impostos_com_desconto = se o desconto contratual incide
+    -- também sobre impostos na tarifa bruta de referência.
+    cobra_band INTEGER NOT NULL DEFAULT 0,
+    impostos_com_desconto INTEGER NOT NULL DEFAULT 0,
     criado_em TEXT NOT NULL
 );
 
@@ -315,12 +321,30 @@ def buscar_contrato(conn, contrato_id):
     return conn.execute("SELECT * FROM contratos WHERE id = ?", (contrato_id,)).fetchone()
 
 
-def criar_contrato(conn, cliente_id, tipo, percentual_desconto, data_inicio_vigencia, criado_em):
+def contrato_vigente_cliente(conn, cliente_id):
+    """Contrato assinado mais recente do cliente; se não houver nenhum
+    assinado ainda, cai pro mais recente de qualquer status (pra permitir
+    processar fatura de teste antes da assinatura, se necessário)."""
+    row = conn.execute(
+        "SELECT * FROM contratos WHERE cliente_id = ? AND status = 'assinado' ORDER BY criado_em DESC LIMIT 1",
+        (cliente_id,),
+    ).fetchone()
+    if row is not None:
+        return row
+    return conn.execute(
+        "SELECT * FROM contratos WHERE cliente_id = ? ORDER BY criado_em DESC LIMIT 1", (cliente_id,)
+    ).fetchone()
+
+
+def criar_contrato(conn, cliente_id, tipo, percentual_desconto, data_inicio_vigencia, criado_em,
+                    cobra_band=False, impostos_com_desconto=False):
     cur = conn.execute(
         """INSERT INTO contratos
-           (cliente_id, tipo, percentual_desconto_contratado, data_inicio_vigencia, status, criado_em)
-           VALUES (?,?,?,?, 'rascunho', ?)""",
-        (cliente_id, tipo, percentual_desconto, data_inicio_vigencia, criado_em),
+           (cliente_id, tipo, percentual_desconto_contratado, data_inicio_vigencia,
+            status, cobra_band, impostos_com_desconto, criado_em)
+           VALUES (?,?,?,?, 'rascunho', ?,?,?)""",
+        (cliente_id, tipo, percentual_desconto, data_inicio_vigencia,
+         int(cobra_band), int(impostos_com_desconto), criado_em),
     )
     return cur.lastrowid
 

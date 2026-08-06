@@ -30,6 +30,17 @@
         <input type="file" name="arquivo" accept="application/pdf" class="form-control">
         <div class="form-text">Opcional agora — pode ser anexado depois, antes de enviar para assinatura.</div>
       </div>
+      <details class="mb-3">
+        <summary class="text-muted small" style="cursor:pointer;">Opções avançadas (usadas no cálculo de tarifa)</summary>
+        <div class="form-check mt-2">
+          <input type="checkbox" name="cobra_band" class="form-check-input" id="cobra_band">
+          <label class="form-check-label small" for="cobra_band">Cobra bandeira tarifária do cliente</label>
+        </div>
+        <div class="form-check">
+          <input type="checkbox" name="impostos_com_desconto" class="form-check-input" id="impostos_com_desconto">
+          <label class="form-check-label small" for="impostos_com_desconto">Desconto incide também sobre impostos na tarifa de referência</label>
+        </div>
+      </details>
       <button type="submit" class="btn btn-primary">Criar contrato</button>
     </form>
   </div>

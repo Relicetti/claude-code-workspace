@@ -118,7 +118,10 @@
   <div class="col-12">
     <div class="card shadow-sm">
       <div class="card-body">
-        <h5 class="mb-3">Faturas</h5>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="mb-0">Faturas</h5>
+          <a href="{{ url_for('nova_fatura', cliente_id=cliente.id) }}" class="btn btn-sm btn-primary">+ Processar fatura</a>
+        </div>
         {% if faturas %}
         <table class="table table-sm mb-0">
           <thead><tr><th>Mês</th><th>kWh compensado</th><th>Valor cobrado</th><th>Status</th></tr></thead>

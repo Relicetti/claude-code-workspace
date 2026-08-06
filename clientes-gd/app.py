@@ -1,4 +1,5 @@
 import hashlib
+import json
 import os
 from datetime import datetime
 
@@ -9,9 +10,12 @@ from werkzeug.utils import secure_filename
 
 import db
 from assinatura import obter_assinatura
+from tarifas import processar as tarifas_processar
 
 UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "uploads", "contratos")
+UPLOADS_FATURAS_DIR = os.path.join(os.path.dirname(__file__), "uploads", "faturas")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
+os.makedirs(UPLOADS_FATURAS_DIR, exist_ok=True)
 
 
 def _agora():
@@ -268,7 +272,11 @@ def novo_contrato(cliente_id):
     arquivo = request.files.get("arquivo")
 
     with db.conectar() as conn:
-        contrato_id = db.criar_contrato(conn, cliente_id, tipo, percentual_fracao, data_inicio, _agora())
+        contrato_id = db.criar_contrato(
+            conn, cliente_id, tipo, percentual_fracao, data_inicio, _agora(),
+            cobra_band=request.form.get("cobra_band") == "on",
+            impostos_com_desconto=request.form.get("impostos_com_desconto") == "on",
+        )
         db.registrar_atividade(
             conn, session["usuario_nome"], f"Criou contrato ({tipo})", cliente["nome"], _agora(),
         )
@@ -439,6 +447,85 @@ def novo_rateio(cliente_id):
             cliente["nome"], _agora(),
         )
     flash(f"Rateio de {percentual}% cadastrado para {cliente['nome']} a partir de {mes_inicio}.", "success")
+    return redirect(url_for("ver_cliente", cliente_id=cliente_id))
+
+
+# --- faturas (extração + cálculo de tarifa) -----------------------------
+
+@app.route("/cliente/<int:cliente_id>/fatura/nova", methods=["GET", "POST"])
+def nova_fatura(cliente_id):
+    with db.conectar() as conn:
+        cliente = db.buscar_cliente(conn, cliente_id)
+        if cliente is None:
+            return "Cliente não encontrado", 404
+        contratos = [dict(c) for c in db.listar_contratos_cliente(conn, cliente_id)]
+
+    if request.method == "GET":
+        return render_template(
+            "fatura_form.html", cliente=dict(cliente), contratos=contratos,
+            claude_configurado=bool(os.environ.get("ANTHROPIC_API_KEY")),
+        )
+
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        flash(
+            "Extração automática não configurada (falta ANTHROPIC_API_KEY). "
+            "A fatura não foi processada.", "warning",
+        )
+        return redirect(url_for("ver_cliente", cliente_id=cliente_id))
+
+    contrato_id = request.form.get("contrato_id")
+    arquivo = request.files.get("arquivo")
+    if not contrato_id or not arquivo or not arquivo.filename:
+        flash("Selecione o contrato e o PDF da fatura da distribuidora.", "warning")
+        return redirect(url_for("nova_fatura", cliente_id=cliente_id))
+
+    with db.conectar() as conn:
+        contrato = db.buscar_contrato(conn, contrato_id)
+    if contrato is None:
+        flash("Contrato não encontrado.", "danger")
+        return redirect(url_for("nova_fatura", cliente_id=cliente_id))
+
+    pdf_bytes = arquivo.read()
+    try:
+        dados, saida = tarifas_processar.processar_fatura(pdf_bytes, dict(contrato))
+    except Exception as e:
+        flash(f"Falha ao extrair/calcular a fatura: {e}. Confira manualmente.", "danger")
+        return redirect(url_for("ver_cliente", cliente_id=cliente_id))
+
+    mes_referencia = dados.get("mes_referencia")
+    if not mes_referencia:
+        flash("Não foi possível identificar o mês de referência na fatura. Confira manualmente.", "danger")
+        return redirect(url_for("ver_cliente", cliente_id=cliente_id))
+
+    arquivo_path = os.path.join(UPLOADS_FATURAS_DIR, secure_filename(f"{cliente_id}_{mes_referencia}.pdf"))
+    with open(arquivo_path, "wb") as f:
+        f.write(pdf_bytes)
+
+    valores = tarifas_processar.valores_fatura_cliente(
+        dados, saida, contrato["percentual_desconto_contratado"] or 0,
+    )
+
+    with db.conectar() as conn:
+        leitura_id = db.gravar_leitura(
+            conn, cliente_id, dados.get("instalacao") or cliente["uc"], mes_referencia,
+            dados.get("consumo_kwh"), dados.get("injetada_kwh"), valores["energia_compensada_kwh"],
+            dados.get("valor_concessionaria"), arquivo_path, "upload_manual",
+            json.dumps({**dados, **saida}, ensure_ascii=False), _agora(),
+        )
+        db.gravar_fatura_cliente(
+            conn, cliente_id, mes_referencia, leitura_id, valores["energia_compensada_kwh"],
+            contrato["percentual_desconto_contratado"], valores["valor_bruto_energia"],
+            valores["valor_desconto"], valores["valor_cobrado"], None, _agora(),
+        )
+        db.registrar_atividade(
+            conn, session["usuario_nome"],
+            f"Processou fatura de {mes_referencia} (R$ {valores['valor_cobrado']:.2f} a cobrar)",
+            cliente["nome"], _agora(),
+        )
+    flash(
+        f"Fatura de {mes_referencia} processada: R$ {valores['valor_cobrado']:.2f} a cobrar "
+        f"({dados.get('injetada_kwh') or 0} kWh compensados).", "success",
+    )
     return redirect(url_for("ver_cliente", cliente_id=cliente_id))
 
 
