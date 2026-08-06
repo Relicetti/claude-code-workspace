@@ -5,16 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Clientes GD{% endblock %} — Gestão de Clientes GD</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
-  <style>
-    body { background: #f5f7fa; }
-    .navbar { background: #1a3a5c !important; }
-    .navbar-brand { color: #fff !important; }
-    .table th { background: #1a3a5c; color: #fff; white-space: nowrap; }
-    .badge-status-pendente_assinatura { background: #6c757d; }
-    .badge-status-ativo { background: #198754; }
-    .badge-status-suspenso { background: #fd7e14; }
-    .badge-status-cancelado { background: #dc3545; }
-  </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 <nav class="navbar mb-4">
@@ -24,8 +15,8 @@
       {% if usuario_logado %}
         <a href="{{ url_for('usineiros_lista') }}" class="btn btn-outline-light btn-sm">Usineiros</a>
         <a href="{{ url_for('usinas_gd_lista') }}" class="btn btn-outline-light btn-sm">Usinas GD</a>
-        <a href="{{ url_for('novo_cliente') }}" class="btn btn-light btn-sm">+ Novo cliente</a>
-        <span class="text-white small">{{ usuario_logado }}</span>
+        <a href="{{ url_for('novo_cliente') }}" class="btn btn-primary btn-sm">+ Novo cliente</a>
+        <span class="text-muted small">{{ usuario_logado }}</span>
         <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm">Sair</a>
       {% endif %}
     </div>

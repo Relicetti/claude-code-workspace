@@ -1,0 +1,196 @@
+/* Design system minimalista do clientes-gd. Um único arquivo, herdado por
+   toda tela via base.html -- carrega por cima do Bootstrap (usado só pela
+   grid/utilitários) e sobrescreve a aparência visual padrão. Mesma paleta
+   da tela de fatura do cliente (fatura_cliente.html), pra ficar coerente
+   quando as duas aparecem juntas. */
+
+:root {
+  --bg: #f7f7f4;
+  --surface: #ffffff;
+  --ink: #191b1a;
+  --muted: #6b7270;
+  --line: #e6e6e2;
+  --accent: #2f6f5e;
+  --accent-ink: #ffffff;
+  --accent-soft: #e6efec;
+  --good: #1f8a5f;
+  --good-soft: #e7f5ee;
+  --warn: #b45309;
+  --warn-soft: #fdf1e0;
+  --danger: #b3261e;
+  --danger-soft: #fbeae9;
+  --neutral: #5c6360;
+  --neutral-soft: #eceeec;
+  --radius: 10px;
+  --radius-sm: 7px;
+  --font-display: Georgia, "Iowan Old Style", "Times New Roman", serif;
+  --font-body: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+}
+
+a { color: var(--accent); }
+a:hover { color: var(--accent); opacity: .82; }
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  color: var(--ink);
+  font-weight: 700;
+}
+h4 { font-size: 1.35rem; }
+h5 { font-size: 1.05rem; }
+h6 { font-size: .95rem; color: var(--accent); }
+
+/* --- navbar: barra plana e clara, sem faixa sólida escura ------------ */
+.navbar {
+  background: var(--surface) !important;
+  border-bottom: 1px solid var(--line);
+  padding-top: .85rem;
+  padding-bottom: .85rem;
+}
+.navbar-brand {
+  font-family: var(--font-display);
+  color: var(--ink) !important;
+  font-weight: 700;
+  letter-spacing: .01em;
+}
+.navbar .text-white { color: var(--muted) !important; }
+
+/* --- botões: flat, cantos moderados, sem gradiente/sombra pesada ----- */
+.btn {
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: .86rem;
+  padding: .45rem .95rem;
+  border-width: 1px;
+  box-shadow: none !important;
+}
+.btn-primary, .btn-light.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.btn-primary:hover, .btn-primary:focus {
+  background: var(--accent);
+  border-color: var(--accent);
+  opacity: .88;
+  color: var(--accent-ink);
+}
+.btn-outline-primary {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: transparent;
+}
+.btn-outline-primary:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.btn-outline-light {
+  color: var(--ink);
+  border-color: var(--line);
+  background: var(--surface);
+}
+.btn-outline-light:hover { background: var(--bg); color: var(--ink); border-color: var(--line); }
+.btn-light {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--ink);
+}
+.btn-light:hover { background: var(--bg); border-color: var(--line); color: var(--ink); }
+.btn-outline-secondary {
+  color: var(--muted);
+  border-color: var(--line);
+  background: var(--surface);
+}
+.btn-outline-secondary:hover { background: var(--bg); color: var(--ink); border-color: var(--line); }
+.btn-outline-danger { color: var(--danger); border-color: var(--danger); background: transparent; }
+.btn-outline-danger:hover { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
+.btn-sm { font-size: .8rem; padding: .35rem .75rem; }
+
+/* --- cards: superfície branca, borda fina, sem sombra decorativa ----- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: none !important;
+}
+.card-body { padding: 1.35rem; }
+
+/* --- tabelas: cabeçalho discreto em vez de faixa escura -------------- */
+.table {
+  --bs-table-bg: transparent;
+  color: var(--ink);
+}
+.table th {
+  background: transparent !important;
+  color: var(--muted) !important;
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  font-weight: 600;
+  border-bottom: 1.5px solid var(--line) !important;
+  white-space: nowrap;
+}
+.table td {
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+.table-hover tbody tr:hover { background: var(--accent-soft); }
+.table-sm td, .table-sm th { padding: .55rem .6rem; }
+
+/* --- badges de status: pílula suave em vez de cor sólida chapada ----- */
+.badge {
+  font-weight: 600;
+  font-size: .72rem;
+  padding: .35em .7em;
+  border-radius: 999px;
+}
+.badge-status-pendente_assinatura { background: var(--neutral-soft); color: var(--neutral); }
+.badge-status-ativo { background: var(--good-soft); color: var(--good); }
+.badge-status-suspenso { background: var(--warn-soft); color: var(--warn); }
+.badge-status-cancelado { background: var(--danger-soft); color: var(--danger); }
+
+/* --- formulários: bordas discretas, foco na cor de destaque ---------- */
+.form-control, .form-select {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: .92rem;
+}
+.form-control:focus, .form-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.form-label {
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  margin-bottom: .3rem;
+}
+.form-text { font-size: .78rem; color: var(--muted); }
+
+/* --- alerts: soft, sem borda grossa colorida --------------------------*/
+.alert {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: .88rem;
+}
+.alert-success { background: var(--good-soft); color: var(--good); border-color: var(--good-soft); }
+.alert-danger { background: var(--danger-soft); color: var(--danger); border-color: var(--danger-soft); }
+.alert-warning { background: var(--warn-soft); color: var(--warn); border-color: var(--warn-soft); }
+.alert-info { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-soft); }
+
+/* --- detalhes finos ----------------------------------------------------*/
+.text-muted { color: var(--muted) !important; }
+dl dt { color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .03em; font-weight: 600; }
+details summary { color: var(--accent); }
+hr { border-color: var(--line); }
