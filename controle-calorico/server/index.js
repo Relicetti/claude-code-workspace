@@ -22,7 +22,7 @@ import {
   getDayTypesInRange,
   getGoogleHealthTokens,
 } from './dataStore.js'
-import { analyzePhoto, analyzeTextDescription } from './anthropic.js'
+import { analyzePhoto, analyzeTextDescription, suggestMealSubstitution } from './anthropic.js'
 import { DAY_TYPES } from './dayTypes.js'
 import * as googleHealth from './googleHealth.js'
 
@@ -244,6 +244,26 @@ app.post(
     }
     const items = await analyzeTextDescription({ description })
     res.json({ items })
+  })
+)
+
+app.post(
+  '/api/meal-plan/substitute',
+  asyncHandler(async (req, res) => {
+    const { mealLabel, targetKcal, targetProtein, targetCarbs, targetFat, currentSuggestion, request } = req.body
+    if (!request || !request.trim()) {
+      return res.status(400).json({ error: 'request e obrigatorio' })
+    }
+    const answer = await suggestMealSubstitution({
+      mealLabel,
+      targetKcal,
+      targetProtein,
+      targetCarbs,
+      targetFat,
+      currentSuggestion,
+      request,
+    })
+    res.json({ answer })
   })
 )
 

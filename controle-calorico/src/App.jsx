@@ -8,6 +8,7 @@ import ManualForm from './components/ManualForm.jsx'
 import QuickAdd from './components/QuickAdd.jsx'
 import DailyLog from './components/DailyLog.jsx'
 import HistoryScreen from './components/HistoryScreen.jsx'
+import MealPlanScreen from './components/MealPlanScreen.jsx'
 import SettingsModal from './components/SettingsModal.jsx'
 import DayTypeSelector from './components/DayTypeSelector.jsx'
 import DateNav from './components/DateNav.jsx'
@@ -26,6 +27,7 @@ export default function App() {
   const [error, setError] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
+  const [showMealPlan, setShowMealPlan] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -172,9 +174,14 @@ export default function App() {
         </div>
       )}
 
-      <button className="btn btn-secondary history-open-btn" onClick={() => setShowHistory(true)}>
-        📈 Ver historico de calorias e macros
-      </button>
+      <div className="top-actions-row">
+        <button className="btn btn-secondary history-open-btn" onClick={() => setShowHistory(true)}>
+          📈 Ver historico
+        </button>
+        <button className="btn btn-secondary history-open-btn" onClick={() => setShowMealPlan(true)}>
+          📋 Plano alimentar
+        </button>
+      </div>
 
       <DateNav dateKey={dateKey} onChange={setDateKey} />
 
@@ -233,6 +240,8 @@ export default function App() {
       )}
 
       {showHistory && <HistoryScreen onClose={() => setShowHistory(false)} />}
+
+      {showMealPlan && <MealPlanScreen onClose={() => setShowMealPlan(false)} />}
     </div>
   )
 }
