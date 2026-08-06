@@ -480,6 +480,16 @@ def marcar_pendencia(conn, pendencia_id, concluir, usuario, quando):
     return row["usina_id"] if row else None
 
 
+def excluir_pendencia(conn, pendencia_id):
+    """Apaga a pendência de vez. Retorna o usina_id pra redirecionar de
+    volta, ou None se a pendência não existia."""
+    row = conn.execute("SELECT usina_id FROM pendencias WHERE id = ?", (pendencia_id,)).fetchone()
+    if row is None:
+        return None
+    conn.execute("DELETE FROM pendencias WHERE id = ?", (pendencia_id,))
+    return row["usina_id"]
+
+
 def criar_usina(conn, ug_raw, nome_ufv, concessionaria, dono_carteira, executivo,
                  geracao_media_mensal, data_assinatura, etapa_inicial, hoje_iso,
                  pendencia, responsavel, autor, criado_em,

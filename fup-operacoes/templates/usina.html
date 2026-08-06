@@ -134,6 +134,12 @@
                 {% if p.concluida_em %}· <span class="text-success">✔ concluída por {{ p.concluida_por }} em {{ p.concluida_em.replace('T', ' ') }}</span>{% endif %}
               </div>
             </div>
+            {% if usuario_admin %}
+              <form action="{{ url_for('excluir_pendencia', pendencia_id=p.id) }}" method="post" class="mt-1"
+                    onsubmit="return confirm('Excluir esta pendência definitivamente?');">
+                <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1" title="Excluir pendência">✕</button>
+              </form>
+            {% endif %}
           </li>
         {% endfor %}
       </ul>

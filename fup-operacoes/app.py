@@ -550,6 +550,25 @@ def concluir_pendencia(pendencia_id):
     return redirect(request.referrer or url_for("dashboard"))
 
 
+@app.route("/pendencia/<int:pendencia_id>/excluir", methods=["POST"])
+def excluir_pendencia(pendencia_id):
+    if not session.get("usuario_admin"):
+        return "Só administradores podem excluir pendências.", 403
+    with db.conectar() as conn:
+        pendencia = conn.execute("SELECT texto, usina_id FROM pendencias WHERE id = ?", (pendencia_id,)).fetchone()
+        usina_id = db.excluir_pendencia(conn, pendencia_id)
+        if usina_id:
+            usina = db.buscar_usina(conn, usina_id)
+            db.registrar_atividade(
+                conn, session["usuario_nome"],
+                f"Excluiu a pendência \"{pendencia['texto']}\"" if pendencia else "Excluiu uma pendência",
+                usina["nome_ufv"] if usina else None, agora().isoformat(timespec="seconds"),
+            )
+    if usina_id:
+        return redirect(url_for("ver_usina", usina_id=usina_id))
+    return redirect(request.referrer or url_for("dashboard"))
+
+
 @app.route("/usina/<int:usina_id>/mudar-etapa", methods=["POST"])
 def mudar_etapa(usina_id):
     nova_etapa = request.form.get("nova_etapa", "").strip()
