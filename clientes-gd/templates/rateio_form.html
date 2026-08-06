@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Novo rateio{% endblock %}
+{% block content %}
+
+<a href="{{ url_for('ver_cliente', cliente_id=cliente.id) }}" class="btn btn-sm btn-outline-secondary mb-3">&larr; voltar</a>
+
+<div class="card shadow-sm" style="max-width: 560px;">
+  <div class="card-body">
+    <h4 class="mb-1">Novo rateio</h4>
+    <p class="text-muted small mb-3">Cliente: {{ cliente.nome }}</p>
+    {% if rateio_atual %}
+    <div class="alert alert-info py-2 small">
+      Rateio vigente hoje: <strong>{{ (rateio_atual.percentual_rateio * 100) | round(2) }}%</strong>
+      desde {{ rateio_atual.mes_inicio }}. Cadastrar um novo abaixo encerra este automaticamente
+      no mês de início do novo rateio (o histórico é preservado).
+    </div>
+    {% endif %}
+    <form method="post">
+      <div class="mb-3">
+        <label class="form-label">Usina GD</label>
+        <select name="usina_gd_id" class="form-select" required>
+          <option value="">—</option>
+          {% for u in usinas %}
+            <option value="{{ u.id }}" {% if cliente.usina_gd_id == u.id %}selected{% endif %}>{{ u.nome_usina }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Percentual de rateio (%)</label>
+        <input type="text" name="percentual_rateio" class="form-control" inputmode="decimal" placeholder="ex: 30" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Mês de início (vigência)</label>
+        <input type="month" name="mes_inicio" class="form-control" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Cadastrar rateio</button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

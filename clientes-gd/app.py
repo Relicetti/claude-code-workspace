@@ -406,6 +406,42 @@ def webhook_autentique():
     return "", 200
 
 
+# --- rateio (histórico versionado) --------------------------------------
+
+@app.route("/cliente/<int:cliente_id>/rateio/novo", methods=["GET", "POST"])
+def novo_rateio(cliente_id):
+    with db.conectar() as conn:
+        cliente = db.buscar_cliente(conn, cliente_id)
+        if cliente is None:
+            return "Cliente não encontrado", 404
+        usinas = [dict(u) for u in db.listar_usinas_gd(conn)]
+        rateio_atual = db.rateio_vigente(conn, cliente_id)
+
+    if request.method == "GET":
+        return render_template(
+            "rateio_form.html", cliente=dict(cliente), usinas=usinas,
+            rateio_atual=dict(rateio_atual) if rateio_atual else None,
+        )
+
+    usina_gd_id = request.form.get("usina_gd_id") or cliente["usina_gd_id"]
+    percentual = _parse_numero(request.form.get("percentual_rateio"))
+    mes_inicio = request.form.get("mes_inicio", "").strip()
+
+    if not usina_gd_id or percentual is None or not mes_inicio:
+        flash("Informe a usina GD, o percentual de rateio e o mês de início.", "warning")
+        return redirect(url_for("novo_rateio", cliente_id=cliente_id))
+
+    with db.conectar() as conn:
+        db.criar_rateio(conn, cliente_id, usina_gd_id, percentual / 100, mes_inicio, _agora())
+        db.registrar_atividade(
+            conn, session["usuario_nome"],
+            f"Definiu rateio de {percentual}% a partir de {mes_inicio}",
+            cliente["nome"], _agora(),
+        )
+    flash(f"Rateio de {percentual}% cadastrado para {cliente['nome']} a partir de {mes_inicio}.", "success")
+    return redirect(url_for("ver_cliente", cliente_id=cliente_id))
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5011))
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"

@@ -33,7 +33,10 @@
   <div class="col-md-6">
     <div class="card shadow-sm h-100">
       <div class="card-body">
-        <h5 class="mb-3">Rateio</h5>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="mb-0">Rateio</h5>
+          <a href="{{ url_for('novo_rateio', cliente_id=cliente.id) }}" class="btn btn-sm btn-primary">+ Novo rateio</a>
+        </div>
         {% if rateio_atual %}
           <p class="mb-2"><strong>{{ (rateio_atual.percentual_rateio * 100) | round(2) }}%</strong> vigente desde {{ rateio_atual.mes_inicio }}</p>
         {% else %}
