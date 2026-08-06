@@ -145,3 +145,41 @@ export async function analyzeTextDescription({ description }) {
     },
   ])
 }
+
+export async function suggestMealSubstitution({
+  mealLabel,
+  targetKcal,
+  targetProtein,
+  targetCarbs,
+  targetFat,
+  currentSuggestion,
+  request,
+}) {
+  const systemPrompt = `Voce e um assistente de nutricao que ajuda a substituir alimentos dentro de um plano alimentar, mantendo as metas de calorias e macronutrientes daquela refeicao.
+
+Refeicao: ${mealLabel}
+Meta da refeicao: ${targetKcal} kcal, ${targetProtein}g proteina, ${targetCarbs}g carboidrato, ${targetFat}g gordura
+Sugestao atual do plano pra essa refeicao: ${currentSuggestion}
+
+${LABEL_ACCURACY_INSTRUCTIONS}
+
+O usuario vai descrever o que precisa trocar (ex: "nao tenho frango, o que posso substituir?" ou "quero trocar o arroz por batata doce"). Responda com 1 a 3 alternativas concretas, cada uma com quantidade estimada (gramas, ml ou unidades) que mantenha o total da refeicao proximo da meta acima (kcal e macros dentro de uns 10%). Pra cada opcao, mostre rapidamente a conta (kcal/proteina/carboidrato/gordura da substituicao) pra ficar claro que bate com a meta. Seja direto e pratico. Responda em texto corrido em portugues, pode usar quebras de linha e "-" pra listar as opcoes, mas sem markdown pesado (sem titulos com #, sem tabelas). Nao repita a meta da refeicao inteira de volta pro usuario, ele ja sabe.`
+
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: 1024,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: request }],
+  })
+
+  if (response.stop_reason === 'refusal') {
+    throw new Error('A sugestao foi recusada pelo modelo.')
+  }
+
+  const textBlock = response.content.find((b) => b.type === 'text')
+  if (!textBlock) {
+    throw new Error('Resposta do modelo nao contem texto.')
+  }
+
+  return textBlock.text.trim()
+}

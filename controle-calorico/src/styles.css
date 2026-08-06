@@ -802,9 +802,132 @@ body {
   font-size: 14px;
 }
 
-.history-open-btn {
-  width: 100%;
+.top-actions-row {
+  display: flex;
+  gap: 8px;
   margin-bottom: 12px;
+}
+
+.history-open-btn {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.meal-plan-totals {
+  font-size: 14px;
+  font-weight: 600;
+  color: #444;
+  background: #fafafa;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+}
+
+.meal-plan-training {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #e65100;
+  padding: 6px 0;
+  margin: 4px 0;
+  border-top: 1px dashed #ffcc80;
+  border-bottom: 1px dashed #ffcc80;
+}
+
+.meal-plan-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #fafafa;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.meal-plan-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.meal-plan-card-time {
+  font-size: 12px;
+  color: #999;
+}
+
+.meal-plan-card-title {
+  margin: 0;
+  font-size: 15px;
+}
+
+.meal-plan-card-macros {
+  font-size: 12px;
+  font-weight: 600;
+  color: #444;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.meal-plan-card-note {
+  font-size: 12px;
+  color: #888;
+  font-style: italic;
+}
+
+.meal-plan-card-suggestion {
+  font-size: 13px;
+  color: #333;
+  margin: 0;
+  white-space: pre-line;
+}
+
+.meal-plan-substitute {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #ddd;
+}
+
+.meal-plan-substitute textarea {
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.meal-plan-answer {
+  font-size: 13px;
+  color: #222;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 10px;
+  white-space: pre-line;
+}
+
+.meal-plan-saturday {
+  margin-top: 20px;
+  background: #fafafa;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.meal-plan-saturday ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: #333;
+}
+
+.meal-plan-saturday li {
+  margin-bottom: 6px;
 }
 
 .history-screen {
