@@ -532,6 +532,27 @@ def nova_fatura(cliente_id):
     return redirect(url_for("ver_cliente", cliente_id=cliente_id))
 
 
+# --- visualização da fatura do cliente (impressão/PDF via navegador) ----
+
+@app.route("/cliente/<int:cliente_id>/fatura/<int:fatura_id>")
+def ver_fatura_cliente(cliente_id, fatura_id):
+    with db.conectar() as conn:
+        cliente = db.buscar_cliente(conn, cliente_id)
+        fatura = db.buscar_fatura_cliente(conn, fatura_id)
+        if cliente is None or fatura is None or fatura["cliente_id"] != cliente_id:
+            return "Fatura não encontrada", 404
+        usina = db.buscar_usina_gd(conn, cliente["usina_gd_id"]) if cliente["usina_gd_id"] else None
+        economia_acumulada = db.economia_acumulada_cliente(conn, cliente_id, fatura["mes_referencia"])
+
+    return render_template(
+        "fatura_cliente.html",
+        cliente=dict(cliente),
+        fatura=dict(fatura),
+        usina=dict(usina) if usina else None,
+        economia_acumulada=economia_acumulada,
+    )
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5011))
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"

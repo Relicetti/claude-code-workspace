@@ -128,7 +128,7 @@
           <tbody>
             {% for f in faturas %}
             <tr>
-              <td>{{ f.mes_referencia }}</td>
+              <td><a href="{{ url_for('ver_fatura_cliente', cliente_id=cliente.id, fatura_id=f.id) }}">{{ f.mes_referencia }}</a></td>
               <td>{{ f.energia_compensada_kwh or "—" }}</td>
               <td>{{ "R$ %.2f"|format(f.valor_cobrado) if f.valor_cobrado else "—" }}</td>
               <td>{{ f.status }}</td>

@@ -519,6 +519,36 @@ def listar_faturas_cliente(conn, cliente_id):
     ).fetchall()
 
 
+def buscar_fatura_cliente(conn, fatura_id):
+    return conn.execute(
+        """SELECT f.*, l.consumo_kwh, l.energia_injetada_kwh, l.valor_fatura_concessionaria,
+                  l.saldo_acumulado_kwh, l.saldo_expirar_kwh, l.participacao_rateio_pct
+           FROM faturas_cliente f
+           LEFT JOIN leituras_distribuidora l ON l.id = f.leitura_id
+           WHERE f.id = ?""",
+        (fatura_id,),
+    ).fetchone()
+
+
+def economia_acumulada_cliente(conn, cliente_id, ate_mes_referencia=None):
+    """Soma de valor_desconto de todas as faturas do cliente (economia total
+    desde a assinatura). Se ate_mes_referencia for informado, considera só
+    faturas até aquele mês (inclusive) -- pra mostrar 'economizado até
+    aqui' na tela de uma fatura específica."""
+    if ate_mes_referencia:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(valor_desconto), 0) AS total FROM faturas_cliente "
+            "WHERE cliente_id = ? AND mes_referencia <= ?",
+            (cliente_id, ate_mes_referencia),
+        ).fetchone()
+    else:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(valor_desconto), 0) AS total FROM faturas_cliente WHERE cliente_id = ?",
+            (cliente_id,),
+        ).fetchone()
+    return row["total"]
+
+
 # --- log de auditoria --------------------------------------------------
 
 def registrar_atividade(conn, usuario, acao, cliente_nome, criado_em):
