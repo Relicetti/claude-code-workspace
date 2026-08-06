@@ -953,6 +953,88 @@ def ver_log():
     return render_template("log.html", atividades=atividades)
 
 
+@app.route("/admin/exportar")
+def exportar_excel():
+    if not session.get("usuario_admin"):
+        return "Só administradores podem exportar.", 403
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+
+    def cabecalho(ws, colunas, larguras):
+        ws.append(colunas)
+        for cel in ws[1]:
+            cel.font = Font(bold=True, color="FFFFFF")
+            cel.fill = PatternFill("solid", fgColor="1A3A5C")
+        for i, w in enumerate(larguras, start=1):
+            ws.column_dimensions[chr(64 + i)].width = w
+        ws.freeze_panes = "A2"
+
+    with db.conectar() as conn:
+        usinas_ativas, medias = _usinas_ativas_com_metricas(conn)
+        qtd_operacao = db.contar_por_status(conn, "operacao")
+        qtd_rescindidas = db.contar_por_status(conn, "rescindida")
+        todas_usinas = [dict(u) for u in db.listar_todas_usinas(conn)]
+        todas_pendencias = [dict(p) for p in db.listar_todas_pendencias(conn)]
+
+    hoje_dt = hoje()
+    for u in todas_usinas:
+        u["dias_na_etapa"] = _dias_desde(u["data_entrada_etapa_atual"], hoje_dt) if u["status"] == "ativa" else None
+
+    wb = Workbook()
+
+    # --- aba 1: por etapa (contagem + média histórica, igual ao dashboard) ---
+    ws1 = wb.active
+    ws1.title = "Por Etapa"
+    cabecalho(ws1, ["Etapa", "Quantidade", "Média histórica (dias)"], [30, 14, 22])
+    for etapa in db.ETAPAS:
+        qtd = sum(1 for u in usinas_ativas if u["etapa_atual"] == etapa)
+        ws1.append([etapa, qtd, medias.get(etapa, "")])
+    ws1.append(["Operação", qtd_operacao, ""])
+    ws1.append(["Rescindida", qtd_rescindidas, ""])
+
+    # --- aba 2: usinas (todas, qualquer status) ---
+    ws2 = wb.create_sheet("Usinas")
+    cabecalho(
+        ws2,
+        ["UG", "Nome UFV", "Concessionária", "Carteira", "Executivo",
+         "Geração média mensal (kWh)", "Data assinatura", "Etapa atual", "Situação",
+         "Status", "Dias na etapa atual", "Data protocolo", "Data aprovação"],
+        [16, 30, 20, 16, 16, 22, 16, 24, 14, 12, 16, 16, 16],
+    )
+    for u in todas_usinas:
+        ws2.append([
+            u["ug_raw"], u["nome_ufv"], u["concessionaria"], u["dono_carteira"], u["executivo"],
+            u["geracao_media_mensal"], u["data_assinatura_contrato"], u["etapa_atual"], u["situacao_etapa"],
+            u["status"], u["dias_na_etapa"], u["data_protocolo"], u["data_aprovacao"],
+        ])
+
+    # --- aba 3: pendências (todas as usinas) ---
+    ws3 = wb.create_sheet("Pendências")
+    cabecalho(
+        ws3,
+        ["Usina", "UG", "Etapa atual", "Status usina", "Pendência", "Responsável",
+         "Registrada por", "Criada em", "Concluída", "Concluída por", "Concluída em"],
+        [30, 16, 24, 12, 45, 16, 16, 18, 12, 16, 18],
+    )
+    for p in todas_pendencias:
+        ws3.append([
+            p["nome_ufv"], p["ug_raw"], p["etapa_atual"], p["usina_status"], p["texto"], p["responsavel"],
+            p["autor"], (p["criado_em"] or "").replace("T", " "),
+            "Sim" if p["concluida_em"] else "Não", p["concluida_por"],
+            (p["concluida_em"] or "").replace("T", " "),
+        ])
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    nome_arquivo = f"fup_export_{hoje_dt.isoformat()}.xlsx"
+    return send_file(
+        buffer, as_attachment=True, download_name=nome_arquivo,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5010))
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"

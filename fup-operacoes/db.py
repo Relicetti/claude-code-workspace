@@ -281,6 +281,21 @@ def listar_por_status(conn, status):
     ).fetchall()
 
 
+def listar_todas_usinas(conn):
+    """Todas as usinas, qualquer status -- usado pra exportação em Excel."""
+    return conn.execute("SELECT * FROM usinas ORDER BY status, etapa_atual, nome_ufv").fetchall()
+
+
+def listar_todas_pendencias(conn):
+    """Todas as pendências de todas as usinas -- usado pra exportação em Excel."""
+    return conn.execute(
+        """SELECT p.*, u.nome_ufv, u.ug_raw, u.etapa_atual, u.status AS usina_status
+           FROM pendencias p
+           JOIN usinas u ON u.id = p.usina_id
+           ORDER BY (p.concluida_em IS NOT NULL), p.criado_em DESC"""
+    ).fetchall()
+
+
 def contar_por_status(conn, status):
     row = conn.execute("SELECT COUNT(*) AS qtd FROM usinas WHERE status = ?", (status,)).fetchone()
     return row["qtd"]
