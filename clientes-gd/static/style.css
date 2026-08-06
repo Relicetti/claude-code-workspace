@@ -26,11 +26,11 @@
   --danger: #b3261e;
   --neutral-dot: #9a9aa2;
 
-  --sidebar-bg: #131318;
-  --sidebar-ink: #e7e7ea;
-  --sidebar-muted: #8a8a94;
-  --sidebar-active: rgba(255, 255, 255, 0.07);
-  --sidebar-line: rgba(255, 255, 255, 0.08);
+  --sidebar-bg: #262a33;
+  --sidebar-ink: #eceef1;
+  --sidebar-muted: #9a9fab;
+  --sidebar-active: rgba(255, 255, 255, 0.08);
+  --sidebar-line: rgba(255, 255, 255, 0.09);
 
   --radius: 6px;
   --radius-lg: 8px;
