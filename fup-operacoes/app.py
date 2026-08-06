@@ -8,6 +8,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 import db
 import email_utils
+from db import agora, hoje  # sempre horário de Brasília, mesmo no Railway (que roda em UTC)
 
 # cabeçalhos do modelo de planilha de importação em massa (ordem = colunas)
 COLUNAS_PLANILHA = [
@@ -36,11 +37,11 @@ def _garantir_snapshot_semanal(conn):
     (não fica ligado 24h), essa checagem por demanda garante que a foto seja
     tirada assim que alguém abrir o painel depois desse horário, em vez de
     depender de um agendador rodando no instante exato."""
-    agora = datetime.now()
-    semana = _segunda_da_semana(agora.date())
-    if agora < datetime.combine(semana, HORA_SNAPSHOT):
+    agora_dt = agora()
+    semana = _segunda_da_semana(agora_dt.date())
+    if agora_dt < datetime.combine(semana, HORA_SNAPSHOT):
         return
-    db.tirar_snapshot(conn, semana.isoformat(), agora.isoformat(timespec="seconds"))
+    db.tirar_snapshot(conn, semana.isoformat(), agora_dt.isoformat(timespec="seconds"))
 
 
 @app.before_request
@@ -70,7 +71,7 @@ def injetar_usuario():
 def _dias_desde(data_iso, referencia=None):
     if not data_iso:
         return None
-    referencia = referencia or date.today()
+    referencia = referencia or hoje()
     d = datetime.strptime(data_iso, "%Y-%m-%d").date()
     return (referencia - d).days
 
@@ -113,10 +114,10 @@ def _usinas_ativas_com_metricas(conn):
     medias = db.medias_por_etapa(conn)
     ultimas_pend = db.ultimas_pendencias_por_usina(conn)
     qtd_pend = db.contar_pendencias_por_usina(conn)
-    hoje = date.today()
+    hoje_dt = hoje()
     for u in usinas:
-        u["dias_na_etapa"] = _dias_desde(u["data_entrada_etapa_atual"], hoje)
-        u["dias_desde_assinatura"] = _dias_desde(u["data_assinatura_contrato"], hoje)
+        u["dias_na_etapa"] = _dias_desde(u["data_entrada_etapa_atual"], hoje_dt)
+        u["dias_desde_assinatura"] = _dias_desde(u["data_assinatura_contrato"], hoje_dt)
         media_etapa = medias.get(u["etapa_atual"])
         u["media_etapa"] = media_etapa
         u["atrasada"] = media_etapa is not None and u["dias_na_etapa"] > media_etapa
@@ -176,7 +177,7 @@ def minha_conta():
         db.atualizar_senha(conn, usuario["id"], generate_password_hash(senha_nova))
         db.registrar_atividade(
             conn, session["usuario_nome"], "Trocou a própria senha", None,
-            datetime.now().isoformat(timespec="seconds"),
+            agora().isoformat(timespec="seconds"),
         )
 
     flash("Senha alterada com sucesso.", "success")
@@ -206,13 +207,13 @@ def novo_usuario():
             return render_template("novo_usuario.html", erro=f"Já existe um usuário para o e-mail {email} (usuário '{username}').")
         db.criar_usuario(
             conn, nome, username, generate_password_hash(senha),
-            datetime.now().isoformat(timespec="seconds"),
+            agora().isoformat(timespec="seconds"),
             is_admin=(tipo == "admin"), email=email,
         )
         db.registrar_atividade(
             conn, session["usuario_nome"],
             f"Cadastrou o usuário {nome} ({'admin' if tipo == 'admin' else 'operador'})",
-            None, datetime.now().isoformat(timespec="seconds"),
+            None, agora().isoformat(timespec="seconds"),
         )
 
     enviado, motivo = email_utils.enviar_boas_vindas(nome, email, username, senha, request.url_root.rstrip("/"))
@@ -259,7 +260,7 @@ def importar_banco():
     with db.conectar() as conn:
         db.registrar_atividade(
             conn, session.get("usuario_nome", "?"), "Importou o banco de dados",
-            None, datetime.now().isoformat(timespec="seconds"),
+            None, agora().isoformat(timespec="seconds"),
         )
     flash(f"Banco importado com sucesso. {msg} Faça login novamente se necessário.", "success")
     return redirect(url_for("dashboard"))
@@ -280,9 +281,9 @@ def dashboard():
         usinas_pessoa = pendencias_pessoa = None
         if pessoa or etapa_filtro:
             usinas_pessoa = [dict(u) for u in db.buscar_usinas_ativas_por_pessoa(conn, pessoa, etapa_filtro)]
-            hoje = date.today()
+            hoje_dt = hoje()
             for u in usinas_pessoa:
-                u["dias_na_etapa"] = _dias_desde(u["data_entrada_etapa_atual"], hoje)
+                u["dias_na_etapa"] = _dias_desde(u["data_entrada_etapa_atual"], hoje_dt)
             if pessoa:
                 pendencias_pessoa = [dict(p) for p in db.buscar_pendencias_por_pessoa(conn, pessoa)]
 
@@ -354,10 +355,10 @@ def ver_operacao():
         usinas = [dict(u) for u in db.listar_por_status(conn, "operacao")]
         datas_operacao = db.data_entrada_etapa_final_por_usina(conn, "Operação")
 
-    hoje = date.today()
+    hoje_dt = hoje()
     for u in usinas:
         u["data_operacao"] = datas_operacao.get(u["id"])
-        u["dias_em_operacao"] = _dias_desde(u["data_operacao"], hoje)
+        u["dias_em_operacao"] = _dias_desde(u["data_operacao"], hoje_dt)
 
     return render_template("operacao.html", usinas=usinas, fluxo_desde_operacao=db.FLUXO_DESDE_OPERACAO)
 
@@ -368,10 +369,10 @@ def ver_rescindidas():
         usinas = [dict(u) for u in db.listar_por_status(conn, "rescindida")]
         datas_rescisao = db.data_entrada_etapa_final_por_usina(conn, "Rescindida")
 
-    hoje = date.today()
+    hoje_dt = hoje()
     for u in usinas:
         u["data_rescisao"] = datas_rescisao.get(u["id"])
-        u["dias_desde_rescisao"] = _dias_desde(u["data_rescisao"], hoje)
+        u["dias_desde_rescisao"] = _dias_desde(u["data_rescisao"], hoje_dt)
 
     return render_template("rescindidas.html", usinas=usinas)
 
@@ -469,10 +470,10 @@ def comparativo():
 def tirar_snapshot_agora():
     if not session.get("usuario_admin"):
         return "Só administradores podem forçar um novo retrato.", 403
-    agora = datetime.now()
-    semana = _segunda_da_semana(agora.date())
+    agora_dt = agora()
+    semana = _segunda_da_semana(agora_dt.date())
     with db.conectar() as conn:
-        db.tirar_snapshot(conn, semana.isoformat(), agora.isoformat(timespec="seconds"))
+        db.tirar_snapshot(conn, semana.isoformat(), agora_dt.isoformat(timespec="seconds"))
     return redirect(url_for("comparativo"))
 
 
@@ -488,13 +489,13 @@ def ver_usina(usina_id):
         return "Usina não encontrada", 404
 
     usina = dict(usina)
-    hoje = date.today()
+    hoje_dt = hoje()
     for h in historico:
-        fim = h["data_saida"] or hoje.isoformat()
+        fim = h["data_saida"] or hoje_dt.isoformat()
         h["dias"] = _dias_desde(h["data_entrada"], datetime.strptime(fim, "%Y-%m-%d").date())
 
-    usina["dias_na_etapa"] = _dias_desde(usina["data_entrada_etapa_atual"], hoje)
-    usina["dias_desde_assinatura"] = _dias_desde(usina["data_assinatura_contrato"], hoje)
+    usina["dias_na_etapa"] = _dias_desde(usina["data_entrada_etapa_atual"], hoje_dt)
+    usina["dias_desde_assinatura"] = _dias_desde(usina["data_assinatura_contrato"], hoje_dt)
 
     # a data de protocolo/aprovação é da etapa em aberto agora, não da usina
     # como um todo (senão uma etapa mais recente que também pede data
@@ -526,7 +527,7 @@ def adicionar_pendencia(usina_id):
         with db.conectar() as conn:
             db.adicionar_pendencia(
                 conn, usina_id, texto, responsavel, session["usuario_nome"],
-                datetime.now().isoformat(timespec="seconds"),
+                agora().isoformat(timespec="seconds"),
             )
     return redirect(url_for("ver_usina", usina_id=usina_id))
 
@@ -542,7 +543,7 @@ def concluir_pendencia(pendencia_id):
             return redirect(url_for("ver_usina", usina_id=row["usina_id"]) if row else url_for("dashboard"))
         usina_id = db.marcar_pendencia(
             conn, pendencia_id, concluir, session["usuario_nome"],
-            datetime.now().isoformat(timespec="seconds"),
+            agora().isoformat(timespec="seconds"),
         )
     if usina_id:
         return redirect(url_for("ver_usina", usina_id=usina_id))
@@ -552,7 +553,7 @@ def concluir_pendencia(pendencia_id):
 @app.route("/usina/<int:usina_id>/mudar-etapa", methods=["POST"])
 def mudar_etapa(usina_id):
     nova_etapa = request.form.get("nova_etapa", "").strip()
-    hoje_iso = date.today().isoformat()
+    hoje_iso = hoje().isoformat()
     with db.conectar() as conn:
         usina = db.buscar_usina(conn, usina_id)
         if usina is None:
@@ -585,7 +586,7 @@ def reabrir_pipeline(usina_id):
     nova_etapa = request.form.get("nova_etapa", "").strip()
     if nova_etapa not in db.FLUXO_DESDE_OPERACAO:
         return "Etapa inválida", 400
-    hoje_iso = date.today().isoformat()
+    hoje_iso = hoje().isoformat()
     with db.conectar() as conn:
         usina = db.buscar_usina(conn, usina_id)
         if usina is None:
@@ -595,7 +596,7 @@ def reabrir_pipeline(usina_id):
         db.reabrir_para_pipeline(conn, usina_id, nova_etapa, hoje_iso, session["usuario_nome"])
         db.registrar_atividade(
             conn, session["usuario_nome"], f"Reabriu do Operando para \"{nova_etapa}\"",
-            usina["nome_ufv"], datetime.now().isoformat(timespec="seconds"),
+            usina["nome_ufv"], agora().isoformat(timespec="seconds"),
         )
     return redirect(url_for("ver_usina", usina_id=usina_id))
 
@@ -606,7 +607,7 @@ def mudar_situacao(usina_id):
     if situacao not in db.SITUACOES:
         return "Situação inválida", 400
     data_extra = request.form.get("data_extra", "").strip() or None
-    agora = datetime.now().isoformat(timespec="seconds")
+    agora_iso = agora().isoformat(timespec="seconds")
     with db.conectar() as conn:
         usina = db.buscar_usina(conn, usina_id)
         if usina is None:
@@ -629,12 +630,12 @@ def mudar_situacao(usina_id):
                 detalhe_data = f" (aprovação: {data_aprovacao})"
 
         db.mudar_situacao(
-            conn, usina_id, situacao, session["usuario_nome"], agora,
+            conn, usina_id, situacao, session["usuario_nome"], agora_iso,
             data_protocolo=data_protocolo, data_aprovacao=data_aprovacao,
         )
         db.registrar_atividade(
             conn, session["usuario_nome"], f"Situação da etapa → \"{situacao}\"{detalhe_data}",
-            usina["nome_ufv"], agora,
+            usina["nome_ufv"], agora_iso,
         )
     return redirect(request.referrer or url_for("ver_usina", usina_id=usina_id))
 
@@ -649,8 +650,8 @@ def pendentes_autentique():
 
 @app.route("/pendentes/<int:contrato_id>/aprovar", methods=["POST"])
 def aprovar_pendente(contrato_id):
-    hoje_iso = date.today().isoformat()
-    agora = datetime.now().isoformat(timespec="seconds")
+    hoje_iso = hoje().isoformat()
+    agora_iso = agora().isoformat(timespec="seconds")
     with db.conectar() as conn:
         pendente = db.buscar_contrato_pendente(conn, contrato_id)
         if not pendente or pendente["status"] != "pendente":
@@ -677,15 +678,15 @@ def aprovar_pendente(contrato_id):
             pendencia="",
             responsavel="",
             autor=session["usuario_nome"],
-            criado_em=agora,
+            criado_em=agora_iso,
             tipo_conexao=pendente["tipo_conexao"],
             potencia_ca=pendente["potencia_ca"],
             potencia_cc=pendente["potencia_cc"],
         )
-        db.aprovar_contrato_pendente(conn, contrato_id, usina_id, session["usuario_nome"], agora)
+        db.aprovar_contrato_pendente(conn, contrato_id, usina_id, session["usuario_nome"], agora_iso)
         db.registrar_atividade(
             conn, session["usuario_nome"], "Aprovou contrato do Autentique e cadastrou a usina",
-            nome_ufv, agora,
+            nome_ufv, agora_iso,
         )
     flash(f"Usina \"{nome_ufv}\" cadastrada com sucesso.", "success")
     return redirect(url_for("ver_usina", usina_id=usina_id))
@@ -694,12 +695,12 @@ def aprovar_pendente(contrato_id):
 @app.route("/pendentes/<int:contrato_id>/rejeitar", methods=["POST"])
 def rejeitar_pendente(contrato_id):
     motivo = request.form.get("motivo", "").strip()
-    agora = datetime.now().isoformat(timespec="seconds")
+    agora_iso = agora().isoformat(timespec="seconds")
     with db.conectar() as conn:
-        db.rejeitar_contrato_pendente(conn, contrato_id, session["usuario_nome"], agora, motivo)
+        db.rejeitar_contrato_pendente(conn, contrato_id, session["usuario_nome"], agora_iso, motivo)
         db.registrar_atividade(
             conn, session["usuario_nome"], f"Rejeitou pendência do Autentique ({motivo or 'sem motivo'})",
-            None, agora,
+            None, agora_iso,
         )
     flash("Pendência rejeitada.", "success")
     return redirect(url_for("pendentes_autentique"))
@@ -712,7 +713,7 @@ def nova_usina():
             usuarios = db.listar_usuarios(conn)
         return render_template("nova_usina.html", etapas=db.ETAPAS, usuarios=usuarios)
 
-    hoje_iso = date.today().isoformat()
+    hoje_iso = hoje().isoformat()
     data_assinatura = request.form.get("data_assinatura", "").strip() or None
     pendencia = request.form.get("pendencia", "").strip()
     etapa_inicial = "Assinado c/ Pendência" if pendencia else "TT Usina"
@@ -731,12 +732,12 @@ def nova_usina():
             pendencia=pendencia,
             responsavel=request.form.get("responsavel", "").strip(),
             autor=session["usuario_nome"],
-            criado_em=datetime.now().isoformat(timespec="seconds"),
+            criado_em=agora().isoformat(timespec="seconds"),
         )
         db.registrar_atividade(
             conn, session["usuario_nome"], "Cadastrou a usina",
             request.form.get("nome_ufv", "").strip(),
-            datetime.now().isoformat(timespec="seconds"),
+            agora().isoformat(timespec="seconds"),
         )
     return redirect(url_for("ver_usina", usina_id=usina_id))
 
@@ -824,7 +825,7 @@ def importar_usinas():
     def cel(row, nome):
         return row[idx[nome]] if nome in idx and idx[nome] < len(row) else None
 
-    hoje_iso = date.today().isoformat()
+    hoje_iso = hoje().isoformat()
     criadas = ignoradas = erros = 0
     with db.conectar() as conn:
         for row in ws.iter_rows(min_row=2, values_only=True):
@@ -857,14 +858,14 @@ def importar_usinas():
                 pendencia="",
                 responsavel="",
                 autor=session["usuario_nome"],
-                criado_em=datetime.now().isoformat(timespec="seconds"),
+                criado_em=agora().isoformat(timespec="seconds"),
             )
             criadas += 1
         if criadas:
             db.registrar_atividade(
                 conn, session["usuario_nome"],
                 f"Importou {criadas} usina(s) via planilha", None,
-                datetime.now().isoformat(timespec="seconds"),
+                agora().isoformat(timespec="seconds"),
             )
 
     partes = [f"{criadas} usina(s) criada(s)"]
@@ -902,7 +903,7 @@ def editar_usina(usina_id):
         db.registrar_atividade(
             conn, session["usuario_nome"], "Editou os dados da usina",
             request.form.get("nome_ufv", "").strip(),
-            datetime.now().isoformat(timespec="seconds"),
+            agora().isoformat(timespec="seconds"),
         )
     return redirect(url_for("ver_usina", usina_id=usina_id))
 
@@ -917,7 +918,7 @@ def excluir_usina(usina_id):
         db.excluir_usina(conn, usina_id)
         db.registrar_atividade(
             conn, session["usuario_nome"], "Excluiu a usina", nome,
-            datetime.now().isoformat(timespec="seconds"),
+            agora().isoformat(timespec="seconds"),
         )
     return redirect(request.referrer or url_for("dashboard"))
 

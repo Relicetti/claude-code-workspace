@@ -4,10 +4,24 @@ import sqlite3
 import unicodedata
 from contextlib import contextmanager
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 # No Railway, defina DB_PATH apontando pro volume persistente (ex: /data/fup.db)
 # pra o banco não resetar a cada deploy. Local, usa o arquivo ao lado do código.
 DB_PATH = os.environ.get("DB_PATH") or os.path.join(os.path.dirname(__file__), "fup.db")
+
+# o Railway roda os containers em UTC -- agora()/hoje() são o jeito certo de
+# pegar a hora "agora"/"hoje" em qualquer lugar do sistema, sempre no horário
+# de Brasília (datetime.now()/date.today() puros pegariam UTC em produção).
+TZ_BR = ZoneInfo("America/Sao_Paulo")
+
+
+def agora():
+    return datetime.now(TZ_BR).replace(tzinfo=None)
+
+
+def hoje():
+    return agora().date()
 
 # garante que a pasta do banco exista (ex: /data do volume no Railway); sem isso
 # o sqlite dá "unable to open database file" e o container entra em loop de erro.
@@ -657,7 +671,7 @@ def bootstrap_admin(gerar_hash):
             return
         criar_usuario(
             conn, nome, username, gerar_hash(senha),
-            datetime.now().isoformat(timespec="seconds"), is_admin=True,
+            agora().isoformat(timespec="seconds"), is_admin=True,
             email=f"{username}@alexandriabr.com",
         )
 
