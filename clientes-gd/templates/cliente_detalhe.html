@@ -124,7 +124,7 @@
         </div>
         {% if faturas %}
         <table class="table table-sm mb-0">
-          <thead><tr><th>Mês</th><th>kWh compensado</th><th>Valor cobrado</th><th>Status</th></tr></thead>
+          <thead><tr><th>Mês</th><th>kWh compensado</th><th>Valor cobrado</th><th>Status</th><th>Saldo acumulado</th><th>Expira próx. mês</th></tr></thead>
           <tbody>
             {% for f in faturas %}
             <tr>
@@ -132,6 +132,12 @@
               <td>{{ f.energia_compensada_kwh or "—" }}</td>
               <td>{{ "R$ %.2f"|format(f.valor_cobrado) if f.valor_cobrado else "—" }}</td>
               <td>{{ f.status }}</td>
+              <td>{{ (f.saldo_acumulado_kwh ~ " kWh") if f.saldo_acumulado_kwh is not none else "—" }}</td>
+              <td>
+                {% if f.saldo_expirar_kwh %}
+                <span class="text-danger fw-semibold">{{ f.saldo_expirar_kwh }} kWh</span>
+                {% else %}—{% endif %}
+              </td>
             </tr>
             {% endfor %}
           </tbody>

@@ -66,6 +66,10 @@ Extraia os dados abaixo e retorne SOMENTE um JSON válido, sem texto adicional.
   "b_verm_p2_inj_kwh": número ou 0,
   "b_verm_p2_inj_valor": número ou 0,
 
+  "saldo_acumulado_kwh": número (saldo de créditos de energia acumulados na instalação, disponível pra compensar em meses futuros) ou null,
+  "saldo_expirar_kwh": número (parte do saldo acumulado que expira no próximo mês, se informado) ou null,
+  "participacao_rateio_pct": número (percentual de participação na geração informado na própria fatura, ex: 17.0 pra 17%) ou null,
+
   "grupo": "um de: GER | EQT | NEOENERGIA | ENERGISA | LIGHT | CEMIG | BRASILIA"
 }
 
@@ -74,6 +78,50 @@ Instruções:
 - mes_referencia: procure por "Mês de referência", "Competência", "Período" — formato YYYY-MM
 - consumo_kwh: kWh totais consumidos (pode aparecer como "Consumo faturado")
 - injetada_kwh: energia injetada/compensada pelo sistema GD solar
+
+- Para faturas RGE / RGE Sul (RS — formato "DANF3E", Documento Auxiliar da Nota Fiscal de Energia Elétrica
+  Eletrônica; cabeçalho vermelho "RGE" com o selo "Uma empresa CPFL Energia"):
+  Esse layout é bem diferente de uma fatura tradicional — é uma tabela de "Descrição da operação" com colunas
+  Quant. Faturada, Tarifa ANEEL, Tarifa com tributos R$, Valor total da operação R$. Regras exatas:
+
+  * grupo = "GER" (sempre, pra RGE)
+  * distribuidora = "RGE"
+  * instalacao = o número no quadro azul "Código da Instalação" (não confundir com "Nº do Medidor", nem com os
+    códigos "Lote"/"Roteiro de Leitura" da linha acima) — ex: 3085290372
+  * mes_referencia = campo "Ref: mês/ano" do quadro de vencimento (ex: "ABR/2026" → "2026-04")
+  * consumo_kwh = "Quant. Faturada" da linha "Consumo Uso Sistema [KWh]-TUSD <mês>/<aa>" — a linha
+    "Consumo - TE <mês>/<aa>" tem a MESMA quantidade, não some as duas
+  * tusd_consumo = "Tarifa com tributos R$" da linha "Consumo Uso Sistema [KWh]-TUSD <mês>/<aa>"
+  * te_consumo = "Tarifa com tributos R$" da linha "Consumo - TE <mês>/<aa>"
+  * Linhas de energia injetada/compensada começam com "Energ Atv Inj." e têm 4 variações que podem aparecer
+    juntas ou separadas: "oUC" (outra UC — geração remota, cenário normal de rateio de usina) ou "mUC" (mesma
+    UC); "mPT" (mesmo posto tarifário) ou "oPT" (outro posto tarifário, faixa horária diferente). Todas contam
+    como energia compensada, independente da combinação.
+    IMPORTANTE: o mês citado nessas linhas (ex: "TUSD JAN/26") é o mês em que a energia foi INJETADA pela
+    usina, que quase sempre é ANTERIOR ao mês de referência da fatura (defasagem normal de processamento da
+    RGE — pode haver 1 ou 2 meses diferentes citados na mesma fatura). Isso é esperado, não é erro.
+    * injetada_kwh = soma das "Quant. Faturada" de TODAS as linhas "Energ Atv Inj." — some cada combinação
+      única de mês+posto (mPT/oPT) UMA VEZ SÓ: a linha "- TUSD" e a linha "- TE" do mesmo mês/posto têm a
+      MESMA quantidade (são a mesma energia, só que a tarifa é discriminada em duas parcelas) — não dobre o
+      valor somando as duas.
+    * tusd_compensada = média ponderada pelo kWh das "Tarifa com tributos R$" de todas as linhas "- TUSD"
+      (fórmula: Σ(kWh_linha × tarifa_linha) / Σ(kWh_linha), somando todos os meses/postos)
+    * te_compensada = mesma lógica de média ponderada, mas para as linhas "- TE"
+    * Os valores de "Valor total da operação R$" dessas linhas aparecem NEGATIVOS na fatura (é um crédito) —
+      ignore o sinal, a tarifa unitária em si (Tarifa ANEEL / Tarifa com tributos) é sempre positiva
+  * valor_concessionaria = "Total a pagar" do quadro verde de vencimento (canto superior). ATENÇÃO: em faturas
+    com débito antigo em disputa judicial (menção a "Processo Judicial" ou "liminar" no rodapé), esse campo
+    pode aparecer mascarado com asteriscos (**********) na página com o valor antigo/questionado — nesse caso
+    IGNORE a página mascarada e use o "Total a pagar" da página seguinte que traga o valor numérico real
+    (geralmente ligada a uma "Dedução de ICMS/PIS/COFINS" ou "Base de Cálculo Ajustada")
+  * saldo_acumulado_kwh = valor numérico da linha "Saldo em Energia da Instalação: Convencional X kWh" (fica no
+    quadro amarelo de avisos) — 0 se a linha mostrar 0,0000000000 kWh
+  * saldo_expirar_kwh = valor numérico da linha "Saldo a expirar próximo mês: X kWh", mesma área
+  * participacao_rateio_pct = valor da linha "Participação na geração X.XXXX%" (ex: 17.0000% → 17.0)
+  * Se a fatura tiver mais de uma página com tabela de "Descrição da operação" própria (não a página final
+    genérica de instruções/rodapé, que é igual em toda fatura RGE e não deve ser somada), trate cada uma como
+    parte da MESMA fatura: some consumo_kwh, injetada_kwh e valor_concessionaria de todas as páginas de
+    conteúdo, sem contar a página de rodapé genérico.
 
 - Para faturas CELESC G2 (Geração Distribuída Remota — energia vinda de outra UC):
   Os itens da fatura seguem este padrão de códigos:

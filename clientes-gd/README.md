@@ -44,6 +44,14 @@ Variáveis de ambiente relevantes:
   já gera `leituras_distribuidora` e `faturas_cliente` automaticamente.
   **Continua usando a API do Claude** para a extração (decisão
   deliberada — ver abaixo), não foi convertido pra IA local.
+  **Calibrado especificamente pro layout RGE Sul (DANF3E)** — o
+  `extrator.py` tem uma seção dedicada com os rótulos exatos vistos em
+  faturas reais (`Energ Atv Inj. oUC/mUC mPT/oPT`, `Saldo em Energia da
+  Instalação`, defasagem de mês entre injeção e fatura, etc.) e captura
+  também `saldo_acumulado_kwh` e `saldo_expirar_kwh` (banco de créditos de
+  energia da instalação). Outras distribuidoras usam as instruções mais
+  genéricas já existentes no prompt — validar com exemplos reais antes de
+  confiar 100% fora do RGE.
 - ⬜ **Fase 3 — Gateway Asaas + webhook**: cobrança PIX real e conciliação
   automática de pagamento. Não implementada ainda.
 - ⬜ **Fase 4 — Régua de cobrança/inadimplência**: lembretes e suspensão

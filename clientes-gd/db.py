@@ -106,6 +106,12 @@ CREATE TABLE IF NOT EXISTS leituras_distribuidora (
     energia_injetada_kwh REAL,
     energia_compensada_kwh REAL,
     valor_fatura_concessionaria REAL,
+    -- saldo de créditos de energia acumulados na instalação (banco de
+    -- energia da GD) e a parcela que expira no mês seguinte, quando a
+    -- distribuidora informa (ex: RGE) -- útil pro relatório do cliente.
+    saldo_acumulado_kwh REAL,
+    saldo_expirar_kwh REAL,
+    participacao_rateio_pct REAL,
     arquivo_pdf_path TEXT,
     origem TEXT NOT NULL DEFAULT 'upload_manual',
     dados_extraidos TEXT,
@@ -452,23 +458,29 @@ def criar_rateio(conn, cliente_id, usina_gd_id, percentual_rateio, mes_inicio, c
 
 def gravar_leitura(conn, cliente_id, uc, mes_referencia, consumo_kwh, energia_injetada_kwh,
                     energia_compensada_kwh, valor_fatura_concessionaria, arquivo_pdf_path,
-                    origem, dados_extraidos_json, capturado_em):
+                    origem, dados_extraidos_json, capturado_em,
+                    saldo_acumulado_kwh=None, saldo_expirar_kwh=None, participacao_rateio_pct=None):
     conn.execute(
         """INSERT INTO leituras_distribuidora
            (cliente_id, uc, mes_referencia, consumo_kwh, energia_injetada_kwh,
-            energia_compensada_kwh, valor_fatura_concessionaria, arquivo_pdf_path,
-            origem, dados_extraidos, capturado_em)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?)
+            energia_compensada_kwh, valor_fatura_concessionaria,
+            saldo_acumulado_kwh, saldo_expirar_kwh, participacao_rateio_pct,
+            arquivo_pdf_path, origem, dados_extraidos, capturado_em)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
            ON CONFLICT(cliente_id, mes_referencia) DO UPDATE SET
              uc=excluded.uc, consumo_kwh=excluded.consumo_kwh,
              energia_injetada_kwh=excluded.energia_injetada_kwh,
              energia_compensada_kwh=excluded.energia_compensada_kwh,
              valor_fatura_concessionaria=excluded.valor_fatura_concessionaria,
+             saldo_acumulado_kwh=excluded.saldo_acumulado_kwh,
+             saldo_expirar_kwh=excluded.saldo_expirar_kwh,
+             participacao_rateio_pct=excluded.participacao_rateio_pct,
              arquivo_pdf_path=excluded.arquivo_pdf_path, origem=excluded.origem,
              dados_extraidos=excluded.dados_extraidos, capturado_em=excluded.capturado_em""",
         (cliente_id, uc, mes_referencia, consumo_kwh, energia_injetada_kwh,
-         energia_compensada_kwh, valor_fatura_concessionaria, arquivo_pdf_path,
-         origem, dados_extraidos_json, capturado_em),
+         energia_compensada_kwh, valor_fatura_concessionaria,
+         saldo_acumulado_kwh, saldo_expirar_kwh, participacao_rateio_pct,
+         arquivo_pdf_path, origem, dados_extraidos_json, capturado_em),
     )
     row = conn.execute(
         "SELECT id FROM leituras_distribuidora WHERE cliente_id = ? AND mes_referencia = ?",
@@ -499,7 +511,11 @@ def gravar_fatura_cliente(conn, cliente_id, mes_referencia, leitura_id, energia_
 
 def listar_faturas_cliente(conn, cliente_id):
     return conn.execute(
-        "SELECT * FROM faturas_cliente WHERE cliente_id = ? ORDER BY mes_referencia DESC", (cliente_id,)
+        """SELECT f.*, l.saldo_acumulado_kwh, l.saldo_expirar_kwh, l.participacao_rateio_pct
+           FROM faturas_cliente f
+           LEFT JOIN leituras_distribuidora l ON l.id = f.leitura_id
+           WHERE f.cliente_id = ? ORDER BY f.mes_referencia DESC""",
+        (cliente_id,),
     ).fetchall()
 
 

@@ -511,6 +511,9 @@ def nova_fatura(cliente_id):
             dados.get("consumo_kwh"), dados.get("injetada_kwh"), valores["energia_compensada_kwh"],
             dados.get("valor_concessionaria"), arquivo_path, "upload_manual",
             json.dumps({**dados, **saida}, ensure_ascii=False), _agora(),
+            saldo_acumulado_kwh=dados.get("saldo_acumulado_kwh"),
+            saldo_expirar_kwh=dados.get("saldo_expirar_kwh"),
+            participacao_rateio_pct=dados.get("participacao_rateio_pct"),
         )
         db.gravar_fatura_cliente(
             conn, cliente_id, mes_referencia, leitura_id, valores["energia_compensada_kwh"],
