@@ -25,6 +25,8 @@ Variáveis de ambiente relevantes:
 | `ASSINATURA_AUTENTIQUE_API_TOKEN` | assinatura eletrônica de contrato via Autentique (opcional, no-op se ausente) |
 | `ASSINATURA_AUTENTIQUE_WEBHOOK_TOKEN` | valida o webhook da Autentique (obrigatório pra aceitar webhooks) |
 | `ANTHROPIC_API_KEY` | extração de fatura da distribuidora via API do Claude (opcional, no-op se ausente) |
+| `EMPRESA_NOME` / `_CNPJ` / `_ENDERECO` / `_TELEFONE` / `_EMAIL` / `_REPRESENTANTE` / `_CIDADE_UF` | dados da empresa que aparecem no termo de adesão gerado automaticamente (default: placeholders genéricos `[NOME DA EMPRESA]` etc.) |
+| `ASSOCIACAO_NOME` | nome da associação (SCEE) que aparece no termo de adesão (default: `[NOME DA ASSOCIAÇÃO]`) |
 
 ## Status por fase
 
@@ -37,6 +39,15 @@ Variáveis de ambiente relevantes:
   documentação pública da API GraphQL da Autentique, mas **ainda não foi
   testado contra uma conta real** — validar nomes de campos ao configurar
   o primeiro token de produção.
+- ✅ **Geração automática do termo de adesão**: `contratos/gerador.py`
+  monta o PDF do Termo de Adesão + Anexo I (Condições) + Anexo II
+  (Unidades Consumidoras) com os dados reais do cliente/contrato, via
+  `xhtml2pdf` (puro Python, não depende de LibreOffice). Botão "⚡ Gerar e
+  enviar p/ assinatura" no contrato faz as duas coisas de uma vez: gera o
+  PDF e já envia pra Autentique. Proposta Comercial (Anexo IV do modelo
+  original) foi deixada de fora a pedido do usuário. Documentos avulsos do
+  cliente (RG, CPF, comprovante de residência) ficam em aba própria
+  (`documentos_cliente`), separados do contrato/termo de adesão.
 - ✅ **Fase 2 (parcial) — faturamento**: `tarifas/` foi portado do
   repositório `Relicetti/alexandria-tarifas` (extração de PDF de fatura +
   cálculo de tarifa por grupo de concessionária: GER, EQT, NEOENERGIA,

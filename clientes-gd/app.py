@@ -10,12 +10,17 @@ from werkzeug.utils import secure_filename
 
 import db
 from assinatura import obter_assinatura
+from contratos import gerador as contratos_gerador
 from tarifas import processar as tarifas_processar
 
 UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "uploads", "contratos")
 UPLOADS_FATURAS_DIR = os.path.join(os.path.dirname(__file__), "uploads", "faturas")
+UPLOADS_DOCS_DIR = os.path.join(os.path.dirname(__file__), "uploads", "documentos_cliente")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 os.makedirs(UPLOADS_FATURAS_DIR, exist_ok=True)
+os.makedirs(UPLOADS_DOCS_DIR, exist_ok=True)
+
+TIPOS_DOCUMENTO_CLIENTE = ["RG", "CPF", "Comprovante de residência", "Outro"]
 
 
 def _agora():
@@ -253,6 +258,53 @@ def editar_cliente(cliente_id):
     return redirect(url_for("ver_cliente", cliente_id=cliente_id))
 
 
+# --- documentos avulsos do cliente (RG, CPF, comprovante etc.) ---------
+
+@app.route("/cliente/<int:cliente_id>/documentos", methods=["GET", "POST"])
+def documentos_cliente(cliente_id):
+    with db.conectar() as conn:
+        cliente = db.buscar_cliente(conn, cliente_id)
+        if cliente is None:
+            return "Cliente não encontrado", 404
+
+        if request.method == "GET":
+            documentos = [dict(d) for d in db.listar_documentos_cliente(conn, cliente_id)]
+            return render_template(
+                "documentos_cliente.html", cliente=dict(cliente),
+                documentos=documentos, tipos=TIPOS_DOCUMENTO_CLIENTE,
+            )
+
+        tipo = request.form.get("tipo", "Outro")
+        arquivo = request.files.get("arquivo")
+        if not arquivo or not arquivo.filename:
+            flash("Selecione um arquivo.", "warning")
+            return redirect(url_for("documentos_cliente", cliente_id=cliente_id))
+
+        nome_seguro = secure_filename(arquivo.filename)
+        destino = os.path.join(UPLOADS_DOCS_DIR, f"{cliente_id}_{_agora().replace(':', '-')}_{nome_seguro}")
+        arquivo.save(destino)
+        db.anexar_documento_cliente(conn, cliente_id, tipo, arquivo.filename, destino, _agora())
+        db.registrar_atividade(
+            conn, session["usuario_nome"], f"Anexou documento ({tipo}): {arquivo.filename}",
+            cliente["nome"], _agora(),
+        )
+    flash("Documento anexado.", "success")
+    return redirect(url_for("documentos_cliente", cliente_id=cliente_id))
+
+
+@app.route("/cliente/<int:cliente_id>/documentos/<int:documento_id>/excluir", methods=["POST"])
+def excluir_documento_cliente(cliente_id, documento_id):
+    with db.conectar() as conn:
+        db.excluir_documento_cliente(conn, documento_id, cliente_id)
+        cliente = db.buscar_cliente(conn, cliente_id)
+        db.registrar_atividade(
+            conn, session["usuario_nome"], "Excluiu um documento anexado",
+            cliente["nome"] if cliente else None, _agora(),
+        )
+    flash("Documento removido.", "success")
+    return redirect(url_for("documentos_cliente", cliente_id=cliente_id))
+
+
 # --- contratos / assinatura eletrônica --------------------------------
 
 @app.route("/cliente/<int:cliente_id>/contrato/novo", methods=["GET", "POST"])
@@ -299,31 +351,41 @@ def enviar_assinatura(contrato_id):
             return "Contrato não encontrado", 404
         cliente = db.buscar_cliente(conn, contrato["cliente_id"])
 
+    _enviar_contrato_para_assinatura(contrato_id, dict(contrato), dict(cliente))
+    return redirect(url_for("ver_cliente", cliente_id=contrato["cliente_id"]))
+
+
+def _enviar_contrato_para_assinatura(contrato_id, contrato, cliente):
+    """Envia o PDF já salvo em uploads/contratos/<id>.pdf pra assinatura via
+    Autentique. Flasheia o resultado (sucesso ou motivo de não ter enviado)
+    -- usada tanto pelo botão manual "Enviar p/ assinatura" quanto pelo
+    fluxo automático "Gerar e enviar". Retorna True se enviou de fato."""
     assinador = obter_assinatura()
     if not assinador.configurado():
         flash(
             "Assinatura eletrônica não configurada (falta ASSINATURA_AUTENTIQUE_API_TOKEN). "
-            "Crie a conta na Autentique e defina a variável de ambiente para habilitar o envio.",
+            "Crie a conta na Autentique e defina a variável de ambiente para habilitar o envio. "
+            "O PDF do contrato já foi gerado/salvo e pode ser enviado manualmente por enquanto.",
             "warning",
         )
-        return redirect(url_for("ver_cliente", cliente_id=contrato["cliente_id"]))
+        return False
 
     arquivo_path = os.path.join(UPLOADS_DIR, f"{contrato_id}.pdf")
     if not os.path.exists(arquivo_path):
-        flash("Anexe o PDF do contrato antes de enviar para assinatura.", "danger")
-        return redirect(url_for("ver_cliente", cliente_id=contrato["cliente_id"]))
+        flash("Anexe (ou gere) o PDF do contrato antes de enviar para assinatura.", "danger")
+        return False
 
     if not cliente["email"]:
         flash("O cliente precisa ter um e-mail cadastrado para receber o convite de assinatura.", "danger")
-        return redirect(url_for("ver_cliente", cliente_id=contrato["cliente_id"]))
+        return False
 
     try:
         documento_externo_id = assinador.enviar_documento(
-            dict(contrato), arquivo_path, cliente["nome"], cliente["email"],
+            contrato, arquivo_path, cliente["nome"], cliente["email"],
         )
     except Exception as e:
         flash(f"Falha ao enviar para assinatura: {e}", "danger")
-        return redirect(url_for("ver_cliente", cliente_id=contrato["cliente_id"]))
+        return False
 
     with db.conectar() as conn:
         db.registrar_envio_assinatura(conn, contrato_id, "autentique", documento_externo_id, _agora())
@@ -333,7 +395,36 @@ def enviar_assinatura(contrato_id):
             cliente["nome"], _agora(),
         )
     flash(f"Contrato enviado para assinatura de {cliente['nome']}.", "success")
-    return redirect(url_for("ver_cliente", cliente_id=contrato["cliente_id"]))
+    return True
+
+
+@app.route("/cliente/<int:cliente_id>/contrato/<int:contrato_id>/gerar-e-enviar", methods=["POST"])
+def gerar_e_enviar_contrato(cliente_id, contrato_id):
+    with db.conectar() as conn:
+        contrato = db.buscar_contrato(conn, contrato_id)
+        cliente = db.buscar_cliente(conn, cliente_id)
+        if contrato is None or cliente is None or contrato["cliente_id"] != cliente_id:
+            return "Contrato não encontrado", 404
+        contrato, cliente = dict(contrato), dict(cliente)
+
+    try:
+        pdf_bytes = contratos_gerador.gerar_termo_adesao_pdf(cliente, contrato)
+    except Exception as e:
+        flash(f"Falha ao gerar o PDF do termo de adesão: {e}", "danger")
+        return redirect(url_for("ver_cliente", cliente_id=cliente_id))
+
+    arquivo_path = os.path.join(UPLOADS_DIR, f"{contrato_id}.pdf")
+    with open(arquivo_path, "wb") as f:
+        f.write(pdf_bytes)
+
+    with db.conectar() as conn:
+        db.registrar_atividade(
+            conn, session["usuario_nome"], "Gerou automaticamente o PDF do termo de adesão",
+            cliente["nome"], _agora(),
+        )
+
+    _enviar_contrato_para_assinatura(contrato_id, contrato, cliente)
+    return redirect(url_for("ver_cliente", cliente_id=cliente_id))
 
 
 @app.route("/cliente/<int:cliente_id>/contrato/upload-assinado", methods=["POST"])

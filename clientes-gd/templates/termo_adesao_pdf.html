@@ -1,0 +1,131 @@
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  /* xhtml2pdf só entende um subconjunto de CSS 2.1 -- sem flexbox/grid,
+     sem fontes externas (usa as fontes base do PDF: Helvetica/Times). */
+  @page { size: A4; margin: 2.2cm 2cm; }
+  body { font-family: Helvetica; font-size: 10pt; color: #1b2422; line-height: 1.45; }
+  .cabecalho { text-align: right; font-size: 8pt; color: #5c6b68; margin-bottom: 14pt; letter-spacing: 1pt; }
+  h1 { text-align: center; font-size: 14pt; color: #1b2422; margin: 0 0 18pt; }
+  h2 { font-size: 12pt; color: #33566b; border-bottom: 1pt solid #33566b; padding-bottom: 3pt; margin: 18pt 0 8pt; }
+  h3 { font-size: 10.5pt; color: #1b2422; margin: 12pt 0 6pt; }
+  .rotulo { font-size: 7.5pt; text-transform: uppercase; color: #5c6b68; letter-spacing: 1pt; }
+  table.campos { width: 100%; border-collapse: collapse; margin-bottom: 10pt; }
+  table.campos td { padding: 2pt 10pt 6pt 0; vertical-align: top; }
+  p { text-align: justify; margin: 0 0 8pt; }
+  p.clausula { margin: 0 0 8pt; }
+  .assinatura { margin-top: 20pt; }
+  .assinatura .rotulo-secao { font-weight: bold; font-size: 9pt; color: #33566b; margin-bottom: 4pt; }
+  .pagebreak { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<div class="cabecalho">{{ empresa.nome }}</div>
+
+<h1>TERMO DE ADESÃO À ASSOCIAÇÃO {{ associacao_nome | upper }}</h1>
+
+<span class="rotulo">Associação</span>
+<table class="campos">
+  <tr>
+    <td width="50%"><span class="rotulo">Nome / Razão Social</span><br/>{{ empresa.nome }}</td>
+    <td width="50%"><span class="rotulo">CPF / CNPJ</span><br/>{{ empresa.cnpj }}</td>
+  </tr>
+  <tr>
+    <td colspan="2"><span class="rotulo">Endereço</span><br/>{{ empresa.endereco }}</td>
+  </tr>
+  <tr>
+    <td><span class="rotulo">Telefone</span><br/>{{ empresa.telefone }}</td>
+    <td><span class="rotulo">E-mail</span><br/>{{ empresa.email }}</td>
+  </tr>
+  <tr>
+    <td colspan="2"><span class="rotulo">Representante legal</span><br/>{{ empresa.representante }}</td>
+  </tr>
+</table>
+
+<span class="rotulo">Associado</span>
+<table class="campos">
+  <tr>
+    <td width="50%"><span class="rotulo">Nome / Razão Social</span><br/>{{ cliente.nome }}</td>
+    <td width="50%"><span class="rotulo">CPF / CNPJ</span><br/>{{ cliente.cpf_cnpj or "—" }}</td>
+  </tr>
+  <tr>
+    <td colspan="2"><span class="rotulo">Endereço</span><br/>{{ cliente.endereco or "—" }}</td>
+  </tr>
+  <tr>
+    <td><span class="rotulo">Telefone</span><br/>{{ cliente.telefone or "—" }}</td>
+    <td><span class="rotulo">E-mail</span><br/>{{ cliente.email or "—" }}</td>
+  </tr>
+</table>
+
+<h2>I. DA ASSOCIAÇÃO</h2>
+
+<p>Pelo presente instrumento, com o fim de participar do Sistema de Compensação de Energia Elétrica (“SCEE”), o Associado acima qualificado, por livre e espontânea vontade, associa-se à {{ associacao_nome }} (“Associação”), através da assinatura do presente Termo de Adesão (“Finalidade”), declarando, desde já, ciência e concordância aos termos dispostos no Estatuto Social da Associação e às Condições da Adesão, dispostas no Anexo I.</p>
+
+<p>Pelo fato de se associar à Associação, o Associado, acima qualificado, fará parte do SCEE, recebendo excedente de energia elétrica de usinas de micro e minigeração sob posse da Associação, observadas as Condições da Adesão, o Estatuto Social da Associação e a legislação aplicável, incluindo, mas não se limitando, a Lei nº 14.300, de 07 de janeiro de 2022.</p>
+
+<p>O Associado tem ciência de que o excedente de energia recebido das usinas sob posse da Associação somente poderá ser compensado em unidade consumidora atendida pela Concessionária Local indicada no Anexo II deste Termo de Adesão. Caso alguma da(s) Unidade(s) Consumidora(s), informada(s) no Anexo II não esteja(m) na área de concessão da Concessionária Local, ela(s) será(ão) automaticamente desconsiderada(s) para fins de participação no SCEE.</p>
+
+<p>Pela participação na Associação, o Associado deverá pagar uma contribuição mensal proporcional à fruição dos benefícios disponibilizados pela Associação, nos termos do Anexo I e do Estatuto Social da Associação.</p>
+
+<p>As demais condições de associação do Associado na Associação estão dispostas no Anexo I e II deste Termo de Adesão, bem como no Estatuto Social da Associação e devem ser por ele observadas.</p>
+
+<p>{{ cidade }}, {{ data_documento }}</p>
+
+<div class="assinatura">
+  <div class="rotulo-secao">ASSOCIADO</div>
+  <p>Nome: {{ cliente.nome }}<br/>CPF/CNPJ: {{ cliente.cpf_cnpj or "—" }}</p>
+</div>
+
+<div class="pagebreak"></div>
+
+<h2>ANEXO I — CONDIÇÕES DA ADESÃO À ASSOCIAÇÃO {{ associacao_nome | upper }}</h2>
+
+<h3>I. Benefício e contribuição mensal</h3>
+<p class="clausula"><b>a)</b> O benefício a ser auferido pelo Associado (“Benefício”) será o percentual de <b>{{ percentual_desconto }}</b> de desconto, aplicado sobre valor da tarifa de energia na bandeira tarifária verde (incluindo todas as componentes tarifárias e os impostos incidentes) ao subgrupo tarifário aplicado pela Concessionária Local (“Tarifa de Energia”).</p>
+<p class="clausula"><b>b)</b> A contribuição mensal a ser paga pelo Associado à Associação (“Contribuição Mensal”), por sua vez, será o resultado da subtração da Tarifa de Energia pelo valor que vier a ser apurado na forma de Benefício (em reais), observado o disposto no item “h” abaixo.</p>
+<p class="clausula"><b>c)</b> A Contribuição Mensal refletirá uma porcentagem de participação do Associado nos créditos de energia gerados pelas usinas sob posse da Associação, e poderá variar mensalmente, de forma a cobrir os custos operacionais da Associação.</p>
+
+<h3>II. Unidades consumidoras</h3>
+<p class="clausula"><b>d)</b> No Anexo II estará(ão) descrita(s) a(s) Unidade(s) Consumidora(s) sob titularidade do Associado que será(ão) aderida(s) ao SCEE e que receberá(ão) o excedente de energia gerado pelas usinas sob posse da Associação.</p>
+<p class="clausula"><b>d.1)</b> O Associado desde já autoriza a Associação a atualizar as informações dispostas no Anexo II, quando por este solicitado por meio de comunicação endereçada à Associação neste sentido, à qual será atribuído um número de protocolo de atendimento.</p>
+<p class="clausula"><b>e)</b> O Associado se compromete a informar à Associação com no mínimo 30 (trinta) dias de antecedência as alterações que seguem: (e.1) encerramento da Unidade Consumidora; (e.2) troca de titular da fatura.</p>
+<p class="clausula"><b>e.2.1)</b> Caso o Associado não informe a Associação no prazo disposto no item “e” acima, o Associado deverá arcar com a Contribuição Mensal pelos créditos transferidos e acumulados para a(s) Unidade(s) Consumidora(s) e estará ciente, de acordo com a Lei nº 14.300/2022, cap. 4, art. 13 e parágrafos 3 e 4, de que esses créditos não poderão ser transferidos.</p>
+<p class="clausula"><b>f)</b> Caso o Associado expresse desejo de realizar o repasse de créditos entre as Unidades Consumidoras listadas no Anexo II que estejam obrigatoriamente sob a mesma titularidade, deverá enviar comunicação por escrito neste sentido à Associação, para que esta, por sua vez, solicite o repasse à Concessionária Local.</p>
+
+<h3>III. Pagamento</h3>
+<p class="clausula"><b>g)</b> Pelo recebimento de créditos de energia a serem utilizados via SCEE, o Associado se obriga ao pagamento da Contribuição Mensal, na data do vencimento de sua fatura da Concessionária Local (“Data de Vencimento da Obrigação”).</p>
+<p class="clausula"><b>h)</b> A Contribuição Mensal será apurada mensalmente com base nos créditos de energia compensados, ou seja, pelos créditos efetivamente consumidos pela(s) Unidade(s) Consumidora(s) do Associado.</p>
+<p class="clausula"><b>i)</b> Caso o Associado altere a data de vencimento de sua fatura de energia elétrica junto à Concessionária Local, deverá informar a Associação sobre tal alteração com, no mínimo, 15 (quinze) dias de antecedência à data de fechamento da Contribuição Mensal, sob pena de ter seu desconto reduzido.</p>
+<p class="clausula"><b>j)</b> A falta do pagamento de qualquer valor devido pelo Associado à Associação até a data de vencimento acarretará o acréscimo, sobre o saldo devido, de multa equivalente a 2% (dois por cento), e juros de mora de 1% (um por cento) ao mês calculado pro rata die, corrigidos pela variação positiva acumulada do IPCA-IBGE e calculado desde a data do vencimento até a data do seu efetivo pagamento.</p>
+<p class="clausula"><b>k)</b> Havendo atraso no pagamento da contribuição mensal, o Associado será considerado automaticamente em mora, incidindo sobre a obrigação inadimplida os encargos por atraso no pagamento mencionados no item “j” acima. Adicionalmente, havendo atraso por prazo superior a 30 (trinta) dias, a Associação poderá, a seu exclusivo critério, excluir a(s) Unidade(s) Consumidora(s) do Associado do SCEE, sem prejuízo de serem aplicadas as demais penalidades constantes no Contrato de Constituição da Associação.</p>
+
+<h3>IV. Disponibilidade</h3>
+<p class="clausula"><b>l)</b> Para fins de recebimento do excedente de energia ou de seu encerramento, o Associado declara estar ciente de que após o início da geração de energia pelas usinas sob posse da Associação a Concessionária Local tem até 90 (noventa) dias para efetivar eventual homologação, alteração ou exclusão de sua(s) Unidade(s) Consumidora(s) do SCEE.</p>
+<p class="clausula"><b>m)</b> O Associado declara estar ciente de que a distribuição do excedente de energia proveniente das usinas sob posse da Associação pode variar de acordo com disponibilidade de energia gerada em cada região atendida, bem como por condições climáticas ou motivos de caso fortuito e/ou força maior.</p>
+<p class="clausula"><b>n)</b> O Associado declara-se ciente que caso possua geração de energia própria ou receba excedente de energia de outra usina de micro ou minigeração distribuída, o Benefício percebido poderá ser afetado, tendo em vista que a Associação não possuirá ingerência sobre a gestão dos créditos de energia provenientes de outras usinas que não estão sob sua titularidade.</p>
+
+<h3>V. Condições gerais</h3>
+<p class="clausula"><b>o)</b> Após assinatura deste Termo, a Associação dará início aos procedimentos de homologação da(s) Unidade(s) Consumidora(s) junto à Concessionária Local, para que então inicie o recebimento do excedente de energia.</p>
+<p class="clausula"><b>p)</b> O Associado tem ciência de que o desconto informado pode aumentar caso haja aplicação de bandeira tarifária diferente da verde pela Concessionária Local, conforme determinação da autoridade competente. Após o retorno à bandeira tarifária verde, o desconto retornará ao inicialmente informado.</p>
+<p class="clausula"><b>q)</b> Fica acordado entre as partes que, durante a conferência das informações fornecidas e sua comparação com os históricos práticos de consumo de energia, poderão ser identificadas discrepâncias. Nestes casos, as informações relativas à economia de energia estimada poderão ser ajustadas para refletir a realidade observada.</p>
+<p class="clausula"><b>r)</b> Para exclusão de Unidade Consumidora ou pedido de demissão da Associação, dentre outras solicitações, o Associado deverá observar o aviso prévio de 90 (noventa) dias (“Aviso Prévio”). Caso o Associado deixe de se associar à Associação, e tenha Contribuição Mensal em aberto, relativa aos créditos de energia recebidos e não compensados, fica assegurado ao Associado o prazo de até 3 (três) meses, contados a partir da sua desassociação, para compensá-los e, decorrido este prazo, eventuais créditos remanescentes serão liquidados financeiramente no 4º (quarto) mês subsequente após a sua desassociação.</p>
+<p class="clausula"><b>s)</b> Caberá ao Associado disponibilizar constantemente à Associação, durante toda a vigência da sua vinculação à Associação, a fatura de energia recebida da Concessionária Local e, quando necessário para a gestão dos créditos de energia da(s) Unidade(s) Consumidora(s), o acesso ao site da Concessionária Local.</p>
+<p class="clausula"><b>t)</b> O Associado tem ciência de que a entrega dos créditos de energia para sua(s) Unidade(s) Consumidora(s) poderá ser suspensa enquanto perdurarem os efeitos de eventual evento de caso fortuito ou força maior, ou ainda, de indisponibilidade total ou parcial da usina sob posse da Associação que disponibiliza os referidos créditos.</p>
+<p class="clausula"><b>u)</b> Excetuando-se o item “d” acima, toda e qualquer alteração no presente Termo deverá ser formalizada mediante assinatura de termo aditivo pelo Associado, ou através de documento equivalente enviado pela Associação.</p>
+<p class="clausula"><b>v)</b> O Associado desde já concorda, de maneira expressa e inequívoca, com o tratamento de seus dados pessoais pela Associação, ficando desde já acordado que a Associação poderá compartilhá-los com terceiros por ela contratados, incluindo, mas não se limitando, a desenvolvedores de softwares para gestão dos créditos de energia disponibilizados ao Associado, visando o atingimento da Finalidade aqui prevista, com base no art. 7º, inciso V, da Lei nº 13.709/2018 (“LGPD”).</p>
+<p class="clausula"><b>w)</b> O representante signatário deste Termo declara, sob as penas da lei penal e civil, que possui pleno direito, poder e autoridade para celebrar o presente instrumento, cumprindo com as obrigações e compromissos estabelecidos nele e no Contrato de Constituição da Associação ao qual está vinculado.</p>
+<p class="clausula"><b>x)</b> Em caso de Associado Pessoa Jurídica, este declara que o Estatuto Social da Associação e o presente Termo foram devidamente aprovados, em conformidade com os seus atos constitutivos, tendo o Associado acesso à cópia de ambos e expressado sua compreensão e concordância com todos os termos neles constantes.</p>
+<p class="clausula"><b>y)</b> O Associado declara e concorda que a assinatura deste instrumento será efetuada usando plataforma de assinatura eletrônica, nos termos do art. 4º, inciso III, da Lei nº 14.063, de setembro de 2020. O Associado reconhece a veracidade, autenticidade, integridade, validade e eficácia deste instrumento e do Sistema de Assinatura Eletrônica adotado.</p>
+
+<div class="pagebreak"></div>
+
+<h2>ANEXO II — UNIDADES CONSUMIDORAS</h2>
+<table class="campos">
+  <tr><td width="50%"><span class="rotulo">Concessionária local</span><br/>{{ cliente.concessionaria or "—" }}</td>
+      <td width="50%"><span class="rotulo">Unidade(s) consumidora(s)</span><br/>{{ cliente.uc or "—" }}</td></tr>
+</table>
+
+</body>
+</html>

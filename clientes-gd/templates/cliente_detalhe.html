@@ -9,7 +9,10 @@
     <h4 class="mb-1">{{ cliente.nome }}</h4>
     <span class="badge badge-status-{{ cliente.status }}">{{ cliente.status }}</span>
   </div>
-  <a href="{{ url_for('editar_cliente', cliente_id=cliente.id) }}" class="btn btn-sm btn-outline-secondary">Editar</a>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('documentos_cliente', cliente_id=cliente.id) }}" class="btn btn-sm btn-outline-secondary">Documentos</a>
+    <a href="{{ url_for('editar_cliente', cliente_id=cliente.id) }}" class="btn btn-sm btn-outline-secondary">Editar</a>
+  </div>
 </div>
 
 <div class="row g-3">
@@ -77,11 +80,14 @@
               <td>{{ (c.percentual_desconto_contratado * 100) | round(2) if c.percentual_desconto_contratado else "—" }}%</td>
               <td>{{ c.status }}</td>
               <td>{{ c.criado_em }}</td>
-              <td>
+              <td class="d-flex gap-1 flex-wrap">
                 {% if c.status in ("rascunho", "aguardando_assinatura") %}
+                <form method="post" action="{{ url_for('gerar_e_enviar_contrato', cliente_id=cliente.id, contrato_id=c.id) }}" class="d-inline">
+                  <button type="submit" class="btn btn-sm btn-primary">⚡ Gerar e enviar p/ assinatura</button>
+                </form>
                 <form method="post" action="{{ url_for('enviar_assinatura', contrato_id=c.id) }}" class="d-inline">
                   <button type="submit" class="btn btn-sm btn-outline-primary">
-                    {{ "Reenviar" if c.status == "aguardando_assinatura" else "Enviar" }} p/ assinatura
+                    {{ "Reenviar" if c.status == "aguardando_assinatura" else "Enviar" }} PDF anexado
                   </button>
                 </form>
                 {% endif %}

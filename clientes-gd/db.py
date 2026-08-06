@@ -70,6 +70,18 @@ CREATE TABLE IF NOT EXISTS contratos (
     criado_em TEXT NOT NULL
 );
 
+-- documentos avulsos do cliente (RG, CPF, comprovante de residência etc.)
+-- -- diferente de documentos_assinados, que é especificamente o contrato
+-- assinado eletronicamente.
+CREATE TABLE IF NOT EXISTS documentos_cliente (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cliente_id INTEGER NOT NULL REFERENCES clientes(id),
+    tipo TEXT NOT NULL,
+    nome_original TEXT,
+    arquivo_path TEXT NOT NULL,
+    criado_em TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS documentos_assinados (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     contrato_id INTEGER NOT NULL REFERENCES contratos(id),
@@ -161,6 +173,7 @@ CREATE TABLE IF NOT EXISTS webhooks_recebidos (
 
 CREATE INDEX IF NOT EXISTS idx_contratos_cliente ON contratos(cliente_id);
 CREATE INDEX IF NOT EXISTS idx_documentos_contrato ON documentos_assinados(contrato_id);
+CREATE INDEX IF NOT EXISTS idx_documentos_cliente ON documentos_cliente(cliente_id);
 CREATE INDEX IF NOT EXISTS idx_rateio_cliente ON rateio_clientes(cliente_id);
 CREATE INDEX IF NOT EXISTS idx_leituras_cliente ON leituras_distribuidora(cliente_id);
 CREATE INDEX IF NOT EXISTS idx_faturas_cliente ON faturas_cliente(cliente_id);
@@ -357,6 +370,27 @@ def criar_contrato(conn, cliente_id, tipo, percentual_desconto, data_inicio_vige
 
 def mudar_status_contrato(conn, contrato_id, status):
     conn.execute("UPDATE contratos SET status = ? WHERE id = ?", (status, contrato_id))
+
+
+def listar_documentos_cliente(conn, cliente_id):
+    return conn.execute(
+        "SELECT * FROM documentos_cliente WHERE cliente_id = ? ORDER BY criado_em DESC", (cliente_id,)
+    ).fetchall()
+
+
+def anexar_documento_cliente(conn, cliente_id, tipo, nome_original, arquivo_path, criado_em):
+    cur = conn.execute(
+        """INSERT INTO documentos_cliente (cliente_id, tipo, nome_original, arquivo_path, criado_em)
+           VALUES (?,?,?,?,?)""",
+        (cliente_id, tipo, nome_original, arquivo_path, criado_em),
+    )
+    return cur.lastrowid
+
+
+def excluir_documento_cliente(conn, documento_id, cliente_id):
+    conn.execute(
+        "DELETE FROM documentos_cliente WHERE id = ? AND cliente_id = ?", (documento_id, cliente_id)
+    )
 
 
 def documento_assinado_por_contrato(conn, contrato_id):
