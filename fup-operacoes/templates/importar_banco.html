@@ -31,6 +31,14 @@
         <label class="form-label">Arquivo do banco (.db)</label>
         <input type="file" name="banco" accept=".db" class="form-control" required>
       </div>
+      {% if request.args.get('ug_bloqueado') %}
+      <div class="form-check mb-3">
+        <input type="checkbox" name="confirmar_mesmo_assim" value="1" class="form-check-input" id="confirma">
+        <label class="form-check-label small" for="confirma">
+          Sei que esse arquivo é mais antigo que o banco atual e quero importar mesmo assim, mesmo perdendo o que foi feito depois.
+        </label>
+      </div>
+      {% endif %}
       <button type="submit" class="btn btn-primary"
               onclick="return confirm('Isso substitui TODOS os dados deste servidor pelos do arquivo. Continuar?');">
         Importar e substituir

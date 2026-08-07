@@ -304,6 +304,24 @@ def importar_banco():
         flash(f"Importação recusada: {msg}", "danger")
         return redirect(url_for("importar_banco"))
 
+    # trava de segurança: se o arquivo sendo importado tem atividade mais
+    # VELHA que o banco atual, importar ia apagar coisa mais recente feita
+    # direto em produção -- bloqueia, a menos que confirme que sabe disso.
+    atividade_arquivo = db.ultima_atividade(destino_tmp)
+    with db.conectar() as conn:
+        atividade_atual = db.ultima_atividade(conn)
+    if atividade_atual and atividade_arquivo and atividade_arquivo < atividade_atual \
+            and request.form.get("confirmar_mesmo_assim") != "1":
+        os.remove(destino_tmp)
+        flash(
+            f"⚠️ O arquivo que você está subindo tem atividade só até {atividade_arquivo.replace('T', ' ')}, "
+            f"mas o banco em produção tem atividade até {atividade_atual.replace('T', ' ')} -- importar por cima "
+            f"vai APAGAR o que foi feito nesse intervalo. Baixe o banco atual primeiro, confira, e se ainda assim "
+            f"quiser prosseguir, marque a confirmação abaixo e tente de novo.",
+            "danger",
+        )
+        return redirect(url_for("importar_banco", ug_bloqueado="1"))
+
     # guarda uma cópia do banco atual antes de substituir -- se a importação
     # apagar dados que ainda não foram baixados por engano, dá pra recuperar.
     # mantém só as últimas 5 cópias pra não acumular espaço.

@@ -739,6 +739,36 @@ def validar_banco_importado(caminho):
             conn.close()
 
 
+def ultima_atividade(caminho_ou_conn):
+    """Timestamp (texto ISO) da ação mais recente registrada no banco --
+    olha pendências, mudanças de etapa, situação e log de atividades.
+    Usado pra detectar se um arquivo sendo importado é mais VELHO que o
+    banco em uso (sinal de que importar por cima ia apagar coisa recente)."""
+    fechar = False
+    if isinstance(caminho_ou_conn, str):
+        conn = sqlite3.connect(caminho_ou_conn)
+        conn.row_factory = sqlite3.Row
+        fechar = True
+    else:
+        conn = caminho_ou_conn
+    try:
+        linhas = conn.execute(
+            """SELECT MAX(x) AS m FROM (
+                 SELECT MAX(criado_em) AS x FROM pendencias
+                 UNION ALL SELECT MAX(concluida_em) FROM pendencias
+                 UNION ALL SELECT MAX(data_entrada) FROM historico_etapas
+                 UNION ALL SELECT MAX(situacao_atualizada_em) FROM usinas
+                 UNION ALL SELECT MAX(criado_em) FROM atividades
+                 UNION ALL SELECT MAX(detectado_em) FROM contratos_pendentes
+                 UNION ALL SELECT MAX(revisado_em) FROM contratos_pendentes
+               )"""
+        ).fetchone()
+        return linhas["m"] if linhas else None
+    finally:
+        if fechar:
+            conn.close()
+
+
 # --- contratos pendentes (sincronização com Autentique) -----------------
 
 def codigo_contrato_existe(conn, codigo_contrato):
