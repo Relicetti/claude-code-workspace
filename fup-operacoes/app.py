@@ -304,6 +304,20 @@ def importar_banco():
         flash(f"Importação recusada: {msg}", "danger")
         return redirect(url_for("importar_banco"))
 
+    # guarda uma cópia do banco atual antes de substituir -- se a importação
+    # apagar dados que ainda não foram baixados por engano, dá pra recuperar.
+    # mantém só as últimas 5 cópias pra não acumular espaço.
+    import glob
+    import shutil
+    backup_path = f"{db.DB_PATH}.antes-importar-{agora().strftime('%Y%m%d-%H%M%S')}"
+    try:
+        shutil.copy2(db.DB_PATH, backup_path)
+        backups = sorted(glob.glob(f"{db.DB_PATH}.antes-importar-*"))
+        for antigo in backups[:-5]:
+            os.remove(antigo)
+    except Exception:
+        pass  # não bloqueia a importação se o backup falhar
+
     # substitui o banco em uso e reaplica migrações de schema
     os.replace(destino_tmp, db.DB_PATH)
     db.iniciar_banco()
@@ -314,6 +328,14 @@ def importar_banco():
         )
     flash(f"Banco importado com sucesso. {msg} Faça login novamente se necessário.", "success")
     return redirect(url_for("dashboard"))
+
+
+@app.route("/admin/exportar-banco")
+def exportar_banco():
+    if not session.get("usuario_admin"):
+        return "Só administradores podem exportar o banco.", 403
+    nome_arquivo = f"fup_{agora().strftime('%Y%m%d-%H%M%S')}.db"
+    return send_file(db.DB_PATH, as_attachment=True, download_name=nome_arquivo, mimetype="application/x-sqlite3")
 
 
 # --- painel --------------------------------------------------------------

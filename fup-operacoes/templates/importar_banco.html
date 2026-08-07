@@ -4,13 +4,27 @@
 
 <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary mb-3">&larr; voltar</a>
 
+<div class="card shadow-sm mb-4" style="max-width: 640px;">
+  <div class="card-body">
+    <h4 class="mb-3">Baixar banco de dados</h4>
+    <p class="text-muted">
+      Baixa uma cópia do banco <strong>que está em produção agora</strong> ({{ qtd_usinas }} usina(s)).
+      <strong>Sempre baixe antes de importar</strong> — importar substitui tudo, e o que a equipe
+      fez direto no site depois do último backup se perde se você importar por cima sem essa cópia.
+    </p>
+    <a href="{{ url_for('exportar_banco') }}" class="btn btn-outline-primary">Baixar banco atual (.db)</a>
+  </div>
+</div>
+
 <div class="card shadow-sm" style="max-width: 640px;">
   <div class="card-body">
     <h4 class="mb-3">Importar banco de dados</h4>
     <p class="text-muted">
       Sobe o arquivo <code>fup.db</code> da sua máquina pra dentro do servidor.
-      Isso <strong>substitui</strong> todos os dados atuais ({{ qtd_usinas }} usina(s) neste servidor).
-      Use isso na primeira vez que subir o sistema pra trazer os dados que já existem.
+      Isso <strong>substitui</strong> todos os dados atuais ({{ qtd_usinas }} usina(s) neste servidor) —
+      qualquer coisa feita no site depois do arquivo que você está subindo <strong>é perdida</strong>.
+      Uma cópia de segurança do estado atual é guardada automaticamente antes de substituir, mas
+      é sempre mais seguro baixar o banco atual (acima) antes de importar.
     </p>
     <form method="post" enctype="multipart/form-data">
       <div class="mb-3">
