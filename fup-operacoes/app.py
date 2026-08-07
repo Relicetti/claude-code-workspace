@@ -25,6 +25,9 @@ db.bootstrap_admin(generate_password_hash)
 ROTAS_PUBLICAS = {"login", "static"}
 
 HORA_SNAPSHOT = dtime(8, 0)  # toda segunda a partir desse horário
+HORA_BACKUP_DIARIO = dtime(23, 0)  # todo dia a partir desse horário
+PASTA_BACKUPS = os.path.join(os.path.dirname(db.DB_PATH), "backups")
+DIAS_BACKUP_PRA_GUARDAR = 60
 
 
 def _segunda_da_semana(d):
@@ -33,15 +36,34 @@ def _segunda_da_semana(d):
 
 def _garantir_snapshot_semanal(conn):
     """Roda a cada request: se já passou das 8h da segunda-feira desta semana
-    e ainda não existe um retrato dela, tira um agora. Como o app roda local
-    (não fica ligado 24h), essa checagem por demanda garante que a foto seja
-    tirada assim que alguém abrir o painel depois desse horário, em vez de
-    depender de um agendador rodando no instante exato."""
+    e ainda não existe um retrato dela, tira um agora. Essa checagem por
+    demanda garante que a foto seja tirada assim que alguém abrir o painel
+    depois desse horário, em vez de depender de um agendador externo."""
     agora_dt = agora()
     semana = _segunda_da_semana(agora_dt.date())
     if agora_dt < datetime.combine(semana, HORA_SNAPSHOT):
         return
     db.tirar_snapshot(conn, semana.isoformat(), agora_dt.isoformat(timespec="seconds"))
+
+
+def _garantir_backup_diario():
+    """Roda a cada request: se já passou das 23h de hoje e ainda não existe
+    uma cópia do banco desse dia, salva uma agora. Roda dentro do próprio
+    Railway (usa o volume /data), então não depende de nenhum computador
+    ligado. Mesmo esquema por demanda do snapshot semanal, só que diário."""
+    agora_dt = agora()
+    if agora_dt.time() < HORA_BACKUP_DIARIO:
+        return
+    os.makedirs(PASTA_BACKUPS, exist_ok=True)
+    destino = os.path.join(PASTA_BACKUPS, f"fup_backup_{agora_dt.strftime('%Y%m%d')}.db")
+    if os.path.exists(destino):
+        return
+    import glob
+    import shutil
+    shutil.copy2(db.DB_PATH, destino)
+    antigos = sorted(glob.glob(os.path.join(PASTA_BACKUPS, "fup_backup_*.db")))
+    for antigo in antigos[:-DIAS_BACKUP_PRA_GUARDAR]:
+        os.remove(antigo)
 
 
 @app.before_request
@@ -52,6 +74,7 @@ def exigir_login():
         return redirect(url_for("login", proximo=request.path))
     with db.conectar() as conn:
         _garantir_snapshot_semanal(conn)
+    _garantir_backup_diario()
     return None
 
 
@@ -354,6 +377,35 @@ def exportar_banco():
         return "Só administradores podem exportar o banco.", 403
     nome_arquivo = f"fup_{agora().strftime('%Y%m%d-%H%M%S')}.db"
     return send_file(db.DB_PATH, as_attachment=True, download_name=nome_arquivo, mimetype="application/x-sqlite3")
+
+
+@app.route("/admin/backups")
+def listar_backups():
+    if not session.get("usuario_admin"):
+        return "Só administradores podem ver os backups.", 403
+    arquivos = []
+    if os.path.isdir(PASTA_BACKUPS):
+        for nome in sorted(os.listdir(PASTA_BACKUPS), reverse=True):
+            if nome.endswith(".db"):
+                caminho = os.path.join(PASTA_BACKUPS, nome)
+                arquivos.append({
+                    "nome": nome,
+                    "tamanho_kb": round(os.path.getsize(caminho) / 1024),
+                    "modificado": datetime.fromtimestamp(os.path.getmtime(caminho)).strftime("%Y-%m-%d %H:%M"),
+                })
+    return render_template("backups.html", arquivos=arquivos)
+
+
+@app.route("/admin/backups/<nome>")
+def baixar_backup(nome):
+    if not session.get("usuario_admin"):
+        return "Só administradores podem baixar backups.", 403
+    if "/" in nome or "\\" in nome or not nome.endswith(".db"):
+        return "Nome inválido", 400
+    caminho = os.path.join(PASTA_BACKUPS, nome)
+    if not os.path.isfile(caminho):
+        return "Backup não encontrado", 404
+    return send_file(caminho, as_attachment=True, download_name=nome, mimetype="application/x-sqlite3")
 
 
 # --- painel --------------------------------------------------------------

@@ -12,6 +12,9 @@ fup-operacoes/*.db
 fup-operacoes/seed.sql
 fup-operacoes/autentique_config.json
 fup-operacoes/sincronizar_autentique.log
+fup-operacoes/backup_config.json
+fup-operacoes/backup_diario.log
+fup-operacoes/backups/
 usinas/lexdash_session.json
 usinas/downloads_lexdash/
 usinas/app_novo.log

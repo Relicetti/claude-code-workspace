@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Backups{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">Backups diários ({{ arquivos|length }})</h4>
+  <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary">&larr; voltar</a>
+</div>
+<p class="text-muted small">
+  Uma cópia do banco é salva automaticamente todo dia a partir das 23h (guarda os últimos 60 dias).
+  Roda dentro do próprio servidor, não depende de nenhum computador ligado.
+</p>
+
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0 align-middle table-sortable">
+      <thead>
+        <tr>
+          <th>Arquivo</th>
+          <th>Tamanho</th>
+          <th>Salvo em</th>
+          <th data-nosort>Baixar</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in arquivos %}
+        <tr>
+          <td>{{ a.nome }}</td>
+          <td>{{ a.tamanho_kb }} KB</td>
+          <td>{{ a.modificado }}</td>
+          <td><a href="{{ url_for('baixar_backup', nome=a.nome) }}" class="btn btn-sm btn-outline-primary">Baixar</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-center text-muted py-4">Nenhum backup ainda. O primeiro é salvo hoje a partir das 23h.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
