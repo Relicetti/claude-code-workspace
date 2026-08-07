@@ -17,6 +17,7 @@ import re
 import time
 from datetime import datetime, timedelta
 
+import openpyxl
 import pdfplumber
 import requests
 
@@ -24,6 +25,15 @@ import db
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "autentique_config.json")
 LOG_PATH = os.path.join(os.path.dirname(__file__), "sincronizar_autentique.log")
+
+# planilha de referência com todos os contratos fechados -- código do
+# contrato ligado ao cliente/proprietário (= nome da usina), concessionária
+# e geração média. Muito mais confiável que extrair do PDF via regex.
+CAMINHO_CONTRATOS_REF = (
+    r"D:\Alexandria\OneDrive - Alexandria Industria de Geradores SA"
+    r"\Diretoria de Operações - Documents\6. Ativos Próprios\Contratos"
+    r"\Arrendamento e Aquisição\Parcerias\EPR_Contratos_Fechados.xlsx"
+)
 
 RE_CODIGO = re.compile(r"(PP-[A-Z0-9]+-[A-Z]{2}-GD[12]-\d{4,8}-R\d{2}-\d+)", re.IGNORECASE)
 
@@ -112,6 +122,34 @@ def normalizar_codigo(texto):
     return m.group(1).upper() if m else None
 
 
+def carregar_mapa_contratos():
+    """Lê a planilha 'EPR_Contratos_Fechados.xlsx' (aba 'Contratos') e monta
+    um mapa código -> dados, pra linkar o nome da usina (e outros campos)
+    pelo código do contrato em vez de depender só da extração do PDF."""
+    mapa = {}
+    try:
+        wb = openpyxl.load_workbook(CAMINHO_CONTRATOS_REF, data_only=True)
+    except Exception as e:
+        log(f"Aviso: não consegui abrir a planilha de referência de contratos ({e}). Seguindo só com o PDF.")
+        return mapa
+
+    ws = wb["Contratos"] if "Contratos" in wb.sheetnames else wb.active
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        codigo = normalizar_codigo(str(row[0] or ""))
+        if not codigo:
+            continue
+        cliente = str(row[1]).strip() if row[1] else None
+        if not cliente:
+            continue
+        mapa[codigo] = {
+            "usina": cliente,
+            "concessionaria": str(row[2]).strip() if row[2] else None,
+            "geracao_media_mensal": row[5] if isinstance(row[5], (int, float)) else None,
+            "tipo_conexao": str(row[6]).strip().upper().replace(" ", "") if row[6] else None,
+        }
+    return mapa
+
+
 def extrair_tabela_anexo1(texto_completo):
     ocorrencias = list(re.finditer(r"ANEXO I[^\n]*Proposta Comercial", texto_completo, re.IGNORECASE))
     if not ocorrencias:
@@ -176,6 +214,9 @@ def principal():
     log("Iniciando sincronização com Autentique...")
     token = carregar_token()
 
+    mapa_contratos = carregar_mapa_contratos()
+    log(f"{len(mapa_contratos)} contratos na planilha de referência.")
+
     assinados = listar_documentos_assinados(token)
     log(f"{len(assinados)} documentos totalmente assinados no Autentique.")
 
@@ -198,6 +239,17 @@ def principal():
                     log(f"  Erro ao baixar/ler PDF da API pra {codigo}: {e}")
             else:
                 log(f"  {codigo}: documento sem PDF assinado disponível na API.")
+
+            # a planilha de referência (código -> cliente/proprietário) é bem
+            # mais confiável que o regex em cima do texto do PDF -- usa ela
+            # pra nome/concessionária/geração/modalidade quando o código bate,
+            # só cai pro que foi extraído do PDF se não achar na planilha.
+            ref = mapa_contratos.get(codigo)
+            if ref:
+                campos["usina"] = ref["usina"] or campos.get("usina")
+                campos["concessionaria"] = ref["concessionaria"] or campos.get("concessionaria")
+                campos["geracao_media_mensal"] = ref["geracao_media_mensal"] or campos.get("geracao_media_mensal")
+                campos["tipo_conexao"] = ref["tipo_conexao"] or campos.get("tipo_conexao")
 
             # se já existe usina cadastrada com essa UG, não duplica pendencia
             ug_raw = campos.get("ug_raw")
