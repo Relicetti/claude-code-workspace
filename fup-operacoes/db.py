@@ -668,6 +668,12 @@ def listar_usuarios(conn):
     return conn.execute("SELECT id, nome FROM usuarios ORDER BY nome").fetchall()
 
 
+def listar_usuarios_completo(conn):
+    return conn.execute(
+        "SELECT id, nome, username, email, is_admin, criado_em FROM usuarios ORDER BY nome"
+    ).fetchall()
+
+
 def criar_usuario(conn, nome, username, senha_hash, criado_em, is_admin=False, email=None):
     cur = conn.execute(
         "INSERT INTO usuarios (nome, username, email, senha_hash, is_admin, criado_em) VALUES (?,?,?,?,?,?)",
@@ -675,6 +681,14 @@ def criar_usuario(conn, nome, username, senha_hash, criado_em, is_admin=False, e
          senha_hash, int(is_admin), criado_em),
     )
     return cur.lastrowid
+
+
+def contar_admins(conn):
+    return conn.execute("SELECT COUNT(*) AS qtd FROM usuarios WHERE is_admin = 1").fetchone()["qtd"]
+
+
+def excluir_usuario(conn, usuario_id):
+    conn.execute("DELETE FROM usuarios WHERE id = ?", (usuario_id,))
 
 
 def atualizar_senha(conn, usuario_id, senha_hash):

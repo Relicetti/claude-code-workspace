@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Usuários{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">Usuários ({{ usuarios|length }})</h4>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('novo_usuario') }}" class="btn btn-sm btn-primary">+ Novo usuário</a>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary">&larr; voltar</a>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0 align-middle table-sortable">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>Login</th>
+          <th>E-mail</th>
+          <th>Tipo</th>
+          <th data-nosort>Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in usuarios %}
+        <tr>
+          <td>{{ u.nome }}</td>
+          <td>{{ u.username }}</td>
+          <td>{{ u.email or '—' }}</td>
+          <td>{{ 'Admin' if u.is_admin else 'Operador' }}</td>
+          <td class="d-flex gap-2">
+            <form action="{{ url_for('resetar_senha', usuario_id=u.id) }}" method="post"
+                  onsubmit="return confirm('Resetar a senha de {{ u.nome }} pro padrão (\'#energia\')?');">
+              <button type="submit" class="btn btn-sm btn-outline-warning">Resetar senha</button>
+            </form>
+            {% if u.id != session.usuario_id %}
+            <form action="{{ url_for('excluir_usuario', usuario_id=u.id) }}" method="post"
+                  onsubmit="return confirm('Excluir {{ u.nome }} definitivamente? Essa ação não pode ser desfeita.');">
+              <button type="submit" class="btn btn-sm btn-outline-danger">Excluir</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-4">Nenhum usuário cadastrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

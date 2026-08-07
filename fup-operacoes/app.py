@@ -228,6 +228,56 @@ def novo_usuario():
     return redirect(url_for("novo_usuario"))
 
 
+@app.route("/usuarios")
+def listar_usuarios_view():
+    if not session.get("usuario_admin"):
+        return "Só administradores podem ver os usuários.", 403
+    with db.conectar() as conn:
+        usuarios = [dict(u) for u in db.listar_usuarios_completo(conn)]
+    return render_template("usuarios.html", usuarios=usuarios)
+
+
+@app.route("/usuarios/<int:usuario_id>/resetar-senha", methods=["POST"])
+def resetar_senha(usuario_id):
+    if not session.get("usuario_admin"):
+        return "Só administradores podem resetar senha.", 403
+    senha_nova = "#energia"
+    with db.conectar() as conn:
+        usuario = db.buscar_usuario(conn, usuario_id)
+        if usuario is None:
+            return "Usuário não encontrado", 404
+        db.atualizar_senha(conn, usuario_id, generate_password_hash(senha_nova))
+        db.registrar_atividade(
+            conn, session["usuario_nome"], f"Resetou a senha de {usuario['nome']}",
+            None, agora().isoformat(timespec="seconds"),
+        )
+    flash(f"Senha de {usuario['nome']} resetada para o padrão (\"{senha_nova}\").", "success")
+    return redirect(url_for("listar_usuarios_view"))
+
+
+@app.route("/usuarios/<int:usuario_id>/excluir", methods=["POST"])
+def excluir_usuario(usuario_id):
+    if not session.get("usuario_admin"):
+        return "Só administradores podem excluir usuários.", 403
+    if usuario_id == session["usuario_id"]:
+        flash("Você não pode excluir a si mesmo.", "danger")
+        return redirect(url_for("listar_usuarios_view"))
+    with db.conectar() as conn:
+        usuario = db.buscar_usuario(conn, usuario_id)
+        if usuario is None:
+            return "Usuário não encontrado", 404
+        if usuario["is_admin"] and db.contar_admins(conn) <= 1:
+            flash("Não dá pra excluir o último administrador do sistema.", "danger")
+            return redirect(url_for("listar_usuarios_view"))
+        db.excluir_usuario(conn, usuario_id)
+        db.registrar_atividade(
+            conn, session["usuario_nome"], f"Excluiu o usuário {usuario['nome']}",
+            None, agora().isoformat(timespec="seconds"),
+        )
+    flash(f"Usuário {usuario['nome']} excluído.", "success")
+    return redirect(url_for("listar_usuarios_view"))
+
+
 @app.route("/admin/importar-banco", methods=["GET", "POST"])
 def importar_banco():
     if not session.get("usuario_admin"):
