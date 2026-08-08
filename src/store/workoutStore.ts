@@ -12,6 +12,7 @@ import type {
   BodyMeasurement,
   SavedPlan,
   ExerciseLibraryEntry,
+  HealthVitals,
 } from '@/types'
 import {
   loadSessions,
@@ -31,6 +32,7 @@ import {
   deleteBodyMeasurement as apiDeleteBodyMeasurement,
   loadCustomExerciseLibrary,
   saveCustomExerciseLibrary,
+  loadLatestHealthVitals,
   loadCustomPlan,
   saveCustomPlan,
   clearCustomPlan,
@@ -93,6 +95,10 @@ interface WorkoutStore {
   // canonicalize exercise names (substitutions, Progress matching)
   customExerciseLibrary: ExerciseLibraryEntry[]
 
+  // Most recent day's Google Health sync (sleep/resting HR/steps/calories) —
+  // context fed into the live in-workout AI tips, when connected
+  healthVitals: HealthVitals | null
+
   // Weight suggested for an exercise (from an applied "increase_weight"
   // analysis adjustment), keyed by normalized exercise name
   weightSuggestions: Record<string, number>
@@ -150,6 +156,9 @@ interface WorkoutStore {
   addCustomLibraryExercise: (entry: Omit<ExerciseLibraryEntry, 'id'>) => void
   deleteCustomLibraryExercise: (id: string) => void
 
+  getTodayHealthContext: () => string | null
+  refreshHealthVitals: () => Promise<void>
+
   setActiveView: (view: WorkoutStore['activeView']) => void
 
   getCurrentWorkout: () => WorkoutDay | null
@@ -167,6 +176,7 @@ interface WorkoutStore {
   getMostRecentSession: () => WorkoutSession | null
   getSessionsInRange: (startDate: Date, endDate: Date) => WorkoutSession[]
   getSuggestedWeight: (exerciseId: string, exerciseName: string) => number | null
+  getRecentPerformanceForExercise: (exerciseName: string) => { date: string; sets: SetRecord[] } | null
 }
 
 // Incremental saves (a set confirmed, an exercise marked done) fire without
@@ -221,6 +231,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
   shapeAssessments: [],
   bodyMeasurements: [],
   customExerciseLibrary: [],
+  healthVitals: null,
   weightSuggestions: {},
   savedPlans: [],
   activePlanId: null,
@@ -262,6 +273,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       shapeAssessments: [],
       bodyMeasurements: [],
       customExerciseLibrary: [],
+      healthVitals: null,
       weightSuggestions: {},
       savedPlans: [],
       activePlanId: null,
@@ -277,13 +289,14 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       ? storedId
       : (plan.workouts[0]?.id ?? null)
 
-    const [allSessions, cardioSessions, analyses, shapeAssessments, bodyMeasurements, customExerciseLibrary, weightSuggestions, savedPlansRaw, activePlanIdRaw] = await Promise.all([
+    const [allSessions, cardioSessions, analyses, shapeAssessments, bodyMeasurements, customExerciseLibrary, healthVitals, weightSuggestions, savedPlansRaw, activePlanIdRaw] = await Promise.all([
       loadSessions().catch(() => []),
       loadCardioSessions().catch(() => []),
       loadAnalyses().catch(() => []),
       loadShapeAssessments().catch(() => []),
       loadBodyMeasurements().catch(() => []),
       loadCustomExerciseLibrary().catch(() => []),
+      loadLatestHealthVitals().catch(() => null),
       loadWeightSuggestions().catch(() => ({})),
       loadSavedPlans().catch(() => []),
       loadActivePlanId().catch(() => null),
@@ -326,6 +339,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       shapeAssessments,
       bodyMeasurements,
       customExerciseLibrary,
+      healthVitals,
       weightSuggestions,
       savedPlans,
       activePlanId,
@@ -763,6 +777,31 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     set({ customExerciseLibrary: updated })
   },
 
+  // Formats the most recent Google Health sync into a short line for the
+  // live-tip prompt — omits fields that never synced (unconnected, or that
+  // specific data type failed) instead of showing a misleading "0".
+  getTodayHealthContext: () => {
+    const vitals = get().healthVitals
+    if (!vitals) return null
+    const parts: string[] = []
+    if (vitals.sleepMinutes != null) {
+      const h = Math.floor(vitals.sleepMinutes / 60)
+      const m = Math.round(vitals.sleepMinutes % 60)
+      parts.push(`sono ${h}h${m > 0 ? `${m}min` : ''}`)
+    }
+    if (vitals.restingHeartRate != null) parts.push(`FC repouso ${Math.round(vitals.restingHeartRate)}bpm`)
+    if (vitals.steps != null) parts.push(`${Math.round(vitals.steps)} passos`)
+    if (vitals.caloriesKcal != null) parts.push(`${Math.round(vitals.caloriesKcal)}kcal`)
+    if (parts.length === 0) return null
+    const date = new Date(vitals.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+    return `Saúde (${date}): ${parts.join(' · ')}`
+  },
+
+  refreshHealthVitals: async () => {
+    const healthVitals = await loadLatestHealthVitals().catch(() => null)
+    set({ healthVitals })
+  },
+
   setActiveView: (view) => set({ activeView: view }),
 
   getCurrentWorkout: () => {
@@ -918,6 +957,31 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       if (!record) continue
       const firstDone = record.sets.find(s => s.completedAt !== null)
       if (firstDone?.weight != null) return firstDone.weight
+    }
+
+    return null
+  },
+
+  // Same idea as getSuggestedWeight, but matched by canonical exercise name
+  // instead of exerciseId — substituted/renamed exercises get a new id each
+  // time, so an id-based lookup misses history a name-based one still finds
+  // (same fix already applied to Progress's exercise matching).
+  getRecentPerformanceForExercise: (exerciseName) => {
+    const { sessions, customExerciseLibrary } = get()
+    const targetName = canonicalExerciseName(exerciseName, customExerciseLibrary)
+
+    const sorted = [...sessions]
+      .filter(s => s.finishedAt !== null)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+    for (const session of sorted) {
+      const record = session.exercises.find(
+        e => !e.skipped && canonicalExerciseName(e.exerciseName, customExerciseLibrary) === targetName,
+      )
+      if (!record) continue
+      const doneSets = record.sets.filter(s => s.completedAt !== null)
+      if (doneSets.length === 0) continue
+      return { date: session.date, sets: doneSets }
     }
 
     return null

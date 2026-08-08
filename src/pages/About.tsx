@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ChevronLeft, Dumbbell, LogOut, UserPlus, Shield, Loader2 } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
 import { loadUsers, createUser } from '@/lib/storage'
+import { GoogleHealthCard } from '@/components/GoogleHealthCard'
 import type { AdminUser } from '@/types'
 
 const buildDate = new Date(__BUILD_TIME__)
@@ -132,6 +133,8 @@ export function About() {
         Se a data do build acima for anterior ao último ajuste que você pediu, o app instalado
         ainda não pegou a versão nova — feche e abra de novo, ou aguarde a atualização automática.
       </p>
+
+      <GoogleHealthCard />
 
       {isAdmin && <AdminUsersSection />}
 

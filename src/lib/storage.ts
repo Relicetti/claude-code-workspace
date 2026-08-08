@@ -1,4 +1,4 @@
-import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan, CardioSession, ShapeAssessment, SavedPlan, AdminUser, BodyMeasurement, ExerciseLibraryEntry } from '@/types'
+import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan, CardioSession, ShapeAssessment, SavedPlan, AdminUser, BodyMeasurement, ExerciseLibraryEntry, GoogleHealthStatus, HealthVitals } from '@/types'
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`/api${path}`, {
@@ -191,6 +191,30 @@ export async function loadCustomExerciseLibrary(): Promise<ExerciseLibraryEntry[
 
 export async function saveCustomExerciseLibrary(entries: ExerciseLibraryEntry[]): Promise<void> {
   await apiFetch('/exercise-library', { method: 'PUT', body: JSON.stringify({ entries }) })
+}
+
+// --- Google Health (vitals context for the live in-workout AI tips) ---
+
+export async function getGoogleHealthStatus(): Promise<GoogleHealthStatus> {
+  return apiFetch<GoogleHealthStatus>('/google-health/status')
+}
+
+export async function getGoogleHealthAuthUrl(): Promise<string> {
+  const { url } = await apiFetch<{ url: string }>('/google-health/auth-url')
+  return url
+}
+
+export async function disconnectGoogleHealth(): Promise<void> {
+  await apiFetch('/google-health/disconnect', { method: 'POST' })
+}
+
+export async function syncGoogleHealth(from: string, to: string): Promise<{ synced: number; total: number; warnings: string[] }> {
+  return apiFetch('/google-health/sync', { method: 'POST', body: JSON.stringify({ from, to }) })
+}
+
+export async function loadLatestHealthVitals(): Promise<HealthVitals | null> {
+  const { vitals } = await apiFetch<{ vitals: HealthVitals | null }>('/health-vitals/latest')
+  return vitals
 }
 
 // --- Export / Import ---

@@ -16,7 +16,7 @@ type MessageContent =
   | string
   | ({ type: 'text'; text: string } | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } })[]
 
-async function callClaude(systemPrompt: string, userMessage: MessageContent, maxTokens = 1024): Promise<string> {
+async function callClaude(systemPrompt: string, userMessage: MessageContent, maxTokens = 1024, model = 'claude-sonnet-4-6'): Promise<string> {
   if (!API_KEY) {
     throw new Error('VITE_ANTHROPIC_API_KEY não configurada. Adicione no arquivo .env ou nas variáveis do Railway.')
   }
@@ -30,7 +30,7 @@ async function callClaude(systemPrompt: string, userMessage: MessageContent, max
       'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
+      model,
       max_tokens: maxTokens,
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessage }],
@@ -163,6 +163,51 @@ Contexto do atleta:
 ${getShoulderContext()}`
 
   return callClaude(systemPrompt, userMessage)
+}
+
+export interface LiveSetFeedbackInput {
+  exerciseName: string
+  setNumber: number
+  totalSets: number
+  weight: number
+  reps: number
+  targetRepsMin: number
+  targetRepsMax: number
+  setsThisSession: { weight: number | null; reps: number | null }[]
+  previousPerformance: { date: string; sets: { weight: number | null; reps: number | null }[] } | null
+  healthContext: string | null
+}
+
+// Fired after every completed set, shown in the rest-timer popup while the
+// user is resting — needs to be fast (Haiku, not Sonnet) and short (plain
+// text, no JSON), since it's called far more often than the other AI calls
+// in this file and nobody wants to stare at a spinner mid-workout.
+export async function getLiveSetFeedback(input: LiveSetFeedbackInput): Promise<string> {
+  const systemPrompt = `Você é um personal trainer acompanhando o treino ao vivo, série por série.
+Responda em 1-2 frases curtas e diretas, em português, sem saudação e sem repetir o nome do exercício.
+Foque em UMA coisa concreta: manter, aumentar ou reduzir a carga na próxima série, comentar a evolução
+comparado à sessão anterior, ou (se fizer sentido) considerar o contexto de saúde do dia informado.
+NÃO use JSON.
+
+${getShoulderContext() ? `Contexto do atleta: ${getShoulderContext()}` : ''}`
+
+  const thisSessionSummary = input.setsThisSession
+    .map((s, i) => `série ${i + 1}: ${s.weight ?? 0}kg×${s.reps ?? 0}`)
+    .join(', ')
+
+  const previousSummary = input.previousPerformance
+    ? `Última vez que fez esse exercício (${new Date(input.previousPerformance.date + 'T12:00:00').toLocaleDateString('pt-BR')}): ${
+        input.previousPerformance.sets.map(s => `${s.weight ?? 0}kg×${s.reps ?? 0}`).join(', ')
+      }`
+    : 'Primeira vez registrando esse exercício.'
+
+  const userMessage = `Exercício: ${input.exerciseName}
+Série ${input.setNumber} de ${input.totalSets} concluída agora: ${input.weight}kg × ${input.reps} reps (alvo: ${input.targetRepsMin}-${input.targetRepsMax} reps)
+Séries feitas nesta sessão até agora: ${thisSessionSummary}
+${previousSummary}
+${input.healthContext ? `\n${input.healthContext}` : ''}`
+
+  return callClaude(systemPrompt, userMessage, 120, 'claude-haiku-4-5-20251001')
 }
 
 const CARDIO_LABELS: Record<CardioSession['type'], string> = {

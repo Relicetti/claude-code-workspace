@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import { pool } from './db.js'
 import { checkCredentials, issueToken, setAuthCookie, clearAuthCookie, getSessionInfo, requireAuth, requireAdmin } from './auth.js'
 import { scheduleRestDoneNotification, cancelScheduledNotification } from './push.js'
+import * as googleHealth from './googleHealth.js'
 import type { WorkoutSession, WeeklyAnalysis, WorkoutPlan, CardioSession, ShapeAssessment, SavedPlan, BodyMeasurement } from '../src/types/index.js'
 
 export const router = Router()
@@ -411,6 +412,95 @@ router.put('/body-measurements/:id', async (req, res) => {
 router.delete('/body-measurements/:id', async (req, res) => {
   await pool.query('DELETE FROM body_measurements WHERE id = $1 AND user_id = $2', [req.params.id, res.locals.userId])
   res.json({ ok: true })
+})
+
+// --- Google Health (OAuth + vitals sync, feeds the live in-workout tips) ---
+
+// CSRF nonce for the OAuth handshake, keyed by state -> the user who
+// initiated it (a few minutes of in-memory state is enough — a single-process
+// personal app doesn't need a session store for this like the plan/current-
+// workout state does, same reasoning as the sibling controle-calorico app).
+const pendingGoogleHealthState = new Map<string, { userId: number; issuedAt: number }>()
+
+function sweepStaleOAuthState() {
+  const cutoff = Date.now() - 10 * 60 * 1000
+  for (const [state, entry] of pendingGoogleHealthState) {
+    if (entry.issuedAt < cutoff) pendingGoogleHealthState.delete(state)
+  }
+}
+
+router.get('/google-health/status', async (req, res) => {
+  res.json(await googleHealth.getStatus(res.locals.userId))
+})
+
+router.get('/google-health/auth-url', (req, res) => {
+  try {
+    sweepStaleOAuthState()
+    const state = crypto.randomUUID()
+    pendingGoogleHealthState.set(state, { userId: res.locals.userId, issuedAt: Date.now() })
+    res.json({ url: googleHealth.getAuthUrl(state) })
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message })
+  }
+})
+
+router.get('/google-health/callback', async (req, res) => {
+  const { code, state, error } = req.query as { code?: string; state?: string; error?: string }
+  if (error) {
+    res.status(400).send(`Autorização negada pelo Google: ${error}`)
+    return
+  }
+  const pending = state ? pendingGoogleHealthState.get(state) : undefined
+  if (!code || !state || !pending || pending.userId !== res.locals.userId) {
+    res.status(400).send('Estado inválido. Tente conectar novamente pelo app.')
+    return
+  }
+  pendingGoogleHealthState.delete(state)
+  try {
+    await googleHealth.exchangeCodeForTokens(res.locals.userId, code)
+    res.redirect('/')
+  } catch (err) {
+    res.status(400).send((err as Error).message)
+  }
+})
+
+router.post('/google-health/disconnect', async (req, res) => {
+  await googleHealth.disconnect(res.locals.userId)
+  res.json({ ok: true })
+})
+
+router.post('/google-health/sync', async (req, res) => {
+  const { from, to } = req.body as { from?: string; to?: string }
+  if (!from || !to) {
+    res.status(400).json({ error: 'from e to são obrigatórios' })
+    return
+  }
+  try {
+    res.json(await googleHealth.syncVitals(res.locals.userId, from, to))
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message })
+  }
+})
+
+router.get('/health-vitals/latest', async (req, res) => {
+  const result = await pool.query(
+    'SELECT * FROM health_vitals WHERE user_id = $1 ORDER BY log_date DESC LIMIT 1',
+    [res.locals.userId],
+  )
+  const row = result.rows[0] as Record<string, unknown> | undefined
+  if (!row) {
+    res.json({ vitals: null })
+    return
+  }
+  res.json({
+    vitals: {
+      date: (row.log_date as Date).toISOString().split('T')[0],
+      caloriesKcal: row.calories_kcal != null ? Number(row.calories_kcal) : null,
+      restingHeartRate: row.resting_heart_rate != null ? Number(row.resting_heart_rate) : null,
+      sleepMinutes: row.sleep_minutes != null ? Number(row.sleep_minutes) : null,
+      steps: row.steps != null ? Number(row.steps) : null,
+    },
+  })
 })
 
 // --- Analyses ---

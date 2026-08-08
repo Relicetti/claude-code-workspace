@@ -1,14 +1,16 @@
 import { useState } from 'react'
-import { Pause, Play, Plus, Minus, X, Bell } from 'lucide-react'
+import { Pause, Play, Plus, Minus, X, Bell, Sparkles } from 'lucide-react'
 import type { useRestTimer } from '@/hooks/useRestTimer'
 import { isPushSupported, getPushPermission, enablePushNotifications } from '@/lib/push'
 
 interface Props {
   timer: ReturnType<typeof useRestTimer>
   onClose: () => void
+  liveTip?: string
+  liveTipLoading?: boolean
 }
 
-export function RestTimer({ timer, onClose }: Props) {
+export function RestTimer({ timer, onClose, liveTip, liveTipLoading }: Props) {
   const { remaining, total, running, pause, resume, adjust, reset } = timer
   const [permission, setPermission] = useState(getPushPermission())
 
@@ -67,6 +69,19 @@ export function RestTimer({ timer, onClose }: Props) {
             </span>
           </div>
         </div>
+
+        {/* Live coaching tip — loading briefly while the AI call resolves,
+            silently absent if it failed (never blocks/interrupts the rest) */}
+        {(liveTipLoading || liveTip) && (
+          <div className="flex items-start gap-2 bg-gray-800/60 rounded-xl px-3 py-2.5 mb-5 text-left">
+            <Sparkles size={14} className="text-brand-400 shrink-0 mt-0.5" />
+            {liveTipLoading && !liveTip ? (
+              <p className="text-xs text-gray-500">Analisando série...</p>
+            ) : (
+              <p className="text-xs text-gray-300 leading-relaxed">{liveTip}</p>
+            )}
+          </div>
+        )}
 
         {/* Adjust buttons */}
         <div className="flex items-center justify-center gap-4 mb-5">

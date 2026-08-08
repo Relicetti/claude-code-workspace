@@ -168,6 +168,21 @@ export interface BodyMeasurement {
   createdAt: string
 }
 
+// Google Health sync (vitals context for the live in-workout AI tips)
+export interface GoogleHealthStatus {
+  configured: boolean
+  connected: boolean
+  connectedAt: number | null
+}
+
+export interface HealthVitals {
+  date: string
+  caloriesKcal: number | null
+  restingHeartRate: number | null
+  sleepMinutes: number | null
+  steps: number | null
+}
+
 // Analytics types
 
 export interface WeeklyAnalysis {

@@ -129,5 +129,30 @@ export async function migrate(): Promise<void> {
     ALTER TABLE app_state ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id);
     ALTER TABLE app_state DROP CONSTRAINT IF EXISTS app_state_pkey;
     CREATE UNIQUE INDEX IF NOT EXISTS app_state_user_key_idx ON app_state(user_id, key);
+
+    -- Google Health OAuth (per user, unlike the single-row version in the
+    -- sibling controle-calorico app — this app is multi-user).
+    CREATE TABLE IF NOT EXISTS google_health_tokens (
+      user_id INTEGER PRIMARY KEY REFERENCES users(id),
+      access_token TEXT NOT NULL,
+      refresh_token TEXT NOT NULL,
+      expires_at BIGINT NOT NULL,
+      scope TEXT,
+      connected_at BIGINT NOT NULL
+    );
+
+    -- One row per user per day. Columns are nullable independently since a
+    -- given data type may fail to sync (unsupported/empty) without losing
+    -- the others.
+    CREATE TABLE IF NOT EXISTS health_vitals (
+      user_id INTEGER REFERENCES users(id),
+      log_date DATE NOT NULL,
+      calories_kcal NUMERIC,
+      resting_heart_rate NUMERIC,
+      sleep_minutes NUMERIC,
+      steps NUMERIC,
+      synced_at TIMESTAMPTZ NOT NULL,
+      PRIMARY KEY (user_id, log_date)
+    );
   `)
 }

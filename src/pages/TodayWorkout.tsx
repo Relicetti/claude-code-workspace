@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Play, Pause, CheckCircle2, Loader2, ChevronDown, ChevronUp, ListChecks, Flame, HeartPulse } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
 import { ExerciseCard } from '@/components/ExerciseCard'
@@ -7,7 +7,7 @@ import { SubstituteModal } from '@/components/SubstituteModal'
 import { CardioModal } from '@/components/CardioModal'
 import { useRestTimer } from '@/hooks/useRestTimer'
 import { useSessionTimer } from '@/hooks/useSessionTimer'
-import { getSessionFeedback } from '@/lib/claudeApi'
+import { getSessionFeedback, getLiveSetFeedback } from '@/lib/claudeApi'
 import type { Exercise, ExerciseAlternative } from '@/types'
 
 function formatShortDate(dateStr: string): string {
@@ -34,6 +34,8 @@ export function TodayWorkout() {
     getCurrentWorkout,
     getMostRecentSession,
     getSuggestedWeight,
+    getRecentPerformanceForExercise,
+    getTodayHealthContext,
     setCurrentWorkout,
     setActiveView,
   } = useWorkoutStore()
@@ -56,6 +58,11 @@ export function TodayWorkout() {
   const [calories, setCalories] = useState<number | null>(null)
   const [finishedCalories, setFinishedCalories] = useState<number | null>(null)
   const [showCardioModal, setShowCardioModal] = useState(false)
+  const [liveTip, setLiveTip] = useState('')
+  const [liveTipLoading, setLiveTipLoading] = useState(false)
+  // Guards against an earlier set's tip landing after a later one's — only
+  // the most recently fired request's response gets applied.
+  const liveTipRequestRef = useRef(0)
 
   const isSessionActive = !!activeSession
   const isRunning = isSessionActive && sessionStartTime !== null && !sessionPaused
@@ -74,6 +81,49 @@ export function TodayWorkout() {
     if (restSeconds) {
       restTimer.start(restSeconds)
       setShowRestTimer(true)
+    }
+
+    // Live coaching tip — fire-and-forget, shown in the rest timer while it
+    // resolves. A failure (offline, rate limit, etc.) just means no tip this
+    // time, never blocks or errors out the workout itself.
+    if (record) {
+      const planExercise = currentWorkout?.exercises.find(e => e.id === exerciseId)
+      const targetRepsMin = planExercise?.repsMin ?? record.repsMin ?? reps
+      const targetRepsMax = planExercise?.repsMax ?? record.repsMax ?? reps
+      // `record` is the pre-update snapshot from this render, so the set just
+      // confirmed above isn't in it yet — append it explicitly.
+      const setsThisSession = [
+        ...record.sets.filter(s => s.completedAt !== null).map(s => ({ weight: s.weight, reps: s.actualReps })),
+        { weight, reps },
+      ]
+      const previous = getRecentPerformanceForExercise(record.exerciseName)
+
+      const requestId = ++liveTipRequestRef.current
+      setLiveTipLoading(true)
+      setLiveTip('')
+      getLiveSetFeedback({
+        exerciseName: record.exerciseName,
+        setNumber: setIndex + 1,
+        totalSets: record.sets.length,
+        weight,
+        reps,
+        targetRepsMin,
+        targetRepsMax,
+        setsThisSession,
+        previousPerformance: previous
+          ? { date: previous.date, sets: previous.sets.map(s => ({ weight: s.weight, reps: s.actualReps })) }
+          : null,
+        healthContext: getTodayHealthContext(),
+      })
+        .then(text => {
+          if (liveTipRequestRef.current === requestId) setLiveTip(text)
+        })
+        .catch(() => {
+          if (liveTipRequestRef.current === requestId) setLiveTip('')
+        })
+        .finally(() => {
+          if (liveTipRequestRef.current === requestId) setLiveTipLoading(false)
+        })
     }
   }
 
@@ -423,6 +473,8 @@ export function TodayWorkout() {
         <RestTimer
           timer={restTimer}
           onClose={() => setShowRestTimer(false)}
+          liveTip={liveTip}
+          liveTipLoading={liveTipLoading}
         />
       )}
 
