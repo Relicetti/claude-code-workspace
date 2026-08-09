@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS usinas (
     data_assinatura_contrato TEXT,
     etapa_atual TEXT NOT NULL,
     data_entrada_etapa_atual TEXT NOT NULL,
-    situacao_etapa TEXT NOT NULL DEFAULT 'Pendente',
+    situacao_etapa TEXT NOT NULL DEFAULT 'Nova',
     status TEXT NOT NULL DEFAULT 'ativa'
 );
 
@@ -143,7 +143,7 @@ COLUNAS_NOVAS = [
     ("pendencias", "concluida_em", "TEXT"),
     ("pendencias", "concluida_por", "TEXT"),
     ("usinas", "geracao_media_mensal", "REAL"),
-    ("usinas", "situacao_etapa", "TEXT NOT NULL DEFAULT '-'"),
+    ("usinas", "situacao_etapa", "TEXT NOT NULL DEFAULT 'Nova'"),
     ("usinas", "situacao_atualizada_em", "TEXT"),
     ("usinas", "situacao_atualizada_por", "TEXT"),
     ("usinas", "tipo_conexao", "TEXT"),
@@ -161,7 +161,7 @@ ETAPAS_COM_DATA_SITUACAO = ["TT Usina", "Aguardando Aprovação Rateio"]
 
 # situação da usina DENTRO da etapa atual (diferente do status de ciclo de vida).
 # "-" = acabou de chegar na etapa, ninguém começou ainda (padrão).
-SITUACOES = ["-", "Pendente", "Em Andamento", "Concluído"]
+SITUACOES = ["Nova", "Pendente", "Em Andamento", "Concluído"]
 
 CAMPOS_EDITAVEIS_USINA = [
     "ug_raw", "nome_ufv", "concessionaria", "dono_carteira", "executivo",
@@ -234,6 +234,10 @@ def iniciar_banco():
             colunas_existentes = [r["name"] for r in conn.execute(f"PRAGMA table_info({tabela})")]
             if coluna not in colunas_existentes:
                 conn.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {tipo}")
+
+        # renomeia o valor de situação "-" pra "Nova" nos dados já existentes
+        # (idempotente: depois da primeira vez não sobra nenhuma linha com '-')
+        conn.execute("UPDATE usinas SET situacao_etapa = 'Nova' WHERE situacao_etapa = '-'")
 
 
 def normalizar_ug(valor):
@@ -393,7 +397,7 @@ def mudar_etapa(conn, usina_id, nova_etapa, hoje_iso, autor):
         # ao entrar numa etapa nova, a situação reinicia (ninguém começou ainda)
         conn.execute(
             "UPDATE usinas SET etapa_atual = ?, data_entrada_etapa_atual = ?, "
-            "situacao_etapa = '-', situacao_atualizada_em = NULL, situacao_atualizada_por = NULL WHERE id = ?",
+            "situacao_etapa = 'Nova', situacao_atualizada_em = NULL, situacao_atualizada_por = NULL WHERE id = ?",
             (nova_etapa, hoje_iso, usina_id),
         )
 
@@ -427,7 +431,7 @@ def reabrir_para_pipeline(conn, usina_id, nova_etapa, hoje_iso, autor):
     )
     conn.execute(
         """UPDATE usinas SET status = 'ativa', etapa_atual = ?, data_entrada_etapa_atual = ?,
-           situacao_etapa = '-', situacao_atualizada_em = NULL, situacao_atualizada_por = NULL
+           situacao_etapa = 'Nova', situacao_atualizada_em = NULL, situacao_atualizada_por = NULL
            WHERE id = ?""",
         (nova_etapa, hoje_iso, usina_id),
     )

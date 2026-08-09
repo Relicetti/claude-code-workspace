@@ -22,7 +22,7 @@
     <p class="text-muted mb-1">Carteira: {{ usina.dono_carteira or '—' }} · Executivo: {{ usina.executivo or '—' }}</p>
     <p class="text-muted mb-1">Geração média mensal: {{ '{:,.0f} kWh'.format(usina.geracao_media_mensal).replace(',', '.') if usina.geracao_media_mensal is not none else '—' }}</p>
     <p class="mb-1">Status: <strong>{{ usina.status }}</strong> · Etapa atual: <strong>{{ usina.etapa_atual }}</strong>
-      · Situação: <span class="badge {{ {'-':'bg-light text-muted border','Pendente':'bg-secondary','Em Andamento':'bg-warning text-dark','Concluído':'bg-success'}.get(usina.situacao_etapa, 'bg-secondary') }}">{{ usina.situacao_etapa }}</span>
+      · Situação: <span class="badge {{ {'Nova':'bg-light text-muted border','Pendente':'bg-secondary','Em Andamento':'bg-warning text-dark','Concluído':'bg-success'}.get(usina.situacao_etapa, 'bg-secondary') }}">{{ usina.situacao_etapa }}</span>
       {% if usina.situacao_atualizada_em %}<span class="text-muted small">(por {{ usina.situacao_atualizada_por }} em {{ usina.situacao_atualizada_em.replace('T', ' ') }})</span>{% endif %}</p>
     {% if usina.data_protocolo or usina.data_aprovacao %}
       <p class="text-muted mb-1 small">

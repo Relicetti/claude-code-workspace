@@ -43,7 +43,7 @@
           <td>{{ u.concessionaria }}</td>
           <td>{{ u.dono_carteira }}</td>
           <td>
-            <span class="badge {{ {'-':'bg-light text-muted border','Pendente':'bg-secondary','Em Andamento':'bg-warning text-dark','Concluído':'bg-success'}.get(u.situacao_etapa, 'bg-secondary') }}">{{ u.situacao_etapa }}</span>
+            <span class="badge {{ {'Nova':'bg-light text-muted border','Pendente':'bg-secondary','Em Andamento':'bg-warning text-dark','Concluído':'bg-success'}.get(u.situacao_etapa, 'bg-secondary') }}">{{ u.situacao_etapa }}</span>
           </td>
           <td>
             {{ u.dias_na_etapa if u.dias_na_etapa is not none else '—' }}
