@@ -326,19 +326,23 @@ def buscar_usina(conn, usina_id):
 
 
 def buscar_usinas_ativas_por_pessoa(conn, termo=None, etapa=None):
-    """Usinas ativas onde a pessoa é a carteira ou o executivo, ou onde o
-    termo bate com o nome da usina (busca parcial); opcionalmente também
-    filtra por etapa atual."""
-    condicoes = ["status = 'ativa'"]
+    """Usinas onde a pessoa é a carteira ou o executivo, ou onde o termo bate
+    com o nome da usina (busca parcial); opcionalmente também filtra por
+    etapa atual. Busca em qualquer status (ativa, operação, rescindida) --
+    senão usina que já operou ou foi rescindida nunca aparece na busca."""
+    condicoes = []
     params = []
     if termo:
         coringa = f"%{termo}%"
         condicoes.append("(dono_carteira LIKE ? OR executivo LIKE ? OR nome_ufv LIKE ?)")
         params += [coringa, coringa, coringa]
     if etapa:
-        condicoes.append("etapa_atual = ?")
+        condicoes.append("etapa_atual = ? AND status = 'ativa'")
         params.append(etapa)
-    sql = f"SELECT * FROM usinas WHERE {' AND '.join(condicoes)} ORDER BY nome_ufv"
+    sql = "SELECT * FROM usinas"
+    if condicoes:
+        sql += " WHERE " + " AND ".join(condicoes)
+    sql += " ORDER BY nome_ufv"
     return conn.execute(sql, params).fetchall()
 
 

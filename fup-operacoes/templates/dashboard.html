@@ -39,10 +39,14 @@
           {% for u in usinas_pessoa %}
           <tr>
             <td><a href="{{ url_for('ver_usina', usina_id=u.id) }}">{{ u.nome_ufv }}</a></td>
-            <td>{{ u.etapa_atual }}</td>
+            <td>
+              {% if u.status == 'operacao' %}<span class="badge bg-success">Operação</span>
+              {% elif u.status == 'rescindida' %}<span class="badge bg-danger">Rescindida</span>
+              {% else %}{{ u.etapa_atual }}{% endif %}
+            </td>
             <td>{{ u.dono_carteira or '—' }}</td>
             <td>{{ u.executivo or '—' }}</td>
-            <td>{{ u.dias_na_etapa if u.dias_na_etapa is not none else '—' }}</td>
+            <td>{{ u.dias_na_etapa if (u.dias_na_etapa is not none and u.status == 'ativa') else '—' }}</td>
           </tr>
           {% else %}
           <tr><td colspan="5" class="text-center text-muted py-3">Nenhuma usina encontrada.</td></tr>
