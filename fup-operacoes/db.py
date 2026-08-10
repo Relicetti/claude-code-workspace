@@ -522,8 +522,8 @@ def criar_usina(conn, ug_raw, nome_ufv, concessionaria, dono_carteira, executivo
         """INSERT INTO usinas
            (ug, ug_raw, nome_ufv, concessionaria, dono_carteira, executivo,
             geracao_media_mensal, data_assinatura_contrato, etapa_atual,
-            data_entrada_etapa_atual, status, tipo_conexao, potencia_ca, potencia_cc)
-           VALUES (?,?,?,?,?,?,?,?,?,?, 'ativa', ?,?,?)""",
+            data_entrada_etapa_atual, status, situacao_etapa, tipo_conexao, potencia_ca, potencia_cc)
+           VALUES (?,?,?,?,?,?,?,?,?,?, 'ativa', 'Nova', ?,?,?)""",
         (ug, ug_raw, nome_ufv, concessionaria, dono_carteira, executivo,
          geracao_media_mensal, data_assinatura or None, etapa_inicial, hoje_iso,
          tipo_conexao, potencia_ca, potencia_cc),
