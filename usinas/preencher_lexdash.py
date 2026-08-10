@@ -33,7 +33,7 @@ ARQUIVO_SESSAO  = os.path.join(os.path.dirname(__file__), "lexdash_session.json"
 URL_ATUALIZACOES = "https://crm-lex.energiacom.vc/fatger/atualizacao-fat"
 
 # URL do app de tarifas — configura via variável de ambiente ou .env
-TARIFAS_API_URL = os.environ.get("TARIFAS_API_URL", "http://localhost:5001")
+TARIFAS_API_URL = os.environ.get("TARIFAS_API_URL", "https://alexandria-tarifas-production.up.railway.app")
 ADMIN_TOKEN     = os.environ.get("ADMIN_TOKEN", "")
 
 _MESES_PT = {

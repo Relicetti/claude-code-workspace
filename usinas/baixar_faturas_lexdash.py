@@ -33,7 +33,7 @@ PASTA_BASE = r"D:\Alexandria\OneDrive - Alexandria Industria de Geradores SA\Cal
 
 # Caminho pro sistema de tarifas (um nível acima de usinas/)
 TARIFAS_DIR     = os.path.join(os.path.dirname(__file__), "..", "tarifas")
-TARIFAS_API_URL = os.environ.get("TARIFAS_API_URL", "http://localhost:5001")
+TARIFAS_API_URL = os.environ.get("TARIFAS_API_URL", "https://alexandria-tarifas-production.up.railway.app")
 ADMIN_TOKEN     = os.environ.get("ADMIN_TOKEN", "")
 
 _MESES_PT = {
