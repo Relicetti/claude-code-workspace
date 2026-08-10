@@ -95,7 +95,10 @@ function ordenarTabela(table, colIdx, th) {
     return celula ? celula.textContent.trim() : '';
   }
 
-  var todasNumericas = linhas.every(function (linha) {
+  var temValorNumerico = linhas.some(function (linha) {
+    return valorCelula(linha).replace(/[^\d,.\-]/g, '') !== '';
+  });
+  var todasNumericas = temValorNumerico && linhas.every(function (linha) {
     var v = valorCelula(linha).replace(/[^\d,.\-]/g, '');
     return v === '' || !isNaN(parseFloat(v.replace(',', '.')));
   });
