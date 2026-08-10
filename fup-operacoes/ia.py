@@ -1,15 +1,22 @@
 """
-Camada de IA local: monta um contexto com dados reais do fup.db (via db.py,
-não deixa o modelo inventar números) e manda pro Ollama rodando em localhost:11434.
-Mesmo padrão usado no app "usinas" (ia.py de lá).
+Camada de IA: monta um contexto com dados reais do fup.db (via db.py, não
+deixa o modelo inventar números) e manda pra API da Anthropic (Claude).
+
+Usa a Claude API em vez de um modelo local porque o app roda no Railway
+(nuvem) — um Ollama local só seria alcançável quando o app roda na própria
+máquina, não em produção. Precisa da variável de ambiente ANTHROPIC_API_KEY
+configurada (no Railway e, se for usar localmente também, no ambiente local).
 """
 import json
-import urllib.request
+import os
+from datetime import datetime
+
+import anthropic
 
 import db
 
-OLLAMA_URL = "http://localhost:11434/api/chat"
-MODELO = "qwen2.5:3b-instruct"
+MODELO = "claude-opus-5"
+MAX_TOKENS = 4096
 
 PROMPT_SISTEMA = """Você é um assistente do painel de controle FUP Operações, que
 acompanha o pipeline de troca de titularidade + rateio de usinas de energia solar
@@ -39,7 +46,6 @@ def montar_contexto():
     def dias_desde(data_iso):
         if not data_iso:
             return None
-        from datetime import datetime
         d = datetime.strptime(data_iso, "%Y-%m-%d").date()
         return (hoje_dt - d).days
 
@@ -94,21 +100,38 @@ def montar_contexto():
 
 
 def perguntar(pergunta, historico=None):
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        return (
+            "A chave da API da Anthropic (variável de ambiente ANTHROPIC_API_KEY) não está "
+            "configurada neste servidor. Configure-a no Railway (aba Variables do projeto) "
+            "pra habilitar o chat."
+        )
+
     contexto = montar_contexto()
-    mensagens = [{"role": "system", "content": PROMPT_SISTEMA + "\n\nCONTEXTO:\n" + contexto}]
-    for h in (historico or []):
-        mensagens.append(h)
+    mensagens = list(historico or [])
     mensagens.append({"role": "user", "content": pergunta})
 
-    corpo = json.dumps({"model": MODELO, "messages": mensagens, "stream": False}).encode("utf-8")
-    req = urllib.request.Request(OLLAMA_URL, data=corpo, headers={"Content-Type": "application/json"})
+    client = anthropic.Anthropic(api_key=api_key)
     try:
-        with urllib.request.urlopen(req, timeout=300) as resp:
-            resultado = json.loads(resp.read().decode("utf-8"))
-        return resultado["message"]["content"]
-    except Exception as e:
-        return (
-            "Não consegui falar com o Ollama local (localhost:11434). "
-            f"Verifique se ele está rodando (`ollama serve`) e se o modelo '{MODELO}' foi baixado "
-            f"(`ollama pull {MODELO}`). Detalhe do erro: {e}"
+        resposta = client.messages.create(
+            model=MODELO,
+            max_tokens=MAX_TOKENS,
+            output_config={"effort": "low"},  # perguntas diretas sobre dados; mantém custo baixo
+            system=[
+                {"type": "text", "text": PROMPT_SISTEMA},
+                {"type": "text", "text": contexto, "cache_control": {"type": "ephemeral"}},
+            ],
+            messages=mensagens,
         )
+        return next((b.text for b in resposta.content if b.type == "text"), "(sem resposta)")
+    except anthropic.AuthenticationError:
+        return "A chave da API da Anthropic configurada é inválida. Verifique o ANTHROPIC_API_KEY no Railway."
+    except anthropic.RateLimitError:
+        return "Limite de requisições da API da Anthropic atingido no momento. Tente de novo em instantes."
+    except anthropic.APIStatusError as e:
+        return f"Erro ao falar com a API da Anthropic: {e.message}"
+    except anthropic.APIConnectionError:
+        return "Não consegui conectar com a API da Anthropic. Verifique a conexão de internet do servidor."
+    except Exception as e:
+        return f"Erro inesperado ao consultar a IA: {e}"
