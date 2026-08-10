@@ -49,12 +49,10 @@ def _checar_login(pagina):
 
 
 def _abrir_card_tarifas(pagina):
-    """Clica no card 'Atualizacao de tarifas usina' pra expandir a lista."""
-    # O card tem esse texto no título
+    """Clica no card 'Tarifas pendentes de cadastro' pra expandir a lista."""
     seletores = [
-        "text=Atualizacao de tarifas usina",
-        "text=Atualização de tarifas usina",
-        "[data-testid='card-tarifas']",
+        "text=Tarifas pendentes de cadastro",
+        "text=Tarifas Pendentes de Cadastro",
     ]
     for sel in seletores:
         loc = pagina.locator(sel).first
@@ -63,15 +61,15 @@ def _abrir_card_tarifas(pagina):
             pagina.wait_for_timeout(2500)
             return
 
-    # Fallback: clica no 3º card da grade
+    # Fallback: clica no 4º card da grade
     cards = pagina.locator(".card, [class*='card'], [class*='Card']").all()
-    print(f"  (fallback) {len(cards)} cards encontrados, clicando no 3º")
-    if len(cards) >= 3:
-        cards[2].click()
+    print(f"  (fallback) {len(cards)} cards encontrados, clicando no 4º")
+    if len(cards) >= 4:
+        cards[3].click()
         pagina.wait_for_timeout(2500)
     else:
         raise RuntimeError(
-            "Não encontrei o card 'Atualizacao de tarifas usina'. "
+            "Não encontrei o card 'Tarifas pendentes de cadastro'. "
             "Verifique a estrutura da página com --debug."
         )
 
@@ -118,7 +116,7 @@ def _ler_linhas_aguardando(pagina) -> list[dict]:
             print(f"  ⚠️  Erro lendo colunas da linha: {e}")
             continue
 
-        tipo_gd = "GD2" if gd2_texto.lower() in ("sim", "s", "true", "1", "yes", "x") else "GD1"
+        tipo_gd = "GD2" if gd2_texto.lower() in ("sim", "s", "true", "1", "yes", "x", "verdadeiro") else "GD1"
 
         linhas.append({
             "distribuidora": distribuidora,
