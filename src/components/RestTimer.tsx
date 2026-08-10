@@ -1,22 +1,40 @@
-import { useState } from 'react'
-import { Pause, Play, Plus, Minus, X, Bell, Sparkles } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Pause, Play, Plus, Minus, X, Bell, Sparkles, Send } from 'lucide-react'
 import type { useRestTimer } from '@/hooks/useRestTimer'
+import type { LiveTipTurn } from '@/lib/claudeApi'
 import { isPushSupported, getPushPermission, enablePushNotifications } from '@/lib/push'
 
 interface Props {
   timer: ReturnType<typeof useRestTimer>
   onClose: () => void
-  liveTip?: string
+  liveTipTurns?: LiveTipTurn[]
   liveTipLoading?: boolean
+  onSendTipReply?: (text: string) => void
 }
 
-export function RestTimer({ timer, onClose, liveTip, liveTipLoading }: Props) {
+export function RestTimer({ timer, onClose, liveTipTurns = [], liveTipLoading, onSendTipReply }: Props) {
   const { remaining, total, running, pause, resume, adjust, reset } = timer
   const [permission, setPermission] = useState(getPushPermission())
+  const [replyText, setReplyText] = useState('')
+  const turnsEndRef = useRef<HTMLDivElement>(null)
+
+  // Keeps the newest message in view instead of letting it get clipped at
+  // the bottom of the scroll container — a fixed max-height caps how much
+  // vertical space the conversation can eat inside this small popup.
+  useEffect(() => {
+    turnsEndRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [liveTipTurns, liveTipLoading])
 
   const handleEnableNotifications = async () => {
     const granted = await enablePushNotifications()
     setPermission(granted ? 'granted' : getPushPermission())
+  }
+
+  const handleSendReply = () => {
+    const text = replyText.trim()
+    if (!text || !onSendTipReply) return
+    onSendTipReply(text)
+    setReplyText('')
   }
 
   const progress = total > 0 ? (remaining / total) * 100 : 0
@@ -71,14 +89,61 @@ export function RestTimer({ timer, onClose, liveTip, liveTipLoading }: Props) {
         </div>
 
         {/* Live coaching tip — loading briefly while the AI call resolves,
-            silently absent if it failed (never blocks/interrupts the rest) */}
-        {(liveTipLoading || liveTip) && (
-          <div className="flex items-start gap-2 bg-gray-800/60 rounded-xl px-3 py-2.5 mb-5 text-left">
-            <Sparkles size={14} className="text-brand-400 shrink-0 mt-0.5" />
-            {liveTipLoading && !liveTip ? (
-              <p className="text-xs text-gray-500">Analisando série...</p>
+            silently absent if it failed (never blocks/interrupts the rest).
+            The athlete can reply once a tip is up, turning it into a short
+            back-and-forth (e.g. "senti dor no ombro nessa série"). */}
+        {(liveTipLoading || liveTipTurns.length > 0) && (
+          <div className="mb-5 text-left space-y-2">
+            {liveTipTurns.length === 0 ? (
+              <div className="flex items-start gap-2 bg-gray-800/60 rounded-xl px-3 py-2.5">
+                <Sparkles size={14} className="text-brand-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-gray-500">Analisando série...</p>
+              </div>
             ) : (
-              <p className="text-xs text-gray-300 leading-relaxed">{liveTip}</p>
+              <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                {liveTipTurns.map((turn, i) =>
+                  turn.role === 'assistant' ? (
+                    <div key={i} className="flex items-start gap-2 bg-gray-800/60 rounded-xl px-3 py-2.5">
+                      <Sparkles size={14} className="text-brand-400 shrink-0 mt-0.5" />
+                      <p className="text-xs text-gray-300 leading-relaxed">{turn.text}</p>
+                    </div>
+                  ) : (
+                    <div key={i} className="flex justify-end">
+                      <p className="text-xs text-gray-400 bg-gray-800/30 rounded-xl px-3 py-2 max-w-[85%]">{turn.text}</p>
+                    </div>
+                  ),
+                )}
+                {liveTipLoading && (
+                  <div className="flex items-start gap-2 bg-gray-800/60 rounded-xl px-3 py-2.5">
+                    <Sparkles size={14} className="text-brand-400 shrink-0 mt-0.5" />
+                    <p className="text-xs text-gray-500">Respondendo...</p>
+                  </div>
+                )}
+                <div ref={turnsEndRef} />
+              </div>
+            )}
+
+            {liveTipTurns.length > 0 && onSendTipReply && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={replyText}
+                  onChange={e => setReplyText(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') handleSendReply()
+                  }}
+                  placeholder="Responder (opcional)..."
+                  disabled={liveTipLoading}
+                  className="flex-1 bg-gray-800 text-white text-xs rounded-lg px-3 py-2 border border-gray-700 focus:border-brand-500 outline-none disabled:opacity-50"
+                />
+                <button
+                  onClick={handleSendReply}
+                  disabled={liveTipLoading || !replyText.trim()}
+                  className="shrink-0 bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-brand-400 p-2 rounded-lg transition-colors"
+                >
+                  <Send size={14} />
+                </button>
+              </div>
             )}
           </div>
         )}

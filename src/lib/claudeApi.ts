@@ -178,6 +178,24 @@ export interface LiveSetFeedbackInput {
   healthContext: string | null
 }
 
+function buildLiveSetContextSummary(input: LiveSetFeedbackInput): string {
+  const thisSessionSummary = input.setsThisSession
+    .map((s, i) => `série ${i + 1}: ${s.weight ?? 0}kg×${s.reps ?? 0}`)
+    .join(', ')
+
+  const previousSummary = input.previousPerformance
+    ? `Última vez que fez esse exercício (${new Date(input.previousPerformance.date + 'T12:00:00').toLocaleDateString('pt-BR')}): ${
+        input.previousPerformance.sets.map(s => `${s.weight ?? 0}kg×${s.reps ?? 0}`).join(', ')
+      }`
+    : 'Primeira vez registrando esse exercício.'
+
+  return `Exercício: ${input.exerciseName}
+Série ${input.setNumber} de ${input.totalSets} concluída agora: ${input.weight}kg × ${input.reps} reps (alvo: ${input.targetRepsMin}-${input.targetRepsMax} reps)
+Séries feitas nesta sessão até agora: ${thisSessionSummary}
+${previousSummary}
+${input.healthContext ? `\n${input.healthContext}` : ''}`
+}
+
 // Fired after every completed set, shown in the rest-timer popup while the
 // user is resting — needs to be fast (Haiku, not Sonnet) and short (plain
 // text, no JSON), since it's called far more often than the other AI calls
@@ -191,23 +209,36 @@ NÃO use JSON.
 
 ${getShoulderContext() ? `Contexto do atleta: ${getShoulderContext()}` : ''}`
 
-  const thisSessionSummary = input.setsThisSession
-    .map((s, i) => `série ${i + 1}: ${s.weight ?? 0}kg×${s.reps ?? 0}`)
-    .join(', ')
+  return callClaude(systemPrompt, buildLiveSetContextSummary(input), 120, 'claude-haiku-4-5-20251001')
+}
 
-  const previousSummary = input.previousPerformance
-    ? `Última vez que fez esse exercício (${new Date(input.previousPerformance.date + 'T12:00:00').toLocaleDateString('pt-BR')}): ${
-        input.previousPerformance.sets.map(s => `${s.weight ?? 0}kg×${s.reps ?? 0}`).join(', ')
-      }`
-    : 'Primeira vez registrando esse exercício.'
+export interface LiveTipTurn {
+  role: 'assistant' | 'user'
+  text: string
+}
 
-  const userMessage = `Exercício: ${input.exerciseName}
-Série ${input.setNumber} de ${input.totalSets} concluída agora: ${input.weight}kg × ${input.reps} reps (alvo: ${input.targetRepsMin}-${input.targetRepsMax} reps)
-Séries feitas nesta sessão até agora: ${thisSessionSummary}
-${previousSummary}
-${input.healthContext ? `\n${input.healthContext}` : ''}`
+// Optional follow-up when the athlete replies to the live tip (e.g. "senti
+// dor no ombro", "quero manter esse peso") — same context as the tip itself
+// plus the exchange so far, so the AI reacts to what was actually said
+// instead of repeating the original comment.
+export async function getLiveSetFollowUp(context: LiveSetFeedbackInput, conversation: LiveTipTurn[]): Promise<string> {
+  const systemPrompt = `Você é um personal trainer acompanhando o treino ao vivo, série por série.
+O atleta pode responder ao seu comentário — reaja especificamente ao que ele disse (ex: se ele
+relatou dor, sugira ajustar ou pular; se disse que quer manter a carga, valide isso com base no
+contexto). Responda em 1-3 frases curtas e diretas, em português, sem saudação. NÃO use JSON.
 
-  return callClaude(systemPrompt, userMessage, 120, 'claude-haiku-4-5-20251001')
+${getShoulderContext() ? `Contexto do atleta: ${getShoulderContext()}` : ''}`
+
+  const conversationText = conversation
+    .map(turn => `${turn.role === 'assistant' ? 'Treinador' : 'Atleta'}: ${turn.text}`)
+    .join('\n')
+
+  const userMessage = `${buildLiveSetContextSummary(context)}
+
+Conversa até agora:
+${conversationText}`
+
+  return callClaude(systemPrompt, userMessage, 150, 'claude-haiku-4-5-20251001')
 }
 
 const CARDIO_LABELS: Record<CardioSession['type'], string> = {

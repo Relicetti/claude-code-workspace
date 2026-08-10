@@ -7,7 +7,8 @@ import { SubstituteModal } from '@/components/SubstituteModal'
 import { CardioModal } from '@/components/CardioModal'
 import { useRestTimer } from '@/hooks/useRestTimer'
 import { useSessionTimer } from '@/hooks/useSessionTimer'
-import { getSessionFeedback, getLiveSetFeedback } from '@/lib/claudeApi'
+import { getSessionFeedback, getLiveSetFeedback, getLiveSetFollowUp } from '@/lib/claudeApi'
+import type { LiveSetFeedbackInput, LiveTipTurn } from '@/lib/claudeApi'
 import type { Exercise, ExerciseAlternative } from '@/types'
 
 function formatShortDate(dateStr: string): string {
@@ -58,10 +59,11 @@ export function TodayWorkout() {
   const [calories, setCalories] = useState<number | null>(null)
   const [finishedCalories, setFinishedCalories] = useState<number | null>(null)
   const [showCardioModal, setShowCardioModal] = useState(false)
-  const [liveTip, setLiveTip] = useState('')
+  const [liveTipTurns, setLiveTipTurns] = useState<LiveTipTurn[]>([])
   const [liveTipLoading, setLiveTipLoading] = useState(false)
-  // Guards against an earlier set's tip landing after a later one's — only
-  // the most recently fired request's response gets applied.
+  const [liveTipContext, setLiveTipContext] = useState<LiveSetFeedbackInput | null>(null)
+  // Guards against an earlier set's tip (or an earlier reply) landing after a
+  // later one's — only the most recently fired request's response gets applied.
   const liveTipRequestRef = useRef(0)
 
   const isSessionActive = !!activeSession
@@ -98,10 +100,7 @@ export function TodayWorkout() {
       ]
       const previous = getRecentPerformanceForExercise(record.exerciseName)
 
-      const requestId = ++liveTipRequestRef.current
-      setLiveTipLoading(true)
-      setLiveTip('')
-      getLiveSetFeedback({
+      const context: LiveSetFeedbackInput = {
         exerciseName: record.exerciseName,
         setNumber: setIndex + 1,
         totalSets: record.sets.length,
@@ -114,17 +113,45 @@ export function TodayWorkout() {
           ? { date: previous.date, sets: previous.sets.map(s => ({ weight: s.weight, reps: s.actualReps })) }
           : null,
         healthContext: getTodayHealthContext(),
-      })
+      }
+
+      const requestId = ++liveTipRequestRef.current
+      setLiveTipLoading(true)
+      setLiveTipTurns([])
+      setLiveTipContext(context)
+      getLiveSetFeedback(context)
         .then(text => {
-          if (liveTipRequestRef.current === requestId) setLiveTip(text)
+          if (liveTipRequestRef.current === requestId) setLiveTipTurns([{ role: 'assistant', text }])
         })
         .catch(() => {
-          if (liveTipRequestRef.current === requestId) setLiveTip('')
+          if (liveTipRequestRef.current === requestId) setLiveTipTurns([])
         })
         .finally(() => {
           if (liveTipRequestRef.current === requestId) setLiveTipLoading(false)
         })
     }
+  }
+
+  const handleSendTipReply = (text: string) => {
+    if (!liveTipContext) return
+    const conversationSoFar = [...liveTipTurns, { role: 'user' as const, text }]
+    setLiveTipTurns(conversationSoFar)
+
+    const requestId = ++liveTipRequestRef.current
+    setLiveTipLoading(true)
+    getLiveSetFollowUp(liveTipContext, conversationSoFar)
+      .then(reply => {
+        if (liveTipRequestRef.current === requestId) {
+          setLiveTipTurns(turns => [...turns, { role: 'assistant', text: reply }])
+        }
+      })
+      .catch(() => {
+        // User's message stays visible even if the reply fails — nothing to
+        // roll back, just no reply this time.
+      })
+      .finally(() => {
+        if (liveTipRequestRef.current === requestId) setLiveTipLoading(false)
+      })
   }
 
   const handleSetEdit = (exerciseId: string, setIndex: number, weight: number, reps: number) => {
@@ -473,8 +500,9 @@ export function TodayWorkout() {
         <RestTimer
           timer={restTimer}
           onClose={() => setShowRestTimer(false)}
-          liveTip={liveTip}
+          liveTipTurns={liveTipTurns}
           liveTipLoading={liveTipLoading}
+          onSendTipReply={handleSendTipReply}
         />
       )}
 
