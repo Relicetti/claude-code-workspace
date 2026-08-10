@@ -270,7 +270,7 @@ def principal(dry_run=False, debug=False, sem_extracao=False):
     os.makedirs(PASTA_DOWNLOAD, exist_ok=True)
 
     with sync_playwright() as p:
-        navegador = p.chromium.launch(headless=not debug, channel="msedge")
+        navegador = p.chromium.launch(headless=not debug, channel="chrome")
         contexto  = navegador.new_context(
             storage_state=ARQUIVO_SESSAO,
             accept_downloads=True,
