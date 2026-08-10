@@ -24,7 +24,7 @@ from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 URL_ATUALIZACOES = "https://crm-lex.energiacom.vc/fatger/atualizacao-fat"
 ARQUIVO_SESSAO   = os.path.join(os.path.dirname(__file__), "lexdash_session.json")
-PASTA_DOWNLOAD   = os.path.join(os.path.dirname(__file__), "downloads_faturas")
+PASTA_BASE = r"D:\Alexandria\OneDrive - Alexandria Industria de Geradores SA\Calculos Tarifas"
 
 # Caminho pro sistema de tarifas (um nível acima de usinas/)
 TARIFAS_DIR = os.path.join(os.path.dirname(__file__), "..", "tarifas")
@@ -49,7 +49,7 @@ def _checar_login(pagina):
 
 
 def _abrir_card_tarifas(pagina):
-    """Clica no card 'Tarifas pendentes de cadastro' pra expandir a lista."""
+    """Clica no card 'Tarifas pendentes de cadastro' e seleciona filtro 'Definir Tarifa'."""
     seletores = [
         "text=Tarifas pendentes de cadastro",
         "text=Tarifas Pendentes de Cadastro",
@@ -58,20 +58,36 @@ def _abrir_card_tarifas(pagina):
         loc = pagina.locator(sel).first
         if loc.count() > 0:
             loc.click()
-            pagina.wait_for_timeout(2500)
-            return
-
-    # Fallback: clica no 4º card da grade
-    cards = pagina.locator(".card, [class*='card'], [class*='Card']").all()
-    print(f"  (fallback) {len(cards)} cards encontrados, clicando no 4º")
-    if len(cards) >= 4:
-        cards[3].click()
-        pagina.wait_for_timeout(2500)
+            pagina.wait_for_timeout(2000)
+            break
     else:
-        raise RuntimeError(
-            "Não encontrei o card 'Tarifas pendentes de cadastro'. "
-            "Verifique a estrutura da página com --debug."
-        )
+        # Fallback: clica no 4º card da grade
+        cards = pagina.locator(".card, [class*='card'], [class*='Card']").all()
+        print(f"  (fallback) {len(cards)} cards encontrados, clicando no 4º")
+        if len(cards) >= 4:
+            cards[3].click()
+            pagina.wait_for_timeout(2000)
+        else:
+            raise RuntimeError(
+                "Não encontrei o card 'Tarifas pendentes de cadastro'. "
+                "Verifique a estrutura da página com --debug."
+            )
+
+    # Seleciona "Definir Tarifa" no dropdown de filtro
+    try:
+        dropdown = pagina.locator("select").first
+        if dropdown.count() > 0:
+            dropdown.select_option(label="Definir Tarifa")
+            print("  Filtro 'Definir Tarifa' selecionado.")
+            pagina.wait_for_timeout(2000)
+        else:
+            # Dropdown customizado (não <select> nativo)
+            filtro = pagina.locator("text=Definir Tarifa").first
+            if filtro.count() > 0:
+                filtro.click()
+                pagina.wait_for_timeout(2000)
+    except Exception as e:
+        print(f"  ⚠️  Não consegui selecionar filtro: {e}")
 
 
 def _ler_linhas_aguardando(pagina) -> list[dict]:
@@ -90,13 +106,22 @@ def _ler_linhas_aguardando(pagina) -> list[dict]:
     rows = pagina.locator("tr").all()
     print(f"  {len(rows)} linhas de tabela encontradas no total.")
 
+    # Debug: mostra o texto das primeiras 5 linhas pra diagnosticar
+    for i, row in enumerate(rows[:5]):
+        try:
+            t = row.inner_text(timeout=2000).replace("\n", " | ").strip()
+            print(f"  [debug] linha {i}: {t[:120]}")
+        except Exception:
+            pass
+
     for row in rows:
         try:
             texto = row.inner_text(timeout=2000)
         except Exception:
             continue
 
-        if "AGUARDANDO_TARIFA" not in texto:
+        # Aceita variações: com underline, com espaço, maiúsculas/minúsculas
+        if not any(v in texto for v in ("AGUARDANDO_TARIFA", "AGUARDANDO TARIFA", "Aguardando Tarifa", "aguardando")):
             continue
 
         colunas = row.locator("td").all()
@@ -265,7 +290,9 @@ def _extrair_e_salvar(caminho_pdf: str, linha: dict):
 
 def principal(dry_run=False, debug=False, sem_extracao=False):
     _checar_sessao()
-    os.makedirs(PASTA_DOWNLOAD, exist_ok=True)
+    pasta_download = os.path.join(PASTA_BASE, time.strftime("%Y%m"))
+    os.makedirs(pasta_download, exist_ok=True)
+    print(f"Pasta de destino: {pasta_download}")
 
     with sync_playwright() as p:
         navegador = p.chromium.launch(headless=not debug, channel="chrome")
@@ -310,13 +337,13 @@ def principal(dry_run=False, debug=False, sem_extracao=False):
             label = f"{linha['distribuidora']} {linha['mes_ref']}"
             print(f"► {label}")
 
-            dados = _baixar_pdf(pagina, linha, PASTA_DOWNLOAD)
+            dados = _baixar_pdf(pagina, linha, pasta_download)
             if not dados:
                 print(f"  ❌ Não foi possível baixar o PDF.")
                 resultados.append({"linha": linha, "caminho": None, "extracao": None})
                 continue
 
-            caminho = _salvar_pdf(dados, linha, PASTA_DOWNLOAD)
+            caminho = _salvar_pdf(dados, linha, pasta_download)
             print(f"  ✓ PDF: {os.path.basename(caminho)}")
 
             extracao = None
