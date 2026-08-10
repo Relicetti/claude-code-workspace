@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}IA{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h4 class="mb-0">💬 Pergunte para a IA local</h4>
+  {% if historico %}
+  <form method="post" action="{{ url_for('limpar_chat') }}">
+    <button class="btn btn-sm btn-outline-secondary" type="submit">Limpar conversa</button>
+  </form>
+  {% endif %}
+</div>
+<p class="text-muted">
+  Roda 100% local via Ollama, com base nos dados atuais do pipeline (usinas ativas, etapas, pendências).
+  A resposta pode levar de alguns segundos até 1-2 minutos — a página fica parada nesse tempo, é normal.
+  Perguntas úteis: "quais usinas estão em Aguardando Rateio há mais tempo?", "quais pendências da Louise estão em aberto?",
+  "quantas usinas estão atrasadas em relação à média da etapa?"
+</p>
+
+<div class="card p-3 mb-3">
+  {% for msg in historico %}
+    {% if msg.role == 'user' %}
+      <div class="mb-2"><strong>Você:</strong> {{ msg.content }}</div>
+    {% else %}
+      <div class="alert alert-light border"><strong>IA:</strong><br>{{ msg.content | replace("\n", "<br>") | safe }}</div>
+    {% endif %}
+  {% else %}
+    <p class="text-muted mb-0">Nenhuma pergunta ainda.</p>
+  {% endfor %}
+</div>
+
+<form method="post" id="form-pergunta">
+  <div class="input-group">
+    <input type="text" name="pergunta" class="form-control" placeholder="Digite sua pergunta..." required autofocus>
+    <button class="btn btn-primary" type="submit" id="btn-perguntar">Perguntar</button>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('form-pergunta').addEventListener('submit', function () {
+  var btn = document.getElementById('btn-perguntar');
+  btn.disabled = true;
+  btn.textContent = 'Pensando...';
+});
+</script>
+{% endblock %}

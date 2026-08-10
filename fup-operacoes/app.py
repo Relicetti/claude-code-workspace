@@ -8,6 +8,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 import db
 import email_utils
+import ia
 from db import agora, hoje  # sempre horário de Brasília, mesmo no Railway (que roda em UTC)
 
 # cabeçalhos do modelo de planilha de importação em massa (ordem = colunas)
@@ -517,6 +518,25 @@ def ver_rescindidas():
         u["dias_desde_rescisao"] = _dias_desde(u["data_rescisao"], hoje_dt)
 
     return render_template("rescindidas.html", usinas=usinas)
+
+
+@app.route("/chat", methods=["GET", "POST"])
+def chat():
+    historico = session.get("chat_historico", [])
+    if request.method == "POST":
+        pergunta = request.form.get("pergunta", "").strip()
+        if pergunta:
+            resposta = ia.perguntar(pergunta, historico=historico)
+            historico.append({"role": "user", "content": pergunta})
+            historico.append({"role": "assistant", "content": resposta})
+            session["chat_historico"] = historico[-20:]
+    return render_template("chat.html", historico=session.get("chat_historico", []))
+
+
+@app.route("/chat/limpar", methods=["POST"])
+def limpar_chat():
+    session.pop("chat_historico", None)
+    return redirect(url_for("chat"))
 
 
 @app.route("/etapa/<int:idx>")

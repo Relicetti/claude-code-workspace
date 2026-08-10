@@ -33,6 +33,7 @@
     <div class="d-flex align-items-center gap-2">
       {% if usuario_logado %}
         <a href="{{ url_for('comparativo') }}" class="btn btn-outline-light btn-sm">Comparativo semanal</a>
+        <a href="{{ url_for('chat') }}" class="btn btn-outline-light btn-sm">💬 IA</a>
         {% if usuario_admin %}
           <a href="{{ url_for('ver_log') }}" class="btn btn-outline-light btn-sm">Log</a>
           <a href="{{ url_for('listar_usuarios_view') }}" class="btn btn-outline-light btn-sm">Usuários</a>
