@@ -8,12 +8,19 @@ Uso:
 
 Deixe rodando numa janela do terminal. Verifica a cada 2 minutos.
 """
+import io
 import os
 import subprocess
 import sys
 import time
 
 import requests
+
+# Redireciona stdout/stderr para o arquivo de log (garante flush mesmo via VBS/Startup)
+_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "agente_local.log")
+_log_file = open(_LOG_PATH, "a", encoding="utf-8", buffering=1)
+sys.stdout = _log_file
+sys.stderr = _log_file
 
 TARIFAS_API_URL = os.environ.get(
     "TARIFAS_API_URL",
