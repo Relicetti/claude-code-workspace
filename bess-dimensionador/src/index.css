@@ -1,0 +1,8 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: #f4f3ed; color: #2c2c2a; }
+input:focus, select:focus, button:focus { outline: 2px solid #2a78d6; outline-offset: 2px; }
+button:active { transform: scale(0.98); }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 6px 10px; font-size: 13px; }
+tbody tr:nth-child(even) { background: #fafaf7; }
+@media print { .no-print { display: none !important; } }

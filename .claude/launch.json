@@ -48,6 +48,12 @@
       "runtimeExecutable": "fup-operacoes/.venv/Scripts/python.exe",
       "runtimeArgs": ["fup-operacoes/app.py"],
       "port": 5010
+    },
+    {
+      "name": "bess-dimensionador",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "bess-dimensionador", "run", "dev", "--", "--port", "5178"],
+      "port": 5178
     }
   ]
 }
