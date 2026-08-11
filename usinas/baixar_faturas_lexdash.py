@@ -315,10 +315,11 @@ def _enviar_para_revisao(linha: dict, extracao: dict | None, caminho_pdf: str) -
         "tipo_gd":        linha["tipo_gd"],
         "usinas":         json.dumps(usinas_list),
         # extrator retorna tarifa_distribuidora_input = tarifa de geração (R$/kWh)
-        "tarifa_geracao": extracao.get("tarifa_distribuidora_input") if extracao else None,
-        "tarifa_dist":    extracao.get("tarifa_distribuidora_input") if extracao else None,
-        "tarifa_comp":    extracao.get("tarifa_compensada_input") if extracao else None,
-        "pdf_path":       caminho_pdf,
+        "tarifa_geracao":  extracao.get("tarifa_distribuidora_input") if extracao else None,
+        "tarifa_dist":     extracao.get("tarifa_distribuidora_input") if extracao else None,
+        "tarifa_comp":     extracao.get("tarifa_compensada_input") if extracao else None,
+        "pdf_path":        caminho_pdf,
+        "extraido_json":   json.dumps(extracao) if extracao else None,
     }
 
     headers = {"Content-Type": "application/json"}
