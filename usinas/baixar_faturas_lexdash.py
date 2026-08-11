@@ -33,6 +33,17 @@ PASTA_BASE = r"D:\Alexandria\OneDrive - Alexandria Industria de Geradores SA\Cal
 
 # Caminho pro sistema de tarifas (um nível acima de usinas/)
 TARIFAS_DIR     = os.path.join(os.path.dirname(__file__), "..", "tarifas")
+
+# Carrega .env do projeto tarifas (necessário pra ANTHROPIC_API_KEY quando rodado manualmente)
+_env_path = os.path.join(TARIFAS_DIR, ".env")
+if os.path.exists(_env_path):
+    with open(_env_path, encoding="utf-8") as _f:
+        for _linha in _f:
+            _linha = _linha.strip()
+            if _linha and not _linha.startswith("#") and "=" in _linha:
+                _k, _v = _linha.split("=", 1)
+                os.environ.setdefault(_k.strip(), _v.strip())
+
 TARIFAS_API_URL = os.environ.get("TARIFAS_API_URL", "https://alexandria-tarifas-production.up.railway.app")
 ADMIN_TOKEN     = os.environ.get("ADMIN_TOKEN", "")
 
@@ -303,9 +314,10 @@ def _enviar_para_revisao(linha: dict, extracao: dict | None, caminho_pdf: str) -
         "modalidade":     linha["modalidade"],
         "tipo_gd":        linha["tipo_gd"],
         "usinas":         json.dumps(usinas_list),
-        "tarifa_geracao": extracao.get("tarifa_geracao") if extracao else None,
-        "tarifa_dist":    extracao.get("tarifa_distribuidora") if extracao else None,
-        "tarifa_comp":    extracao.get("tarifa_compensada") if extracao else None,
+        # extrator retorna tarifa_distribuidora_input = tarifa de geração (R$/kWh)
+        "tarifa_geracao": extracao.get("tarifa_distribuidora_input") if extracao else None,
+        "tarifa_dist":    extracao.get("tarifa_distribuidora_input") if extracao else None,
+        "tarifa_comp":    extracao.get("tarifa_compensada_input") if extracao else None,
         "pdf_path":       caminho_pdf,
     }
 

@@ -20,7 +20,7 @@ TARIFAS_API_URL = os.environ.get(
     "https://alexandria-tarifas-production.up.railway.app"
 )
 ADMIN_TOKEN  = os.environ.get("ADMIN_TOKEN", "")
-INTERVALO    = 120   # segundos entre verificações
+INTERVALO    = 30    # segundos entre verificações
 SCRIPT_DIR   = os.path.dirname(__file__)
 SCRIPT_BAIXAR = os.path.join(SCRIPT_DIR, "baixar_faturas_lexdash.py")
 
@@ -53,11 +53,26 @@ def _checar_trigger() -> str | None:
     return None
 
 
+def _carregar_env() -> dict:
+    """Carrega variáveis do .env do projeto tarifas."""
+    env = os.environ.copy()
+    env_path = os.path.join(SCRIPT_DIR, "..", "tarifas", ".env")
+    if os.path.exists(env_path):
+        with open(env_path, encoding="utf-8") as f:
+            for linha in f:
+                linha = linha.strip()
+                if linha and not linha.startswith("#") and "=" in linha:
+                    chave, valor = linha.split("=", 1)
+                    env[chave.strip()] = valor.strip()
+    return env
+
+
 def _executar_download():
     print("▶ Iniciando baixar_faturas_lexdash.py ...")
     resultado = subprocess.run(
         [sys.executable, SCRIPT_BAIXAR],
         cwd=SCRIPT_DIR,
+        env=_carregar_env(),
     )
     if resultado.returncode == 0:
         print("✓ Download concluído com sucesso.")
