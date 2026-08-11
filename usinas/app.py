@@ -1,10 +1,12 @@
 import os
 import tempfile
 
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file, abort
 
 import db
+import ia
 import importador
+import atualizar_lexdash
 
 app = Flask(__name__)
 app.secret_key = "usinas-dashboard-2026"
@@ -55,8 +57,8 @@ def _somar(linhas, campos):
 
 def _totais_usina(por_usina):
     t = _somar(por_usina, [
-        "total_ucs", "consumo_total", "compensado_total", "valor_a_receber_total",
-        "valor_pago", "valor_atrasado", "valor_aberto", "qtd_atrasados", "qtd_emissao_pendente",
+        "total_ucs", "consumo_total", "compensado_total", "geracao_prevista_kwh", "geracao_realizada_kwh",
+        "valor_a_receber_total", "valor_pago", "valor_atrasado", "valor_aberto", "qtd_atrasados", "qtd_emissao_pendente",
     ])
     t["aproveitamento"] = (t["compensado_total"] / t["consumo_total"]) if t["consumo_total"] else None
     base = t["valor_atrasado"] + t["valor_pago"]
@@ -73,7 +75,7 @@ def _totais_concessionaria(por_concessionaria):
 
 def periodo_atual(padrao=None):
     periodos = db.get_periodos()
-    p = request.args.get("periodo") or padrao
+    p = request.values.get("periodo") or padrao
     if p and p in periodos:
         return p, periodos
     return (periodos[0] if periodos else None), periodos
@@ -90,15 +92,22 @@ def index():
     por_concessionaria = db.resumo_por_concessionaria(periodo)
     kpis = db.portfolio_kpis_mais_recente()
 
-    geracao_prevista = [dict(r) for r in db.portfolio_serie_mensal("Geracao Prevista")]
-    geracao_real = [dict(r) for r in db.portfolio_serie_mensal("Geracao Realizada")]
+    nomes_todas = [r["usina"] for r in por_usina]
+    nomes_operacao = [r["usina"] for r in por_usina if r["total_ucs"]]
+    nomes_sem_clientes = [r["usina"] for r in por_usina if not r["total_ucs"]]
+    series_geracao_por_status = {
+        "todas": db.serie_mensal_geracao_por_usinas(nomes_todas),
+        "operacao": db.serie_mensal_geracao_por_usinas(nomes_operacao),
+        "sem-clientes": db.serie_mensal_geracao_por_usinas(nomes_sem_clientes),
+    }
 
     return render_template(
         "dashboard.html",
         periodo=periodo, periodos=periodos,
         resumo=resumo, por_usina=por_usina, por_concessionaria=por_concessionaria,
+        series_geracao_por_status=series_geracao_por_status,
         totais_usina=_totais_usina(por_usina), totais_concessionaria=_totais_concessionaria(por_concessionaria),
-        kpis=kpis, geracao_prevista=geracao_prevista, geracao_real=geracao_real,
+        kpis=kpis,
     )
 
 
@@ -143,6 +152,63 @@ def clientes_problematicos():
     )
 
 
+@app.route("/chat", methods=["GET", "POST"])
+def chat():
+    periodo, periodos = periodo_atual()
+    historico = session.get("chat_historico", [])
+    if request.method == "POST":
+        pergunta = request.form.get("pergunta", "").strip()
+        if pergunta:
+            resposta = ia.perguntar(pergunta, historico=historico, periodo=periodo)
+            historico.append({"role": "user", "content": pergunta})
+            historico.append({"role": "assistant", "content": resposta})
+            session["chat_historico"] = historico[-20:]
+    return render_template(
+        "chat.html", periodo=periodo, periodos=periodos,
+        historico=session.get("chat_historico", []),
+    )
+
+
+@app.route("/chat/limpar", methods=["POST"])
+def limpar_chat():
+    session.pop("chat_historico", None)
+    return redirect(url_for("chat"))
+
+
+@app.route("/atualizar", methods=["POST"])
+def atualizar():
+    try:
+        caminho = atualizar_lexdash.baixar_relatorio()
+        resultado = importador.parse_relatorio_completo(caminho)
+        db.salvar_importacao(resultado, os.path.basename(caminho))
+        flash(
+            f"Dados atualizados a partir do LexDash: {len(resultado['faturas'])} faturas, "
+            f"{len(resultado['rateios'])} rateios (período {resultado['periodo_dominante']}).",
+            "success",
+        )
+    except RuntimeError as e:
+        flash(str(e), "danger")
+    except Exception as e:
+        flash(f"Erro ao atualizar: {e}", "danger")
+    return redirect(url_for("index"))
+
+
+@app.route("/insights", methods=["GET", "POST"])
+def insights():
+    periodo, periodos = periodo_atual()
+    relatorio = session.get("insights_relatorio")
+    relatorio_periodo = session.get("insights_periodo")
+    if request.method == "POST":
+        relatorio = ia.gerar_insights(periodo)
+        session["insights_relatorio"] = relatorio
+        session["insights_periodo"] = periodo
+        relatorio_periodo = periodo
+    return render_template(
+        "insights.html", periodo=periodo, periodos=periodos,
+        relatorio=relatorio, relatorio_periodo=relatorio_periodo,
+    )
+
+
 @app.route("/upload", methods=["GET", "POST"])
 def upload():
     if request.method == "POST":
@@ -174,7 +240,108 @@ def upload():
     return render_template("upload.html", importacoes=db.get_importacoes())
 
 
+@app.route("/pdf")
+def servir_pdf():
+    """Serve um PDF local pelo caminho passado em ?path=... (somente dentro de PASTA_CALCULOS)."""
+    PASTA_CALCULOS = r"D:\Alexandria\OneDrive - Alexandria Industria de Geradores SA\Calculos Tarifas"
+    caminho = request.args.get("path", "")
+    caminho_abs = os.path.abspath(caminho)
+    # Segurança: só serve arquivos dentro da pasta de cálculos e com extensão .pdf
+    if not caminho_abs.startswith(os.path.abspath(PASTA_CALCULOS)):
+        abort(403)
+    if not caminho_abs.lower().endswith(".pdf"):
+        abort(403)
+    if not os.path.isfile(caminho_abs):
+        abort(404)
+    return send_file(caminho_abs, mimetype="application/pdf")
+
+
+@app.route("/extrair-pendente")
+def extrair_pendente():
+    """
+    Rota acionada pelo botão Editar do /revisar (Railway).
+    1. Busca dados do pendente no Railway (pdf_path).
+    2. Lê o PDF local e chama extrator.extrair_fatura().
+    3. Envia o extraido_json atualizado de volta ao Railway.
+    4. Redireciona para /revisar/<id>/editar já com os dados frescos.
+    """
+    import sys
+    import json
+    import requests
+
+    pendente_id = request.args.get("id", "").strip()
+    if not pendente_id:
+        return "Parâmetro 'id' obrigatório", 400
+
+    SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
+    TARIFAS_DIR  = os.path.join(SCRIPT_DIR, "..", "tarifas")
+    RAILWAY_URL  = "https://alexandria-tarifas-production.up.railway.app"
+
+    # Lê ADMIN_TOKEN do .env de tarifas
+    ADMIN_TOKEN = ""
+    env_path = os.path.join(TARIFAS_DIR, ".env")
+    if os.path.exists(env_path):
+        with open(env_path, encoding="utf-8") as _f:
+            for _linha in _f:
+                _linha = _linha.strip()
+                if _linha.startswith("ADMIN_TOKEN="):
+                    ADMIN_TOKEN = _linha.split("=", 1)[1].strip()
+                if _linha.startswith("ANTHROPIC_API_KEY="):
+                    os.environ.setdefault("ANTHROPIC_API_KEY", _linha.split("=", 1)[1].strip())
+
+    headers = {"X-Admin-Token": ADMIN_TOKEN}
+
+    # 1. Busca pendente no Railway
+    try:
+        resp = requests.get(f"{RAILWAY_URL}/api/pendentes/{pendente_id}", headers=headers, timeout=15)
+    except Exception as e:
+        return f"Erro ao buscar pendente: {e}", 502
+    if resp.status_code == 404:
+        return redirect(f"{RAILWAY_URL}/revisar/{pendente_id}/editar")
+    if not resp.ok:
+        return f"Erro Railway: {resp.status_code} {resp.text}", 502
+
+    p = resp.json()
+    pdf_path = p.get("pdf_path", "")
+
+    if not pdf_path or not os.path.isfile(pdf_path):
+        # Sem PDF local: abre o formulário com o que já tem
+        return redirect(f"{RAILWAY_URL}/revisar/{pendente_id}/editar")
+
+    # 2. Importa extrator de tarifas/ e roda extração
+    if TARIFAS_DIR not in sys.path:
+        sys.path.insert(0, TARIFAS_DIR)
+    try:
+        import extrator  # noqa: E402 (importação tardia intencional)
+    except ImportError as e:
+        return f"extrator.py não encontrado: {e}", 500
+
+    with open(pdf_path, "rb") as _f:
+        pdf_bytes = _f.read()
+
+    try:
+        extraido = extrator.extrair_fatura(pdf_bytes)
+    except Exception as e:
+        # Extração falhou — abre o form com o que havia
+        app.logger.warning(f"Extração falhou para pendente {pendente_id}: {e}")
+        return redirect(f"{RAILWAY_URL}/revisar/{pendente_id}/editar")
+
+    # 3. Atualiza extraido_json no Railway
+    try:
+        requests.post(
+            f"{RAILWAY_URL}/api/pendentes/{pendente_id}/set-extraido",
+            json={"extraido_json": extraido},
+            headers=headers,
+            timeout=15,
+        )
+    except Exception as e:
+        app.logger.warning(f"Falha ao salvar extraido no Railway: {e}")
+
+    # 4. Redireciona para edição (Railway usará o extraido_json recém-atualizado)
+    return redirect(f"{RAILWAY_URL}/revisar/{pendente_id}/editar")
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5002))
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"
-    app.run(host="0.0.0.0", port=port, debug=debug)
+    app.run(host="0.0.0.0", port=port, debug=debug, threaded=True)
