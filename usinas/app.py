@@ -1,3 +1,4 @@
+import importlib
 import os
 import tempfile
 import threading
@@ -398,22 +399,24 @@ def _executar_preencher():
         _GRAVAR_STATUS.update({"estado": "ok", "log": "Nenhum item aprovado aguardando preenchimento.", "ts": time.time()})
         return
 
-    _GRAVAR_STATUS["log"] = f"{len(itens)} item(ns) aprovado(s). Abrindo LexDash…"
+    log_lines: list = [f"{len(itens)} item(ns) aprovado(s). Abrindo LexDash…"]
+    _GRAVAR_STATUS["log"] = log_lines[0]
+
+    def _log_fn(msg: str):
+        log_lines.append(msg)
+        _GRAVAR_STATUS["log"] = "\n".join(log_lines[-20:])
 
     # Importa preencher_lexdash do mesmo diretório
     if SCRIPT_DIR not in sys.path:
         sys.path.insert(0, SCRIPT_DIR)
 
-    # Captura prints do preencher para o log
-    import io, contextlib
-    buf = io.StringIO()
     try:
         import preencher_lexdash
-        with contextlib.redirect_stdout(buf):
-            preencher_lexdash.preencher(itens, dry_run=False, debug=False)
-        _GRAVAR_STATUS.update({"estado": "ok", "log": buf.getvalue(), "ts": time.time()})
+        importlib.reload(preencher_lexdash)
+        preencher_lexdash.preencher(itens, dry_run=False, debug=False, log_fn=_log_fn)
+        _GRAVAR_STATUS.update({"estado": "ok", "log": "\n".join(log_lines), "ts": time.time()})
     except Exception as e:
-        _GRAVAR_STATUS.update({"estado": "erro", "log": buf.getvalue() + f"\n\nERRO: {e}", "ts": time.time()})
+        _GRAVAR_STATUS.update({"estado": "erro", "log": "\n".join(log_lines) + f"\n\nERRO: {e}", "ts": time.time()})
 
 
 def _fatura_para_item_lex(f: dict) -> dict:
@@ -488,20 +491,39 @@ def gravar_fatura_endpoint():
 
     _GRAVAR_STATUS.update({"estado": "rodando", "log": f"Gravando {item['distribuidora']} {item['mes_lex']}…", "ts": time.time()})
 
+    log_lines: list = []
+
+    def _log_fn(msg: str):
+        log_lines.append(msg)
+        _GRAVAR_STATUS["log"] = "\n".join(log_lines[-20:])  # últimas 20 linhas
+
     def _run():
-        import sys, io, contextlib
+        import sys
         if SCRIPT_DIR not in sys.path:
             sys.path.insert(0, SCRIPT_DIR)
-        buf = io.StringIO()
         try:
             import preencher_lexdash
-            with contextlib.redirect_stdout(buf):
-                preencher_lexdash.preencher([item], dry_run=False, debug=False)
-            _GRAVAR_STATUS.update({"estado": "ok", "log": buf.getvalue(), "ts": time.time()})
+            importlib.reload(preencher_lexdash)
+            preencher_lexdash.preencher([item], dry_run=False, debug=False, log_fn=_log_fn)
+            _GRAVAR_STATUS.update({"estado": "ok", "log": "\n".join(log_lines), "ts": time.time()})
         except Exception as e:
-            _GRAVAR_STATUS.update({"estado": "erro", "log": buf.getvalue() + f"\n\nERRO: {e}", "ts": time.time()})
+            _GRAVAR_STATUS.update({"estado": "erro", "log": "\n".join(log_lines) + f"\n\nERRO: {e}", "ts": time.time()})
 
-    threading.Thread(target=_run, daemon=True).start()
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+
+    # Timeout de segurança: 4 minutos — marca erro se ainda rodando
+    def _timeout():
+        if _GRAVAR_STATUS.get("estado") == "rodando":
+            _GRAVAR_STATUS.update({"estado": "erro", "log": "\n".join(log_lines) + "\n\nERRO: Timeout (>4 min). Verifique se a sessão do LexDash está válida.", "ts": time.time()})
+    threading.Timer(240, _timeout).start()
+
+    return jsonify({"ok": True})
+
+
+@app.route("/gravar-lexdash/reset", methods=["POST"])
+def gravar_lexdash_reset():
+    _GRAVAR_STATUS.update({"estado": "idle", "log": "", "ts": time.time()})
     return jsonify({"ok": True})
 
 

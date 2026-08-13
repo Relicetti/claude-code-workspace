@@ -77,13 +77,13 @@ def _abrir_card_usina(pagina):
     for sel in ["text=Atualizacao de tarifas usina", "text=Atualização de tarifas usina"]:
         loc = pagina.locator(sel).first
         if loc.count() > 0:
-            loc.click()
+            loc.click(timeout=5000)
             pagina.wait_for_timeout(2000)
             return
     # fallback: 3º card
     cards = pagina.locator(".card, [class*='card']").all()
     if len(cards) >= 3:
-        cards[2].click()
+        cards[2].click(timeout=5000)
         pagina.wait_for_timeout(2000)
     else:
         raise RuntimeError("Card 'Atualizacao de tarifas usina' não encontrado.")
@@ -105,8 +105,8 @@ def _selecionar_mes(pagina, mes_lex: str):
         loc = pagina.locator(sel).first
         if loc.count() > 0:
             try:
-                loc.triple_click()
-                loc.type(mes_lex)
+                loc.click(timeout=5000, click_count=3)
+                loc.type(mes_lex, delay=50)
                 break
             except Exception:
                 continue
@@ -115,7 +115,7 @@ def _selecionar_mes(pagina, mes_lex: str):
     for sel in ["button:has-text('Ir')", "input[value='Ir']", "text=Ir"]:
         btn = pagina.locator(sel).first
         if btn.count() > 0:
-            btn.click()
+            btn.click(timeout=5000)
             pagina.wait_for_timeout(3000)
             return
 
@@ -139,16 +139,15 @@ def _marcar_checkbox_tipo(pagina, tipo: str):
     Marca o checkbox de tipo no topo da grade.
     tipo: 'GD2' | 'CacauShow' | 'GD1' (GD1 = nenhum)
     """
+    TO = 3000  # timeout curto para checkboxes opcionais
     if tipo == "GD1":
         # Garante que nenhum checkbox de tipo está marcado
         for lbl in ["TARIFA GD2", "TARIFA CACAU SHOW"]:
-            cb = pagina.locator(f"label:has-text('{lbl}') input, input[type='checkbox']").filter(
-                has_text=""
-            )
+            cb = pagina.locator(f"label:has-text('{lbl}') input[type='checkbox']")
             for el in cb.all():
                 try:
-                    if el.is_checked():
-                        el.uncheck()
+                    if el.is_checked(timeout=TO):
+                        el.uncheck(timeout=TO)
                 except Exception:
                     pass
         return
@@ -161,81 +160,150 @@ def _marcar_checkbox_tipo(pagina, tipo: str):
     if not texto:
         return
 
-    # Procura checkbox próximo ao label
     cb = pagina.locator(f"text={texto}").locator("..").locator("input[type='checkbox']").first
     if cb.count() == 0:
         cb = pagina.locator(f"label:has-text('{texto}') input[type='checkbox']").first
-    if cb.count() > 0 and not cb.is_checked():
-        cb.check()
-        pagina.wait_for_timeout(500)
+    try:
+        if cb.count() > 0 and not cb.is_checked(timeout=TO):
+            cb.check(timeout=TO)
+            pagina.wait_for_timeout(500)
+    except Exception:
+        pass
 
 
-def _preencher_linha(pagina, distribuidora: str, usinas: list, valor: float):
+def _preencher_linha(pagina, distribuidora: str, usinas: list, valor: float, log_fn=None):
     """
     Encontra a linha da distribuidora no grid, marca os checkboxes e preenche o valor
     nas colunas de usina correspondentes.
     Retorna True se preencheu ao menos uma célula.
     """
+    TO = 5000
+
+    def _warn(msg):
+        try:
+            print(f"  !! {msg}")
+        except Exception:
+            pass
+        if log_fn:
+            log_fn(f"!! {msg}")
+
     # Localiza a linha por texto da distribuidora
     linha = pagina.locator(f"tr:has-text('{distribuidora}')").first
     if linha.count() == 0:
-        print(f"  ⚠️  Linha '{distribuidora}' não encontrada no grid.")
+        _warn(f"Linha '{distribuidora}' nao encontrada no grid.")
         return False
 
     preencheu = False
-    valor_str = f"{valor:.6f}"
+    valor_str = f"{valor:.6f}".replace(".", ",")
 
     for usina_id in usinas:
         usina_id = str(usina_id).strip()
 
-        # Cada coluna de usina tem um cabeçalho com o número da usina
-        # Descobre o índice da coluna pelo cabeçalho da tabela
         th_cols = pagina.locator("thead tr th").all()
         col_idx = None
         for i, th in enumerate(th_cols):
-            th_texto = th.inner_text().strip()
-            # Cabeçalho pode ser "USINAS ALEXANDRIA 1 (101)" ou "EDP (5)"
+            try:
+                th_texto = th.inner_text(timeout=TO).strip()
+            except Exception:
+                th_texto = ""
             if f"({usina_id})" in th_texto:
                 col_idx = i
                 break
 
         if col_idx is None:
-            print(f"  ⚠️  Coluna usina {usina_id} não encontrada.")
+            _warn(f"Coluna usina {usina_id} nao encontrada.")
             continue
 
-        # Pega a célula na linha e coluna correta
         tds = linha.locator("td").all()
         if col_idx >= len(tds):
-            print(f"  ⚠️  Coluna {col_idx} fora do range (linha tem {len(tds)} colunas).")
+            _warn(f"Coluna {col_idx} fora do range (linha tem {len(tds)} colunas).")
             continue
 
         td = tds[col_idx]
 
-        # Marca o checkbox dentro da célula
-        cb = td.locator("input[type='checkbox']").first
-        if cb.count() > 0 and not cb.is_checked():
-            cb.check()
-            pagina.wait_for_timeout(200)
+        # Marca checkbox via native checked setter (igual ao que funciona no input)
+        try:
+            cb = td.locator("input[type='checkbox']").first
+            if cb.count() > 0:
+                cb_el = cb.element_handle(timeout=TO)
+                if cb_el:
+                    pagina.evaluate("""
+                        el => {
+                            const setter = Object.getOwnPropertyDescriptor(
+                                window.HTMLInputElement.prototype, 'checked'
+                            ).set;
+                            setter.call(el, true);
+                            el.dispatchEvent(new Event('input',  {bubbles: true}));
+                            el.dispatchEvent(new Event('change', {bubbles: true}));
+                            el.dispatchEvent(new Event('click',  {bubbles: true}));
+                        }
+                    """, cb_el)
+                    pagina.wait_for_timeout(800)
+        except Exception as e:
+            _warn(f"Erro ao marcar checkbox usina {usina_id}: {e}")
 
-        # Preenche o input de valor
-        inp = td.locator("input[type='text'], input[type='number'], input:not([type='checkbox'])").first
-        if inp.count() > 0:
-            inp.triple_click()
-            inp.fill(valor_str)
-            preencheu = True
+        # Preenche o input via JavaScript (necessário para apps React)
+        try:
+            inp = td.locator("input[inputmode='decimal'], input:not([type='checkbox'])").first
+            if inp.count() > 0:
+                inp_el = inp.element_handle(timeout=TO)
+                if inp_el:
+                    pagina.evaluate("""
+                        ([el, val]) => {
+                            el.focus();
+                            el.click();
+                            const setter = Object.getOwnPropertyDescriptor(
+                                window.HTMLInputElement.prototype, 'value'
+                            ).set;
+                            setter.call(el, val);
+                            el.dispatchEvent(new Event('input',  {bubbles: true}));
+                            el.dispatchEvent(new Event('change', {bubbles: true}));
+                            el.dispatchEvent(new Event('blur',   {bubbles: true}));
+                        }
+                    """, [inp_el, valor_str])
+                    preencheu = True
+        except Exception as e:
+            _warn(f"Erro ao preencher usina {usina_id}: {e}")
 
     return preencheu
 
 
-def _salvar(pagina):
+def _salvar(pagina, log_fn=None):
     """Clica no botão Salvar e aguarda confirmação."""
-    for sel in ["button:has-text('Salvar')", "input[value='Salvar']", "text=Salvar"]:
+    def _warn(msg):
+        try: print(msg)
+        except Exception: pass
+        if log_fn: log_fn(msg)
+
+    # Loga todos os botões visíveis para diagnóstico
+    try:
+        btns = pagina.locator("button").all()
+        textos = []
+        for b in btns:
+            try: textos.append(b.inner_text(timeout=1000).strip())
+            except Exception: pass
+        _warn(f"Botoes na pagina: {textos}")
+    except Exception:
+        pass
+
+    for sel in [
+        "button:has-text('Salvar')",
+        "button:has-text('salvar')",
+        "button:has-text('SALVAR')",
+        "input[value='Salvar']",
+        "input[value='SALVAR']",
+    ]:
         btn = pagina.locator(sel).first
         if btn.count() > 0:
-            btn.click()
-            pagina.wait_for_timeout(3000)
-            return
-    print("  ⚠️  Botão Salvar não encontrado.")
+            try:
+                btn.click(timeout=5000, force=True)
+                pagina.wait_for_timeout(3000)
+                _warn("Salvar clicado.")
+                return
+            except Exception as e:
+                _warn(f"Erro ao clicar Salvar ({sel}): {e}")
+
+    _warn("!! Botao Salvar nao encontrado — verifique os nomes acima.")
 
 
 def _tipo_passagem(item: dict) -> str:
@@ -248,7 +316,19 @@ def _tipo_passagem(item: dict) -> str:
     return "GD1"
 
 
-def preencher(itens: list[dict], dry_run=False, debug=False):
+def preencher(itens: list[dict], dry_run=False, debug=False, log_fn=None):
+    """
+    log_fn(msg): callback chamado a cada etapa — útil para atualizar status em tempo real.
+    Se None, apenas printa.
+    """
+    def _log(msg: str):
+        try:
+            print(msg)
+        except Exception:
+            pass
+        if log_fn:
+            log_fn(msg)
+
     if not os.path.exists(ARQUIVO_SESSAO):
         raise RuntimeError("Sessão não encontrada. Rode login_lexdash.py primeiro.")
 
@@ -259,42 +339,62 @@ def preencher(itens: list[dict], dry_run=False, debug=False):
         tipo = _tipo_passagem(item)
         por_mes.setdefault(mes, {}).setdefault(tipo, []).append(item)
 
-    print(f"\nMeses a preencher: {list(por_mes.keys())}")
+    _log(f"Meses: {list(por_mes.keys())}")
     for mes, tipos in por_mes.items():
         for tipo, its in tipos.items():
-            print(f"  {mes} | {tipo}: {len(its)} distribuidora(s)")
+            _log(f"  {mes} | {tipo}: {len(its)} distribuidora(s)")
 
     if dry_run:
-        print("\n[dry-run] Nada preenchido.")
+        _log("[dry-run] Nada preenchido.")
         return
 
+    _log("Abrindo Chrome…")
+
+    # Abre visível com Chrome instalado + maximiza via PowerShell
     with sync_playwright() as p:
-        navegador = p.chromium.launch(headless=not debug, channel="chrome")
-        contexto  = navegador.new_context(storage_state=ARQUIVO_SESSAO)
-        pagina    = contexto.new_page()
+        navegador = p.chromium.launch(
+            headless=False,
+            channel="chrome",
+            args=["--force-device-scale-factor=1"],
+        )
+        contexto = navegador.new_context(storage_state=ARQUIVO_SESSAO, viewport=None)
+        pagina   = contexto.new_page()
 
-        pagina.goto(URL_ATUALIZACOES)
-        pagina.wait_for_load_state("domcontentloaded", timeout=30000)
-        pagina.wait_for_timeout(2000)
 
-        if "login" in pagina.url.lower():
-            raise RuntimeError("Sessão expirada. Rode login_lexdash.py de novo.")
+        _log(f"Navegando para {URL_ATUALIZACOES}…")
+        pagina.goto(URL_ATUALIZACOES, timeout=20000, wait_until="domcontentloaded")
+        pagina.wait_for_timeout(1000)
+        # Maximiza e reseta zoom via JS
+        pagina.evaluate("""() => {
+            window.moveTo(0, 0);
+            window.resizeTo(screen.availWidth, screen.availHeight);
+        }""")
+        pagina.keyboard.press("Control+0")
+        pagina.wait_for_timeout(500)
 
+        url_atual = pagina.url.lower()
+        if "login" in url_atual or "signin" in url_atual or "auth" in url_atual:
+            navegador.close()
+            raise RuntimeError("Sessao expirada. Rode login_lexdash.py de novo.")
+        if "fatger" not in url_atual and "atualizacao" not in url_atual:
+            navegador.close()
+            raise RuntimeError(f"URL inesperada: {pagina.url}")
+
+        _log("Abrindo card de tarifas…")
         _abrir_card_usina(pagina)
         _aguardar_grid(pagina)
 
         for mes_lex, tipos in por_mes.items():
-            print(f"\n── Mês {mes_lex} ──")
+            _log(f"Mes {mes_lex}…")
             _selecionar_mes(pagina, mes_lex)
             _aguardar_grid(pagina)
 
-            # Ordem: GD1, GD2, CacauShow — cada um com seu Salvar
             for tipo in ["GD1", "GD2", "CacauShow"]:
                 its = tipos.get(tipo, [])
                 if not its:
                     continue
 
-                print(f"  Passagem {tipo} ({len(its)} itens)")
+                _log(f"Preenchendo {tipo} ({len(its)} item(s))…")
                 _marcar_checkbox_tipo(pagina, tipo)
 
                 algum = False
@@ -304,24 +404,51 @@ def preencher(itens: list[dict], dry_run=False, debug=False):
                         usinas = [u.strip() for u in usinas.split(",")]
                     tarifa = item.get("tarifa_geracao")
                     if not tarifa:
-                        print(f"  ⚠️  {item['distribuidora']}: sem tarifa_geracao, pulando.")
+                        _log(f"Sem tarifa: {item['distribuidora']}, pulando.")
                         continue
-                    print(f"    {item['distribuidora']} → usinas {usinas} → {tarifa:.6f}")
-                    ok = _preencher_linha(pagina, item["distribuidora"], usinas, tarifa)
+                    _log(f"{item['distribuidora']} -> usinas {usinas} -> {tarifa:.6f}")
+                    ok = _preencher_linha(pagina, item["distribuidora"], usinas, tarifa, log_fn=log_fn)
                     if ok:
                         algum = True
+                        # Rola a linha preenchida para o centro da tela
+                        try:
+                            linha = pagina.locator(f"tr:has-text('{item['distribuidora']}')").first
+                            linha.scroll_into_view_if_needed(timeout=3000)
+                            pagina.wait_for_timeout(300)
+                        except Exception:
+                            pass
 
                 if algum:
-                    _salvar(pagina)
-                    print(f"  ✓ Salvo ({tipo})")
+                    # Detecta Salvar via rede: aguarda o usuário clicar
+                    _log(f"Marque o checkbox e clique Salvar no browser.")
 
-                    # Marca preenchidos na API
-                    for item in its:
-                        if item.get("id"):
-                            _marcar_preenchido(item["id"])
+                    salvo = {"ok": False}
+
+                    def _on_response(resp):
+                        if resp.status < 400 and resp.request.method in ("POST", "PUT", "PATCH"):
+                            if any(k in resp.url for k in ("tarifa", "salvar", "save", "update", "fat")):
+                                salvo["ok"] = True
+
+                    pagina.on("response", _on_response)
+
+                    # Aguarda até 5 minutos pelo Salvar
+                    for _ in range(150):
+                        pagina.wait_for_timeout(2000)
+                        if salvo["ok"]:
+                            break
+
+                    pagina.remove_listener("response", _on_response)
+
+                    if salvo["ok"]:
+                        _log(f"Salvo detectado ({tipo}).")
+                        for item in its:
+                            if item.get("id"):
+                                _marcar_preenchido(item["id"])
+                    else:
+                        _log(f"Timeout aguardando Salvar ({tipo}).")
 
         navegador.close()
-        print("\n✓ Preenchimento concluído.")
+        _log("Concluido.")
 
 
 def principal():
