@@ -1,7 +1,9 @@
 import os
 import tempfile
+import threading
+import time
 
-from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file, abort
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file, abort, jsonify
 
 import db
 import ia
@@ -339,6 +341,79 @@ def extrair_pendente():
 
     # 4. Redireciona para edição (Railway usará o extraido_json recém-atualizado)
     return redirect(f"{RAILWAY_URL}/revisar/{pendente_id}/editar")
+
+
+# ── Gravar no LexDash ─────────────────────────────────────────────────────────
+
+_GRAVAR_STATUS = {"estado": "idle", "log": "", "ts": 0}  # estado global do job
+
+
+def _executar_preencher():
+    """Roda preencher_lexdash.preencher() em background e atualiza _GRAVAR_STATUS."""
+    import sys, requests as _req
+
+    SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
+    TARIFAS_DIR = os.path.join(SCRIPT_DIR, "..", "tarifas")
+
+    # Carrega env (ADMIN_TOKEN + ANTHROPIC_API_KEY)
+    env_path = os.path.join(TARIFAS_DIR, ".env")
+    if os.path.exists(env_path):
+        with open(env_path, encoding="utf-8") as _f:
+            for _linha in _f:
+                _linha = _linha.strip()
+                if _linha and not _linha.startswith("#") and "=" in _linha:
+                    _k, _v = _linha.split("=", 1)
+                    os.environ.setdefault(_k.strip(), _v.strip())
+
+    TARIFAS_API_URL = "https://alexandria-tarifas-production.up.railway.app"
+    ADMIN_TOKEN     = os.environ.get("ADMIN_TOKEN", "")
+    headers         = {"X-Admin-Token": ADMIN_TOKEN} if ADMIN_TOKEN else {}
+
+    # Busca aprovados
+    try:
+        resp = _req.get(f"{TARIFAS_API_URL}/api/pendentes/aprovados", headers=headers, timeout=15)
+        resp.raise_for_status()
+        itens = resp.json()
+    except Exception as e:
+        _GRAVAR_STATUS.update({"estado": "erro", "log": f"Erro ao buscar aprovados: {e}", "ts": time.time()})
+        return
+
+    if not itens:
+        _GRAVAR_STATUS.update({"estado": "ok", "log": "Nenhum item aprovado aguardando preenchimento.", "ts": time.time()})
+        return
+
+    _GRAVAR_STATUS["log"] = f"{len(itens)} item(ns) aprovado(s). Abrindo LexDash…"
+
+    # Importa preencher_lexdash do mesmo diretório
+    if SCRIPT_DIR not in sys.path:
+        sys.path.insert(0, SCRIPT_DIR)
+
+    # Captura prints do preencher para o log
+    import io, contextlib
+    buf = io.StringIO()
+    try:
+        import preencher_lexdash
+        with contextlib.redirect_stdout(buf):
+            preencher_lexdash.preencher(itens, dry_run=False, debug=False)
+        _GRAVAR_STATUS.update({"estado": "ok", "log": buf.getvalue(), "ts": time.time()})
+    except Exception as e:
+        _GRAVAR_STATUS.update({"estado": "erro", "log": buf.getvalue() + f"\n\nERRO: {e}", "ts": time.time()})
+
+
+@app.route("/gravar-lexdash", methods=["POST"])
+def gravar_lexdash():
+    """Dispara o preenchimento do LexDash em background e retorna imediatamente."""
+    if _GRAVAR_STATUS.get("estado") == "rodando":
+        return jsonify({"ok": False, "msg": "Já está rodando."}), 409
+    _GRAVAR_STATUS.update({"estado": "rodando", "log": "Iniciando…", "ts": time.time()})
+    t = threading.Thread(target=_executar_preencher, daemon=True)
+    t.start()
+    return jsonify({"ok": True})
+
+
+@app.route("/gravar-lexdash/status")
+def gravar_lexdash_status():
+    return jsonify(_GRAVAR_STATUS)
 
 
 if __name__ == "__main__":
