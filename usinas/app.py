@@ -13,6 +13,22 @@ import atualizar_lexdash
 app = Flask(__name__)
 app.secret_key = "usinas-dashboard-2026"
 
+# CORS: permite que páginas externas (Railway) chamem localhost:5002
+@app.after_request
+def _add_cors(response):
+    response.headers["Access-Control-Allow-Origin"]  = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Admin-Token"
+    return response
+
+@app.route("/gravar-fatura",        methods=["OPTIONS"])
+@app.route("/gravar-lexdash",       methods=["OPTIONS"])
+@app.route("/gravar-lexdash/status",methods=["OPTIONS"])
+@app.route("/extrair-pendente",     methods=["OPTIONS"])
+@app.route("/pdf",                  methods=["OPTIONS"])
+def _cors_preflight():
+    return "", 204
+
 db.init_db()
 
 
@@ -398,6 +414,95 @@ def _executar_preencher():
         _GRAVAR_STATUS.update({"estado": "ok", "log": buf.getvalue(), "ts": time.time()})
     except Exception as e:
         _GRAVAR_STATUS.update({"estado": "erro", "log": buf.getvalue() + f"\n\nERRO: {e}", "ts": time.time()})
+
+
+def _fatura_para_item_lex(f: dict) -> dict:
+    """Converte um dict de fatura do Railway para o formato que preencher_lexdash espera."""
+    import json as _json
+
+    # mes_referencia vem como "2026-08-01" ou "2026-08" → precisa virar "08-2026"
+    mes_ref = (f.get("mes_referencia") or "")[:7]  # "2026-08"
+    if len(mes_ref) == 7 and "-" in mes_ref:
+        ano, mes = mes_ref.split("-")
+        mes_lex = f"{mes}-{ano}"
+    else:
+        mes_lex = mes_ref
+
+    # usina_id pode ser "5", "5,6", "[5,6]" ou inteiro
+    usina_raw = str(f.get("usina_id") or "").strip().strip("[]")
+    usinas = [u.strip() for u in usina_raw.replace(";", ",").split(",") if u.strip()]
+
+    return {
+        "id":          None,          # sem ID de pendente → não marca preenchido na API
+        "distribuidora": f.get("distribuidora", ""),
+        "usinas":      _json.dumps(usinas),
+        "tarifa_geracao": f.get("tarifa_geracao"),
+        "mes_lex":     mes_lex,
+        "modalidade":  f.get("modalidade", ""),
+        "tipo_gd":     f.get("tipo_gd", "GD1"),
+    }
+
+
+@app.route("/gravar-fatura", methods=["POST"])
+def gravar_fatura_endpoint():
+    """Grava UMA fatura específica do dashboard no LexDash (via fatura_id no JSON body)."""
+    import requests as _req
+
+    data        = request.get_json(force=True) or {}
+    fatura_id   = data.get("fatura_id")
+    if not fatura_id:
+        return jsonify({"ok": False, "msg": "fatura_id obrigatório"}), 400
+
+    if _GRAVAR_STATUS.get("estado") == "rodando":
+        return jsonify({"ok": False, "msg": "Já está rodando outro preenchimento."}), 409
+
+    SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
+    TARIFAS_DIR  = os.path.join(SCRIPT_DIR, "..", "tarifas")
+    RAILWAY_URL  = "https://alexandria-tarifas-production.up.railway.app"
+
+    # Carrega env
+    env_path = os.path.join(TARIFAS_DIR, ".env")
+    ADMIN_TOKEN_VAL = ""
+    if os.path.exists(env_path):
+        with open(env_path, encoding="utf-8") as _f:
+            for _linha in _f:
+                _linha = _linha.strip()
+                if _linha.startswith("ADMIN_TOKEN="):
+                    ADMIN_TOKEN_VAL = _linha.split("=", 1)[1].strip()
+
+    headers = {"X-Admin-Token": ADMIN_TOKEN_VAL} if ADMIN_TOKEN_VAL else {}
+
+    # Busca fatura
+    try:
+        resp = _req.get(f"{RAILWAY_URL}/api/faturas/{fatura_id}", headers=headers, timeout=10)
+        resp.raise_for_status()
+        fatura = resp.json()
+    except Exception as e:
+        return jsonify({"ok": False, "msg": f"Erro ao buscar fatura: {e}"}), 502
+
+    item = _fatura_para_item_lex(fatura)
+    if not item["tarifa_geracao"]:
+        return jsonify({"ok": False, "msg": "Fatura sem tarifa_geracao calculada."}), 400
+    if not item["usinas"] or item["usinas"] == "[]":
+        return jsonify({"ok": False, "msg": "Fatura sem usina_id definido."}), 400
+
+    _GRAVAR_STATUS.update({"estado": "rodando", "log": f"Gravando {item['distribuidora']} {item['mes_lex']}…", "ts": time.time()})
+
+    def _run():
+        import sys, io, contextlib
+        if SCRIPT_DIR not in sys.path:
+            sys.path.insert(0, SCRIPT_DIR)
+        buf = io.StringIO()
+        try:
+            import preencher_lexdash
+            with contextlib.redirect_stdout(buf):
+                preencher_lexdash.preencher([item], dry_run=False, debug=False)
+            _GRAVAR_STATUS.update({"estado": "ok", "log": buf.getvalue(), "ts": time.time()})
+        except Exception as e:
+            _GRAVAR_STATUS.update({"estado": "erro", "log": buf.getvalue() + f"\n\nERRO: {e}", "ts": time.time()})
+
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({"ok": True})
 
 
 @app.route("/gravar-lexdash", methods=["POST"])
