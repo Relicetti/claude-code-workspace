@@ -134,44 +134,75 @@ def _aguardar_grid(pagina):
     pagina.wait_for_timeout(1000)
 
 
+def _react_check(pagina, cb_locator, checked: bool):
+    """Marca/desmarca um checkbox React via native setter (mesmo método do input de valor)."""
+    try:
+        el = cb_locator.element_handle(timeout=3000)
+        if el:
+            pagina.evaluate("""
+                ([el, val]) => {
+                    const setter = Object.getOwnPropertyDescriptor(
+                        window.HTMLInputElement.prototype, 'checked'
+                    ).set;
+                    setter.call(el, val);
+                    el.dispatchEvent(new Event('input',  {bubbles: true}));
+                    el.dispatchEvent(new Event('change', {bubbles: true}));
+                    el.dispatchEvent(new Event('click',  {bubbles: true}));
+                }
+            """, [el, checked])
+            pagina.wait_for_timeout(600)
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def _marcar_checkbox_tipo(pagina, tipo: str):
     """
-    Marca o checkbox de tipo no topo da grade.
-    tipo: 'GD2' | 'CacauShow' | 'GD1' (GD1 = nenhum)
+    Marca o checkbox de tipo no topo da grade via React native setter.
+    tipo: 'GD2' | 'CacauShow' | 'GD1' (GD1 = nenhum / desmarca os outros)
     """
-    TO = 3000  # timeout curto para checkboxes opcionais
     if tipo == "GD1":
-        # Garante que nenhum checkbox de tipo está marcado
-        for lbl in ["TARIFA GD2", "TARIFA CACAU SHOW"]:
-            cb = pagina.locator(f"label:has-text('{lbl}') input[type='checkbox']")
-            for el in cb.all():
-                try:
-                    if el.is_checked(timeout=TO):
-                        el.uncheck(timeout=TO)
-                except Exception:
-                    pass
+        for texto in ["TARIFA GD2", "TARIFA CACAU SHOW"]:
+            cb = pagina.locator(f"label:has-text('{texto}') input[type='checkbox']").first
+            if cb.count() == 0:
+                cb = pagina.locator(f"text={texto}").locator("..").locator("input[type='checkbox']").first
+            if cb.count() > 0:
+                _react_check(pagina, cb, False)
         return
 
-    label_map = {
-        "GD2":       "TARIFA GD2",
-        "CacauShow": "TARIFA CACAU SHOW",
-    }
+    label_map = {"GD2": "TARIFA GD2", "CacauShow": "TARIFA CACAU SHOW"}
     texto = label_map.get(tipo, "")
     if not texto:
         return
 
-    cb = pagina.locator(f"text={texto}").locator("..").locator("input[type='checkbox']").first
+    cb = pagina.locator(f"label:has-text('{texto}') input[type='checkbox']").first
     if cb.count() == 0:
-        cb = pagina.locator(f"label:has-text('{texto}') input[type='checkbox']").first
-    try:
-        if cb.count() > 0 and not cb.is_checked(timeout=TO):
-            cb.check(timeout=TO)
-            pagina.wait_for_timeout(500)
-    except Exception:
-        pass
+        cb = pagina.locator(f"text={texto}").locator("..").locator("input[type='checkbox']").first
+    if cb.count() > 0:
+        _react_check(pagina, cb, True)
 
 
-def _preencher_linha(pagina, distribuidora: str, usinas: list, valor: float, log_fn=None):
+def _escopo_modalidade(td, modalidade: str):
+    """
+    Algumas usinas (ex: 101/102/103 — geração remota) têm, dentro da MESMA
+    célula da tabela, dois sub-blocos independentes: um rotulado "GC"
+    (Geração Compartilhada) e outro "Autoconsumo", cada um com seu próprio
+    checkbox + campo de valor. Sem essa função, o código sempre pegava o
+    primeiro checkbox/input da célula (sempre o do "GC"), preenchendo a
+    modalidade errada quando a fatura era Autoconsumo.
+
+    Retorna o Locator do sub-bloco correto para a modalidade informada, ou
+    a própria célula (td) se ela não tiver essa divisão (usinas comuns).
+    """
+    texto_alvo = "Autoconsumo" if "autoconsumo" in (modalidade or "").lower() else "GC"
+    bloco = td.locator(f"xpath=.//span[normalize-space(text())='{texto_alvo}']/parent::div")
+    if bloco.count() > 0:
+        return bloco.first
+    return td
+
+
+def _preencher_linha(pagina, distribuidora: str, usinas: list, valor: float, modalidade: str = "", log_fn=None):
     """
     Encontra a linha da distribuidora no grid, marca os checkboxes e preenche o valor
     nas colunas de usina correspondentes.
@@ -220,10 +251,11 @@ def _preencher_linha(pagina, distribuidora: str, usinas: list, valor: float, log
             continue
 
         td = tds[col_idx]
+        escopo = _escopo_modalidade(td, modalidade)
 
         # Marca checkbox via native checked setter (igual ao que funciona no input)
         try:
-            cb = td.locator("input[type='checkbox']").first
+            cb = escopo.locator("input[type='checkbox']").first
             if cb.count() > 0:
                 cb_el = cb.element_handle(timeout=TO)
                 if cb_el:
@@ -244,7 +276,7 @@ def _preencher_linha(pagina, distribuidora: str, usinas: list, valor: float, log
 
         # Preenche o input via JavaScript (necessário para apps React)
         try:
-            inp = td.locator("input[inputmode='decimal'], input:not([type='checkbox'])").first
+            inp = escopo.locator("input[inputmode='decimal'], input:not([type='checkbox'])").first
             if inp.count() > 0:
                 inp_el = inp.element_handle(timeout=TO)
                 if inp_el:
@@ -406,8 +438,9 @@ def preencher(itens: list[dict], dry_run=False, debug=False, log_fn=None):
                     if not tarifa:
                         _log(f"Sem tarifa: {item['distribuidora']}, pulando.")
                         continue
-                    _log(f"{item['distribuidora']} -> usinas {usinas} -> {tarifa:.6f}")
-                    ok = _preencher_linha(pagina, item["distribuidora"], usinas, tarifa, log_fn=log_fn)
+                    modalidade = item.get("modalidade") or ""
+                    _log(f"{item['distribuidora']} -> usinas {usinas} -> {tarifa:.6f} ({modalidade or 'sem modalidade'})")
+                    ok = _preencher_linha(pagina, item["distribuidora"], usinas, tarifa, modalidade=modalidade, log_fn=log_fn)
                     if ok:
                         algum = True
                         # Rola a linha preenchida para o centro da tela
