@@ -92,6 +92,14 @@ function tightNorm(s: string): string {
 // ("Crucifixo Hammer Strength" contains the "crucifixo" alias) — never
 // substring before exact, or a short alias could wrongly match inside an
 // unrelated longer name.
+//
+// The substring passes deliberately check only `entry.aliases`, never
+// `entry.name` — aliases are curated phrases meant to be found inside a
+// longer equipment/brand-specific name, but the canonical name itself is
+// often short and generic ("Rosca direta", "Supino reto"). Including it here
+// let a genuinely different, more specific exercise ("Rosca direta unilateral
+// com halteres") collapse right back into the short name it merely starts
+// with — which showed up as a substitution "not changing" the exercise name.
 export function findLibraryMatch(rawName: string, library: ExerciseLibraryEntry[]): ExerciseLibraryEntry | null {
   const key = norm(rawName)
   const tightKey = tightNorm(rawName)
@@ -102,12 +110,10 @@ export function findLibraryMatch(rawName: string, library: ExerciseLibraryEntry[
     if (tightNorm(entry.name) === tightKey || entry.aliases.some(a => tightNorm(a) === tightKey)) return entry
   }
   for (const entry of library) {
-    const candidates = [entry.name, ...entry.aliases]
-    if (candidates.some(c => key.includes(norm(c)))) return entry
+    if (entry.aliases.some(a => key.includes(norm(a)))) return entry
   }
   for (const entry of library) {
-    const candidates = [entry.name, ...entry.aliases]
-    if (candidates.some(c => tightKey.includes(tightNorm(c)))) return entry
+    if (entry.aliases.some(a => tightKey.includes(tightNorm(a)))) return entry
   }
   return null
 }
