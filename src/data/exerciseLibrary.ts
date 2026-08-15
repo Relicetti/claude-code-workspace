@@ -17,7 +17,12 @@ export const BUILT_IN_EXERCISE_LIBRARY: ExerciseLibraryEntry[] = [
   { id: 'lib_puxada_aberta', name: 'Puxada frente aberta', muscleGroups: ['costas'], aliases: ['puxada frente pegada aberta', 'puxada frente/barra fixa', 'puxada aberta'] },
   { id: 'lib_puxada_neutra', name: 'Puxada pegada neutra', muscleGroups: ['costas'], aliases: ['puxada neutra'] },
   { id: 'lib_puxada_fechada', name: 'Puxada pegada fechada', muscleGroups: ['costas'], aliases: ['puxada máquina pegada fechada', 'puxada fechada'] },
-  { id: 'lib_barra_fixa', name: 'Barra fixa', muscleGroups: ['costas', 'biceps'], aliases: ['pull up', 'barra'] },
+  // "barra" alone isn't a safe alias here — it's also the generic word for
+  // "bar/barbell" used as a qualifier suffix all over this list ("remada
+  // barra", "rosca direta barra", "supino reto barra"), so it would wrongly
+  // swallow any of those into "Barra fixa" the moment it appears anywhere in
+  // a longer name (e.g. "Stiff barra livre").
+  { id: 'lib_barra_fixa', name: 'Barra fixa', muscleGroups: ['costas', 'biceps'], aliases: ['pull up'] },
   { id: 'lib_remada_baixa', name: 'Remada baixa', muscleGroups: ['costas'], aliases: ['remada máquina baixa', 'remada baixa cabo', 'remada baixa triângulo', 'puxada baixa triângulo (cabo)'] },
   { id: 'lib_remada_alta', name: 'Remada alta', muscleGroups: ['costas', 'trapezio'], aliases: ['remada máquina alta'] },
   { id: 'lib_remada_curvada', name: 'Remada curvada', muscleGroups: ['costas', 'biceps'], aliases: ['remada curvada/cavalinho', 'remada cavalinho', 'remada barra'] },
@@ -47,7 +52,11 @@ export const BUILT_IN_EXERCISE_LIBRARY: ExerciseLibraryEntry[] = [
   { id: 'lib_mergulho', name: 'Mergulho (dips)', muscleGroups: ['triceps', 'peito'], aliases: ['dips', 'paralelas'] },
 
   // Quadríceps
-  { id: 'lib_agachamento_livre', name: 'Agachamento livre', muscleGroups: ['quadriceps', 'posterior'], aliases: ['agachamento livre/smith', 'agachamento smith', 'agachamento'] },
+  // Same reasoning as "barra" above — bare "agachamento" is the generic word
+  // for "squat" and would wrongly swallow other squat variants that deserve
+  // to stay distinct (Bulgarian squat, sumô, etc.) the moment that word shows
+  // up anywhere in their name.
+  { id: 'lib_agachamento_livre', name: 'Agachamento livre', muscleGroups: ['quadriceps', 'posterior'], aliases: ['agachamento livre/smith', 'agachamento smith'] },
   { id: 'lib_leg_press', name: 'Leg press', muscleGroups: ['quadriceps', 'posterior'], aliases: ['leg press 45°', 'leg press 45', 'leg press horizontal'] },
   { id: 'lib_cadeira_extensora', name: 'Cadeira extensora', muscleGroups: ['quadriceps'], aliases: [] },
   { id: 'lib_afundo', name: 'Afundo', muscleGroups: ['quadriceps', 'posterior'], aliases: ['passada', 'lunge', 'avanço'] },
