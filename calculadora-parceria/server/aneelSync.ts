@@ -1,11 +1,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { db, setSyncMeta } from './db';
 import { parseNumeroBr, streamCsvRows } from './csvStream';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HEADERS = { 'User-Agent': 'Mozilla/5.0 (calculadora-parceria)' };
+
+// Cache local dos CSVs baixados da ANEEL — no volume persistente em produção (sobrevive a
+// redeploys), pra permitir retomar um download interrompido em vez de rebaixar tudo.
+const CACHE_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH
+  ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'aneel-cache')
+  : path.join(__dirname, 'data', 'aneel-cache');
 
 const TARIFAS_B1_URL =
   'https://dadosabertos.aneel.gov.br/dataset/5a583f3e-1646-4f67-bf0f-69db4203e89e/resource/fcf2906c-7c32-4b9b-a637-054e7a5234f4/download/tarifas-homologadas-distribuidoras-energia-eletrica.csv';
@@ -38,13 +46,61 @@ async function fetchComRetentativa(url: string): Promise<Response> {
   return res;
 }
 
+/** Baixa um arquivo pro cache local, retomando de onde parou via HTTP Range se uma
+ * tentativa anterior ficou incompleta (deploy no meio, queda de rede) — os CSVs da ANEEL
+ * somam centenas de MB, então uma sincronização interrompida não precisa rebaixar tudo de
+ * novo. Se o servidor não confirmar o range (responde 200 em vez de 206), cai pra baixar
+ * do zero normalmente. Se o arquivo já está completo no cache (mesmo tamanho do
+ * Content-Length), não baixa nada. */
+const IDADE_MAXIMA_CACHE_MS = 6 * 60 * 60 * 1000; // 6h — a ANEEL regera o CSV com data do dia
+// em toda linha, então um cache de dias atrás não é seguro de retomar (o arquivo "de hoje"
+// não é uma continuação do "de ontem", é outro conteúdo por completo).
+
+async function baixarComResumo(url: string, nomeArquivo: string): Promise<string> {
+  fs.mkdirSync(CACHE_DIR, { recursive: true });
+  const destino = path.join(CACHE_DIR, nomeArquivo);
+
+  if (fs.existsSync(destino)) {
+    const idadeMs = Date.now() - fs.statSync(destino).mtimeMs;
+    if (idadeMs > IDADE_MAXIMA_CACHE_MS) fs.unlinkSync(destino);
+  }
+  const bytesExistentes = fs.existsSync(destino) ? fs.statSync(destino).size : 0;
+
+  const head = await fetch(url, { method: 'HEAD', headers: HEADERS });
+  if (!head.ok) throw new Error(`Falha ao verificar ${url}: HTTP ${head.status}`);
+  const tamanhoTotal = Number(head.headers.get('content-length') ?? '0');
+
+  if (tamanhoTotal > 0 && bytesExistentes === tamanhoTotal) {
+    return destino; // já baixado por completo numa tentativa anterior — nada a fazer
+  }
+
+  const tentandoRetomar = bytesExistentes > 0 && bytesExistentes < tamanhoTotal;
+  const res = await fetch(url, {
+    headers: tentandoRetomar ? { ...HEADERS, Range: `bytes=${bytesExistentes}-` } : HEADERS,
+  });
+  if (!res.ok || !res.body) throw new Error(`Falha ao baixar ${url}: HTTP ${res.status}`);
+
+  const retomandoDeVerdade = tentandoRetomar && res.status === 206;
+  const arquivoDestino = fs.createWriteStream(destino, { flags: retomandoDeVerdade ? 'a' : 'w' });
+  await pipeline(Readable.fromWeb(res.body as import('node:stream/web').ReadableStream), arquivoDestino);
+
+  return destino;
+}
+
+/** Abre um CSV já baixado no cache como stream, no formato que streamCsvRows espera. */
+function abrirCsvLocal(caminho: string) {
+  return Readable.toWeb(fs.createReadStream(caminho)) as unknown as ReadableStream<Uint8Array>;
+}
+
 /** Replica a query M "tarifas-homologadas-distribuido" + o filtro extra que a planilha original
  * aplicava em cima dela (Convencional / posto "Não se aplica"), e reduz pra só a linha mais
  * recente por (código, detalhe) — a mesma tarifa "cheia" que BASE!L7/L8 busca via MAX(vigência).
  * Captura tanto o consumo normal quanto a linha SCEE (ver DETALHES_B1). */
 export async function syncTarifasB1(): Promise<number> {
   progressoAtual = { descricao: 'Baixando tarifas TE/TUSD (arquivo principal, ~85 MB)…', linhas: 0 };
-  const res = await fetchComRetentativa(TARIFAS_B1_URL);
+  const arquivoLocal = await baixarComResumo(TARIFAS_B1_URL, 'tarifas-homologadas.csv');
+  progressoAtual = { descricao: 'Processando tarifas TE/TUSD…', linhas: 0 };
+
   type Linha = {
     codigo: string; resolucao: string; inicioVigencia: string; fimVigencia: string;
     subgrupo: string; modalidade: string; classe: string; detalhe: string;
@@ -55,7 +111,7 @@ export async function syncTarifasB1(): Promise<number> {
   // O CSV "tarifas-homologadas-distribuidoras-energia-eletrica" é servido em UTF-8 (confirmado
   // byte a byte) — decodificar como windows-1252 corrompe os acentos e faz TODOS os filtros de
   // string abaixo (ex: "Tarifa de Aplicação") nunca casarem, zerando a sincronização.
-  await streamCsvRows(res.body!, 'utf-8', (f, idx) => {
+  await streamCsvRows(abrirCsvLocal(arquivoLocal), 'utf-8', (f, idx) => {
     if (progressoAtual) progressoAtual.linhas = idx;
     // 0=data 1=resolucao 2=codigo 3=cnpj 4=inicioVigencia 5=fimVigencia 6=baseTarifaria
     // 7=subgrupo 8=modalidade 9=classe 10=subclasse 11=detalhe 12=posto 13=unidade 14=acessante 15=tusd 16=te
@@ -93,6 +149,7 @@ export async function syncTarifasB1(): Promise<number> {
   }
 
   setSyncMeta('tarifas_b1', linhas.length);
+  try { fs.unlinkSync(arquivoLocal); } catch { /* best-effort — não crítico se sobrar no cache */ }
   return linhas.length;
 }
 
@@ -106,50 +163,67 @@ async function descobrirRecursoAno(ano: number): Promise<CkanResource | null> {
 }
 
 /** Replica a query M "FioB": combina ano atual + ano anterior (atual primeiro), filtra
- * Tarifa de Aplicação / B1 / Convencional / Residencial / Não se aplica / componente alvo. */
+ * Tarifa de Aplicação / B1 / Convencional / Residencial / Não se aplica / componente alvo.
+ * Cada ano baixa e comita separado — se um ano falhar (ou a sincronização for interrompida
+ * no meio), o outro ano já processado fica salvo e não precisa ser refeito. */
 export async function syncComponentesTarifarias(): Promise<number> {
   const anoAtual = new Date().getFullYear();
   const anos = [anoAtual, anoAtual - 1];
 
-  db.exec('DELETE FROM componentes_tarifarios');
   const insert = db.prepare(`
     INSERT INTO componentes_tarifarios
       (codigo, resolucao, inicio_vigencia, fim_vigencia, subgrupo, modalidade, classe, componente, valor, ano_fonte, ordem)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
+  const deleteAno = db.prepare('DELETE FROM componentes_tarifarios WHERE ano_fonte = ?');
 
-  let ordem = 0;
   let total = 0;
-  db.exec('BEGIN');
-  try {
-    for (const ano of anos) {
-      progressoAtual = { descricao: `Buscando componentes tarifários ${ano}…`, linhas: total };
-      const recurso = await descobrirRecursoAno(ano);
-      if (!recurso) continue; // ano ainda não publicado pela ANEEL (ex: início de ano novo)
-      progressoAtual = { descricao: `Baixando componentes tarifários ${ano} (pode passar de 100 MB)…`, linhas: total };
-      const res = await fetchComRetentativa(recurso.url);
-      await streamCsvRows(res.body!, 'utf-8', (f, idx) => {
-        if (progressoAtual && idx % 10000 === 0) {
-          progressoAtual.descricao = `Processando componentes tarifários ${ano} (linha ${idx.toLocaleString('pt-BR')})…`;
-        }
-        // 0=data 1=resolucao 2=codigo 3=cnpj 4=inicioVigencia 5=fimVigencia 6=baseTarifaria
-        // 7=subgrupo 8=modalidade 9=classe 10=subclasse 11=detalhe 12=posto 13=unidade 14=acessante 15=componente 16=valor
-        if (f[6] !== 'Tarifa de Aplicação' || f[7] !== 'B1' || f[8] !== 'Convencional') return;
-        if (f[10] !== 'Residencial' || f[11] !== 'Não se aplica') return;
-        if (!COMPONENTES_ALVO.has(f[15])) return;
-        insert.run(f[2], f[1], f[4], f[5], f[7], f[8], f[9], f[15], parseNumeroBr(f[16]), ano, ordem++);
-        total++;
-        if (progressoAtual) progressoAtual.linhas = total;
-      });
+  for (const ano of anos) {
+    progressoAtual = { descricao: `Buscando componentes tarifários ${ano}…`, linhas: total };
+    const recurso = await descobrirRecursoAno(ano);
+    if (!recurso) continue; // ano ainda não publicado pela ANEEL (ex: início de ano novo)
+
+    progressoAtual = { descricao: `Baixando componentes tarifários ${ano} (pode passar de 100 MB)…`, linhas: total };
+    const arquivoLocal = await baixarComResumo(recurso.url, `componentes-${ano}.csv`);
+    progressoAtual = { descricao: `Processando componentes tarifários ${ano}…`, linhas: total };
+
+    // Ordem em faixas por ano (ano atual sempre antes do anterior) — permite refazer só um
+    // ano sem afetar a ordenação do outro já salvo.
+    const ordemBase = (anoAtual - ano) * 1_000_000;
+    let ordemLocal = 0;
+    const linhasAno: [string, string, string, string, string, string, string, string, number, number, number][] = [];
+
+    await streamCsvRows(abrirCsvLocal(arquivoLocal), 'utf-8', (f, idx) => {
+      if (progressoAtual && idx % 10000 === 0) {
+        progressoAtual.descricao = `Processando componentes tarifários ${ano} (linha ${idx.toLocaleString('pt-BR')})…`;
+      }
+      // 0=data 1=resolucao 2=codigo 3=cnpj 4=inicioVigencia 5=fimVigencia 6=baseTarifaria
+      // 7=subgrupo 8=modalidade 9=classe 10=subclasse 11=detalhe 12=posto 13=unidade 14=acessante 15=componente 16=valor
+      if (f[6] !== 'Tarifa de Aplicação' || f[7] !== 'B1' || f[8] !== 'Convencional') return;
+      if (f[10] !== 'Residencial' || f[11] !== 'Não se aplica') return;
+      if (!COMPONENTES_ALVO.has(f[15])) return;
+      linhasAno.push([f[2], f[1], f[4], f[5], f[7], f[8], f[9], f[15], parseNumeroBr(f[16]), ano, ordemBase + ordemLocal++]);
+      total++;
+      if (progressoAtual) progressoAtual.linhas = total;
+    });
+
+    progressoAtual = { descricao: `Salvando componentes tarifários ${ano} no banco…`, linhas: total };
+    db.exec('BEGIN');
+    try {
+      deleteAno.run(ano);
+      for (const l of linhasAno) insert.run(...l);
+      db.exec('COMMIT');
+    } catch (e) {
+      db.exec('ROLLBACK');
+      throw e;
     }
-    db.exec('COMMIT');
-  } catch (e) {
-    db.exec('ROLLBACK');
-    throw e;
+
+    try { fs.unlinkSync(arquivoLocal); } catch { /* best-effort — não crítico se sobrar no cache */ }
   }
 
-  setSyncMeta('componentes_tarifarios', total);
-  return total;
+  const totalGeral = (db.prepare('SELECT COUNT(*) AS c FROM componentes_tarifarios').get() as { c: number }).c;
+  setSyncMeta('componentes_tarifarios', totalGeral);
+  return totalGeral;
 }
 
 /** Popula o banco com os JSONs já empacotados no app, só na primeira vez (banco vazio),

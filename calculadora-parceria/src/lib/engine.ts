@@ -155,21 +155,27 @@ interface BeneficioScee {
   liquido: number;
 }
 
-/** Benefício Bruto/Líquido a partir da tarifa TE+TUSD específica de SCEE. Bruto = Líquido
- * com o imposto (ICMS "por dentro" + PIS/COFINS) somado de volta — sempre grossado, sem
- * considerar isenções (por instrução explícita: essas distribuidoras não levam isenção em
- * conta nesse cálculo). */
+/** Benefício Bruto/Líquido = tarifa SCEE (TE+TUSD específico de energia compensada) menos o
+ * Fio B da rampa GD2, no Líquido sem tributos e no Bruto com tributos (ICMS "por dentro" +
+ * PIS/COFINS) grossados separadamente — sem considerar isenções (instrução explícita: essas
+ * distribuidoras não levam isenção em conta nesse cálculo). Validado contra duas faturas
+ * reais (Equatorial PI e PA, 08/2026): Líquido bate exato; Bruto fica a ~1-1,5% do valor
+ * impresso, atribuído a arredondamento em cascata nas 6 casas decimais que a ANEEL publica
+ * (a distribuidora deve calcular internamente com mais precisão do que exibe). */
 export function calcularBeneficioScee(
-  tarifasScee: TarifaBase, icmsAliquota: number, pisCofinsAliquota: number,
+  tarifasScee: TarifaBase, fioBSemTributos: number, icmsAliquota: number, pisCofinsAliquota: number,
 ): BeneficioScee {
-  const liquido = tarifasScee.te + tarifasScee.tusd;
-  const bruto = liquido / (1 - icmsAliquota) / (1 - pisCofinsAliquota);
+  const grossar = (base: number) => base / (1 - icmsAliquota) / (1 - pisCofinsAliquota);
+  const tarifaSceeSemTributos = tarifasScee.te + tarifasScee.tusd;
+
+  const liquido = tarifaSceeSemTributos - fioBSemTributos;
+  const bruto = grossar(tarifaSceeSemTributos) - grossar(fioBSemTributos);
   return { bruto, liquido };
 }
 
-/** Tarifa compensada de GD2 via Benefício Bruto/Líquido — validado contra fatura real de
- * Equatorial PI (08/2026). Fórmula:
- *   T_compensada = trfDistribuidora − FioB − (BenefícioBruto − BenefícioLíquido)
+/** Tarifa compensada de GD2 via Benefício Bruto/Líquido — validado contra faturas reais de
+ * Equatorial PI e PA (08/2026). Fórmula:
+ *   T_compensada = trfDistribuidora − FioB(c/tributos) − (BenefícioBruto − BenefícioLíquido)
  * onde FioB é o Fio B da rampa GD2 (Lei 14.300) grossado por ICMS/PIS-COFINS, sempre — sem
  * considerar isenções (instrução explícita: essas distribuidoras não levam isenção em conta
  * nesse cálculo específico de GD2). O split parteTE/parteTUSD não é significativo aqui (a
@@ -181,8 +187,9 @@ function calcularTarifaCompensadaScee(
   const grossar = (base: number) => base / (1 - icmsAliquota) / (1 - pisCofinsAliquota);
 
   const trfDistribuidora = grossar(tarifas.te + tarifas.tusd);
-  const fioBRate = grossar(componentes.fioB * fioBRampaPct(ano));
-  const { bruto, liquido } = calcularBeneficioScee(tarifasScee, icmsAliquota, pisCofinsAliquota);
+  const fioBSemTributos = componentes.fioB * fioBRampaPct(ano);
+  const fioBRate = grossar(fioBSemTributos);
+  const { bruto, liquido } = calcularBeneficioScee(tarifasScee, fioBSemTributos, icmsAliquota, pisCofinsAliquota);
 
   const compensada = trfDistribuidora - fioBRate - (bruto - liquido);
   return { compensada, parteTE: 0, parteTUSD: compensada };
