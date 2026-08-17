@@ -61,3 +61,13 @@ export async function atualizarTarifasAneel(): Promise<
   if (data.ok) await carregarDaAPI();
   return data;
 }
+
+export interface ProgressoSync { descricao: string; linhas: number }
+
+/** Consulta o progresso da sincronização em andamento (os CSVs da ANEEL somam centenas de
+ * MB e o processo pode levar vários minutos) — pra polling enquanto atualizarTarifasAneel
+ * está pendente. */
+export async function consultarProgressoSync(): Promise<{ sincronizando: boolean; progresso: ProgressoSync | null }> {
+  const res = await fetch('/api/tarifas/progresso');
+  return res.json();
+}

@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { db, getSyncMeta } from './db';
-import { syncTarifasB1, syncComponentesTarifarias, seedFromJsonIfEmpty } from './aneelSync';
+import { syncTarifasB1, syncComponentesTarifarias, seedFromJsonIfEmpty, getProgressoSync, limparProgressoSync } from './aneelSync';
 import { listarPropostas, emitirProposta, obterProposta, apagarProposta } from './propostas';
 import { listarImpostosOverrides, salvarImpostoOverride, removerImpostoOverride } from './impostos';
 import { listarIsencoesOverrides, salvarIsencaoOverride, removerIsencaoOverride } from './isencoes';
@@ -121,6 +121,11 @@ export function apiHandler(req: IncomingMessage, res: ServerResponse, next: () =
     return;
   }
 
+  if (req.method === 'GET' && url === '/tarifas/progresso') {
+    json(res, 200, { sincronizando, progresso: getProgressoSync() });
+    return;
+  }
+
   if (req.method === 'GET' && url === '/tarifas/b1') {
     json(res, 200, selectAllTarifasB1());
     return;
@@ -148,7 +153,7 @@ export function apiHandler(req: IncomingMessage, res: ServerResponse, next: () =
       .catch((e: unknown) => {
         json(res, 502, { ok: false, error: e instanceof Error ? e.message : String(e) });
       })
-      .finally(() => { sincronizando = false; });
+      .finally(() => { sincronizando = false; limparProgressoSync(); });
     return;
   }
 

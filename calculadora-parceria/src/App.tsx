@@ -6,8 +6,8 @@ import {
 import { calcularParceria, DISTRIBUIDORAS, descontoPadrao, resolverEstado, buscarImpostos, buscarIsencoes } from './lib/engine';
 import { rodarLote, parseCsv, exportarCsv } from './lib/batchSimulation';
 import {
-  carregarDaAPI, atualizarTarifasAneel, getStatus, getTarifasB1, getComponentes, resolverDistribuidoraPorCodigo,
-  type SyncStatus, type TarifaB1Row, type ComponenteRow,
+  carregarDaAPI, atualizarTarifasAneel, consultarProgressoSync, getStatus, getTarifasB1, getComponentes, resolverDistribuidoraPorCodigo,
+  type SyncStatus, type TarifaB1Row, type ComponenteRow, type ProgressoSync,
 } from './lib/tarifasStore';
 import {
   listarPropostas, emitirProposta as emitirPropostaApi, obterProposta, apagarProposta as apagarPropostaApi,
@@ -208,6 +208,7 @@ function AppAutenticado({ usuario, onLogout, onUsuarioAtualizado }: {
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [syncEstado, setSyncEstado] = useState<'idle' | 'carregando' | 'ok' | 'erro'>('idle');
   const [syncErro, setSyncErro] = useState<string | null>(null);
+  const [syncProgresso, setSyncProgresso] = useState<ProgressoSync | null>(null);
   const [propostas, setPropostas] = useState<PropostaEmitida[]>([]);
   const [emissao, setEmissao] = useState<{ revisao: number; dataEmissao: string } | null>(null);
   const [emitindo, setEmitindo] = useState(false);
@@ -294,14 +295,28 @@ function AppAutenticado({ usuario, onLogout, onUsuarioAtualizado }: {
   const atualizarTarifas = async () => {
     setSyncEstado('carregando');
     setSyncErro(null);
-    const r = await atualizarTarifasAneel();
-    if (r.ok) {
-      setStatus(getStatus());
-      setTarifasVersion((v) => v + 1);
-      setSyncEstado('ok');
-    } else {
-      setSyncEstado('erro');
-      setSyncErro(r.error);
+    setSyncProgresso(null);
+    const intervalo = window.setInterval(async () => {
+      try {
+        const p = await consultarProgressoSync();
+        setSyncProgresso(p.progresso);
+      } catch {
+        // Ignora falha pontual de polling — não é crítico, só perde uma atualização de progresso.
+      }
+    }, 2000);
+    try {
+      const r = await atualizarTarifasAneel();
+      if (r.ok) {
+        setStatus(getStatus());
+        setTarifasVersion((v) => v + 1);
+        setSyncEstado('ok');
+      } else {
+        setSyncEstado('erro');
+        setSyncErro(r.error);
+      }
+    } finally {
+      window.clearInterval(intervalo);
+      setSyncProgresso(null);
     }
   };
 
@@ -385,7 +400,11 @@ function AppAutenticado({ usuario, onLogout, onUsuarioAtualizado }: {
             style={{ ...btnStyle, background: C.azul, color: '#fff', padding: '6px 12px', opacity: syncEstado === 'carregando' ? 0.7 : 1 }}
           >
             <RefreshCw size={13} style={{ marginRight: 6, animation: syncEstado === 'carregando' ? 'girar 1s linear infinite' : 'none' }} />
-            {syncEstado === 'carregando' ? 'Atualizando (pode levar 1-2 min)…' : 'Atualizar tarifas (ANEEL)'}
+            {syncEstado === 'carregando'
+              ? (syncProgresso
+                  ? `${syncProgresso.descricao}${syncProgresso.linhas > 0 ? ` (${syncProgresso.linhas.toLocaleString('pt-BR')} linhas)` : ''}`
+                  : 'Atualizando (pode levar vários minutos)…')
+              : 'Atualizar tarifas (ANEEL)'}
           </button>
         </div>
       )}

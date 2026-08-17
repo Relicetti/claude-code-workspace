@@ -20,6 +20,18 @@ const COMPONENTES_ALVO = new Set(['TUSD_FioB', 'TUSD_FR', 'TUSD_RB']);
 // das distribuidoras Equatorial em GD2 (ver DISTRIBUIDORAS_METODO_SCEE em engine.ts).
 const DETALHES_B1 = new Set(['Não se aplica', 'SCEE']);
 
+/** Progresso da sincronização em andamento — os CSVs da ANEEL somam centenas de MB e o
+ * download/processamento pode levar vários minutos, então o front faz polling nisso (via
+ * GET /tarifas/progresso) pra mostrar algo além de um spinner genérico. */
+export interface ProgressoSync {
+  descricao: string;
+  linhas: number;
+}
+let progressoAtual: ProgressoSync | null = null;
+
+export function getProgressoSync(): ProgressoSync | null { return progressoAtual; }
+export function limparProgressoSync(): void { progressoAtual = null; }
+
 async function fetchComRetentativa(url: string): Promise<Response> {
   const res = await fetch(url, { headers: HEADERS });
   if (!res.ok || !res.body) throw new Error(`Falha ao baixar ${url}: HTTP ${res.status}`);
@@ -31,6 +43,7 @@ async function fetchComRetentativa(url: string): Promise<Response> {
  * recente por (código, detalhe) — a mesma tarifa "cheia" que BASE!L7/L8 busca via MAX(vigência).
  * Captura tanto o consumo normal quanto a linha SCEE (ver DETALHES_B1). */
 export async function syncTarifasB1(): Promise<number> {
+  progressoAtual = { descricao: 'Baixando tarifas TE/TUSD (arquivo principal, ~85 MB)…', linhas: 0 };
   const res = await fetchComRetentativa(TARIFAS_B1_URL);
   type Linha = {
     codigo: string; resolucao: string; inicioVigencia: string; fimVigencia: string;
@@ -42,7 +55,8 @@ export async function syncTarifasB1(): Promise<number> {
   // O CSV "tarifas-homologadas-distribuidoras-energia-eletrica" é servido em UTF-8 (confirmado
   // byte a byte) — decodificar como windows-1252 corrompe os acentos e faz TODOS os filtros de
   // string abaixo (ex: "Tarifa de Aplicação") nunca casarem, zerando a sincronização.
-  await streamCsvRows(res.body!, 'utf-8', (f) => {
+  await streamCsvRows(res.body!, 'utf-8', (f, idx) => {
+    if (progressoAtual) progressoAtual.linhas = idx;
     // 0=data 1=resolucao 2=codigo 3=cnpj 4=inicioVigencia 5=fimVigencia 6=baseTarifaria
     // 7=subgrupo 8=modalidade 9=classe 10=subclasse 11=detalhe 12=posto 13=unidade 14=acessante 15=tusd 16=te
     if (f[6] !== 'Tarifa de Aplicação' || f[7] !== 'B1' || f[8] !== 'Convencional') return;
@@ -61,6 +75,7 @@ export async function syncTarifasB1(): Promise<number> {
 
   const linhas = [...maisRecentePorChave.values()];
 
+  progressoAtual = { descricao: 'Salvando tarifas TE/TUSD no banco…', linhas: linhas.length };
   db.exec('DELETE FROM tarifas_b1');
   const insert = db.prepare(`
     INSERT INTO tarifas_b1 (codigo, resolucao, inicio_vigencia, fim_vigencia, subgrupo, modalidade, classe, detalhe, tusd, te, total)
@@ -108,10 +123,15 @@ export async function syncComponentesTarifarias(): Promise<number> {
   db.exec('BEGIN');
   try {
     for (const ano of anos) {
+      progressoAtual = { descricao: `Buscando componentes tarifários ${ano}…`, linhas: total };
       const recurso = await descobrirRecursoAno(ano);
       if (!recurso) continue; // ano ainda não publicado pela ANEEL (ex: início de ano novo)
+      progressoAtual = { descricao: `Baixando componentes tarifários ${ano} (pode passar de 100 MB)…`, linhas: total };
       const res = await fetchComRetentativa(recurso.url);
-      await streamCsvRows(res.body!, 'utf-8', (f) => {
+      await streamCsvRows(res.body!, 'utf-8', (f, idx) => {
+        if (progressoAtual && idx % 10000 === 0) {
+          progressoAtual.descricao = `Processando componentes tarifários ${ano} (linha ${idx.toLocaleString('pt-BR')})…`;
+        }
         // 0=data 1=resolucao 2=codigo 3=cnpj 4=inicioVigencia 5=fimVigencia 6=baseTarifaria
         // 7=subgrupo 8=modalidade 9=classe 10=subclasse 11=detalhe 12=posto 13=unidade 14=acessante 15=componente 16=valor
         if (f[6] !== 'Tarifa de Aplicação' || f[7] !== 'B1' || f[8] !== 'Convencional') return;
@@ -119,6 +139,7 @@ export async function syncComponentesTarifarias(): Promise<number> {
         if (!COMPONENTES_ALVO.has(f[15])) return;
         insert.run(f[2], f[1], f[4], f[5], f[7], f[8], f[9], f[15], parseNumeroBr(f[16]), ano, ordem++);
         total++;
+        if (progressoAtual) progressoAtual.linhas = total;
       });
     }
     db.exec('COMMIT');
