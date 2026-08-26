@@ -449,21 +449,27 @@ def pendencias_usina(conn, usina_id):
 
 
 def ultimas_pendencias_por_usina(conn):
-    """Última pendência de cada usina, pra listar sem 1 query por linha."""
+    """Última pendência EM ABERTO de cada usina, pra listar sem 1 query por
+    linha. Concluída some daqui assim que marcada -- quem quiser ver o
+    histórico completo (concluídas inclusive) usa pendencias_usina."""
     linhas = conn.execute(
         """SELECT p.usina_id, p.autor, p.texto, p.responsavel, p.criado_em, p.concluida_em
            FROM pendencias p
            JOIN (
                SELECT usina_id, MAX(criado_em) AS max_criado_em
-               FROM pendencias GROUP BY usina_id
-           ) ultima ON ultima.usina_id = p.usina_id AND ultima.max_criado_em = p.criado_em"""
+               FROM pendencias WHERE concluida_em IS NULL GROUP BY usina_id
+           ) ultima ON ultima.usina_id = p.usina_id AND ultima.max_criado_em = p.criado_em
+           WHERE p.concluida_em IS NULL"""
     ).fetchall()
     return {row["usina_id"]: dict(row) for row in linhas}
 
 
 def contar_pendencias_por_usina(conn):
+    """Quantas pendências em aberto cada usina tem -- usado junto com
+    ultimas_pendencias_por_usina pro '(+N anterior(es))' bater com o que
+    está de fato pendente, não com o histórico todo."""
     linhas = conn.execute(
-        "SELECT usina_id, COUNT(*) AS qtd FROM pendencias GROUP BY usina_id"
+        "SELECT usina_id, COUNT(*) AS qtd FROM pendencias WHERE concluida_em IS NULL GROUP BY usina_id"
     ).fetchall()
     return {row["usina_id"]: row["qtd"] for row in linhas}
 
