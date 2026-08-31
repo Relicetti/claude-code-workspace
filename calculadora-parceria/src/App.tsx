@@ -137,14 +137,14 @@ function FormattedNumberField({ value, onChange, placeholder }: {
   );
 }
 
-function PercentField({ value, onChange, placeholder }: {
-  value: number | undefined; onChange: (v: number | undefined) => void; placeholder?: string;
+function PercentField({ value, onChange, placeholder, disabled = false }: {
+  value: number | undefined; onChange: (v: number | undefined) => void; placeholder?: string; disabled?: boolean;
 }) {
   return (
     <input
-      type="number" step="0.1" style={inputStyle}
+      type="number" step="0.1" style={{ ...inputStyle, ...(disabled ? { background: C.clar, color: C.med, cursor: 'not-allowed' } : {}) }}
       value={value === undefined ? '' : Number((value * 100).toFixed(6))}
-      placeholder={placeholder}
+      placeholder={placeholder} disabled={disabled}
       onChange={(e) => onChange(e.target.value === '' ? undefined : Number(e.target.value) / 100)}
     />
   );
@@ -478,8 +478,13 @@ function AppAutenticado({ usuario, onLogout, onUsuarioAtualizado }: {
             </Section>
 
             <Section title="Regras Comerciais" color={C.amber}>
-              <Field label="% Desconto ao cliente" help="Preenchido pela aba DESCONTO ao trocar a distribuidora — editável">
-                <PercentField value={input.descontoClientePct} onChange={(v) => set('descontoClientePct', v)} />
+              <Field
+                label="% Desconto ao cliente"
+                help={isAdm
+                  ? 'Preenchido pela aba DESCONTO ao trocar a distribuidora — editável'
+                  : 'Definido pelo ADM para a distribuidora selecionada — operador não pode alterar'}
+              >
+                <PercentField value={input.descontoClientePct} onChange={(v) => set('descontoClientePct', v)} disabled={!isAdm} />
               </Field>
               <Field label="Deságio (%)">
                 <PercentField value={input.desagioPct} onChange={(v) => set('desagioPct', v ?? 0)} />
