@@ -389,9 +389,14 @@ def mudar_etapa(conn, usina_id, nova_etapa, hoje_iso, autor):
             "INSERT INTO historico_etapas (usina_id, etapa, data_entrada, data_saida, autor) VALUES (?,?,?,?,?)",
             (usina_id, nova_etapa, hoje_iso, hoje_iso, autor),
         )
+        # etapa_atual/data_entrada_etapa_atual precisam ser atualizados aqui também
+        # (não só o status) -- senão a usina fica marcada como "operacao"/"rescindida"
+        # pra sempre exibindo a última etapa de pipeline em que esteve (ex: "TT Usina"
+        # há 100+ dias), porque nada mais escreve nessas colunas depois disso.
         conn.execute(
-            "UPDATE usinas SET status = ? WHERE id = ?",
-            ("operacao" if nova_etapa == "Operação" else "rescindida", usina_id),
+            "UPDATE usinas SET status = ?, etapa_atual = ?, data_entrada_etapa_atual = ?, "
+            "situacao_etapa = 'Nova', situacao_atualizada_em = NULL, situacao_atualizada_por = NULL WHERE id = ?",
+            ("operacao" if nova_etapa == "Operação" else "rescindida", nova_etapa, hoje_iso, usina_id),
         )
     else:
         conn.execute(
