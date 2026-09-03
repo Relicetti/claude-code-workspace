@@ -105,3 +105,11 @@ transação embutidos (`TAKER_FEE` em `backtest.py`). Não é para execução re
   cálculo em si é sempre determinística.
 - Vários `.vbs`/`.bat` na raiz dos projetos existem para iniciar servidores no Windows sem
   janela de console — fazem parte do fluxo normal de uso, não são scripts órfãos.
+
+## Fluxo de deploy (git)
+
+Depois de implementar e testar uma mudança numa branch de trabalho, faça o merge na `main` e
+dê push **por padrão, sem pedir confirmação antes** — esse é o fluxo esperado pelo dono do
+repo. Só pare pra perguntar antes do merge se a mudança envolver algo excepcionalmente
+arriscado ou destrutivo (ex.: script que já roda `--aplicar` sozinho contra dado de produção,
+migração irreversível) — nesses casos, avise e espere confirmação.
