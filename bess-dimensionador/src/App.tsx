@@ -197,14 +197,28 @@ export default function App() {
           {cliente.modoOperacao === 'BACKUP' && (
             <Section title="Parâmetros de BACKUP">
               <div style={grid}>
-                <NumberField label="Horas de backup adicionais" suffix="h" value={cliente.horasBackup ?? 0} onChange={(v) => set('horasBackup', v)} />
+                <NumberField label="Horas de backup a garantir" suffix="h" value={cliente.horasBackup ?? 0} onChange={(v) => set('horasBackup', v)} />
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
+                  <span style={{ color: '#5a5a55' }}>Base de cálculo da energia de backup</span>
+                  <select
+                    value={cliente.baseCalculoBackup ?? 'DEMANDA_MEDIA_NORMAL'}
+                    onChange={(e) => set('baseCalculoBackup', e.target.value as DadosCliente['baseCalculoBackup'])}
+                    style={{ padding: '6px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: 14 }}
+                  >
+                    <option value="DEMANDA_MEDIA_NORMAL">Demanda média normal (realista)</option>
+                    <option value="DEMANDA_MAXIMA">Demanda máxima medida (conservador)</option>
+                  </select>
+                </label>
                 <NumberField label="Demanda média normal (fora ponta)" suffix="kW" value={cliente.demandaMediaNormalKw ?? 0} onChange={(v) => set('demandaMediaNormalKw', v)} />
                 <NumberField label="Custo evitado de interrupção (opcional)" suffix="R$/ano" value={cliente.custoEvitadoInterrupcaoAnual ?? 0} onChange={(v) => set('custoEvitadoInterrupcaoAnual', v)} />
               </div>
               <p style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
-                O modo backup não gera economia por arbitragem tarifária — o valor dele é
-                continuidade operacional. Informe um custo evitado de interrupção se quiser
-                refletir isso no fluxo de caixa; senão a economia anual desse modo fica em zero.
+                Energia de backup = horas de backup × demanda-base escolhida acima (não é uma
+                fração do consumo de ponta). Com base "demanda média normal", informe também a
+                demanda média — sem ela o cálculo cai para a demanda máxima medida. O modo
+                backup não gera economia por arbitragem tarifária — o valor dele é continuidade
+                operacional; informe um custo evitado de interrupção se quiser refletir isso no
+                fluxo de caixa, senão a economia anual desse modo fica em zero.
               </p>
             </Section>
           )}

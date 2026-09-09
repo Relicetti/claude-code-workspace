@@ -59,6 +59,60 @@ describe('calcularDimensionamento — caso Caterpillar (TIME-SHIFT)', () => {
   })
 })
 
+describe('calcularDimensionamento — modo BACKUP', () => {
+  // Cliente rural: motivo do BESS é autonomia contra falha de atendimento da
+  // distribuidora, não arbitragem tarifária. Demanda média normal ~988 kW e
+  // demanda máxima medida 1279 kW replicam a relação (~23% de redução) citada
+  // na spec do validador (docs/spec-validador-dimensionamento.md) para o caso
+  // Caterpillar, usada aqui só como fixture numérica — não é o mesmo cenário
+  // de negócio (lá é indústria/comercial, aqui é o caso rural de referência).
+  const clienteBackupBase = {
+    ...DADOS_CLIENTE_PADRAO,
+    modoOperacao: 'BACKUP' as const,
+    demandaMaximaPontaKw: 1279,
+    demandaMediaNormalKw: 988,
+    horasBackup: 4,
+  }
+
+  it('base DEMANDA_MEDIA_NORMAL: energia = horasBackup × demandaMediaNormalKw', () => {
+    const dim = calcularDimensionamento(
+      { ...clienteBackupBase, baseCalculoBackup: 'DEMANDA_MEDIA_NORMAL' },
+      ESPECIFICACOES_BESS_PADRAO
+    )
+    expect(dim.energiaNecessariaDia).toBe(4 * 988) // 3952
+    expect(dim.potenciaNecessaria).toBe(1279) // PCS dimensionado pelo pico, não pela média
+  })
+
+  it('base DEMANDA_MAXIMA: energia = horasBackup × demandaMaximaPontaKw (mais conservador)', () => {
+    const dim = calcularDimensionamento(
+      { ...clienteBackupBase, baseCalculoBackup: 'DEMANDA_MAXIMA' },
+      ESPECIFICACOES_BESS_PADRAO
+    )
+    expect(dim.energiaNecessariaDia).toBe(4 * 1279) // 5116 — ~23% maior que a base realista
+  })
+
+  it('sem demandaMediaNormalKw informado, cai para demanda máxima mesmo pedindo a base média', () => {
+    const { demandaMediaNormalKw, ...semMedia } = clienteBackupBase
+    const dim = calcularDimensionamento(
+      { ...semMedia, baseCalculoBackup: 'DEMANDA_MEDIA_NORMAL' },
+      ESPECIFICACOES_BESS_PADRAO
+    )
+    expect(dim.energiaNecessariaDia).toBe(4 * 1279)
+  })
+
+  it('não depende de consumoMedioPontaKwh/coberturaPontaPercent (não é uma fração da ponta)', () => {
+    const dim1 = calcularDimensionamento(
+      { ...clienteBackupBase, baseCalculoBackup: 'DEMANDA_MEDIA_NORMAL', coberturaPontaPercent: 1 },
+      ESPECIFICACOES_BESS_PADRAO
+    )
+    const dim2 = calcularDimensionamento(
+      { ...clienteBackupBase, baseCalculoBackup: 'DEMANDA_MEDIA_NORMAL', coberturaPontaPercent: 0.1 },
+      ESPECIFICACOES_BESS_PADRAO
+    )
+    expect(dim1.energiaNecessariaDia).toBe(dim2.energiaNecessariaDia)
+  })
+})
+
 describe('calcularCapex — caso Caterpillar', () => {
   const capex = calcularCapex(CAPEX_INPUTS_PADRAO)
 

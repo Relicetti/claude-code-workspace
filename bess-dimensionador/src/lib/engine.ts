@@ -46,10 +46,26 @@ export function calcularDimensionamento(
   const { dod, rte, capacidadePorRackKwh, potenciaPorRackKw } = bess
 
   // B1: energia total na ponta a cobrir no mês, conforme % de cobertura desejado
+  // (não se aplica ao modo BACKUP — ver energiaNecessariaDia abaixo)
   const energiaTotalPontaMes = cliente.consumoMedioPontaKwh * cliente.coberturaPontaPercent
 
-  // B2: energia necessária por dia útil
-  const energiaNecessariaDia = roundUp(energiaTotalPontaMes / cliente.diasUteisPorMes)
+  // B2: energia necessária por dia útil.
+  // BACKUP tem lógica própria (spec docs/spec-validador-dimensionamento.md): não é uma
+  // fração do consumo de ponta, e sim `horasBackup × demanda-base`, onde a demanda-base é
+  // configurável (mais conservador = demanda máxima medida; mais realista = demanda média
+  // normal fora de ponta, para não sobrepor com o que o time-shift já cobriria). Sem essa
+  // ramificação o dimensionamento de BACKUP ficava reaproveitando por engano a fórmula de
+  // TIME-SHIFT (baseada em consumoMedioPontaKwh), ignorando horasBackup por completo.
+  let energiaNecessariaDia: number
+  if (cliente.modoOperacao === 'BACKUP') {
+    const demandaBaseBackup =
+      cliente.baseCalculoBackup === 'DEMANDA_MEDIA_NORMAL'
+        ? cliente.demandaMediaNormalKw ?? cliente.demandaMaximaPontaKw
+        : cliente.demandaMaximaPontaKw
+    energiaNecessariaDia = roundUp((cliente.horasBackup ?? 0) * demandaBaseBackup)
+  } else {
+    energiaNecessariaDia = roundUp(energiaTotalPontaMes / cliente.diasUteisPorMes)
+  }
 
   // B17/B21 (DADOS_CLIENTE): ciclos por ano e ciclos totais do projeto
   const ciclosPorAno = cliente.diasUteisPorMes * 12
