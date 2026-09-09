@@ -2,7 +2,7 @@
 // Nomenclatura e comentários referenciam as células da planilha original
 // (Planilha_Dimensionamento_BESS.xlsx) para facilitar auditoria cruzada.
 
-export type ModoOperacao = 'TIME-SHIFT' | 'BACKUP' | 'PEAK-SHAVING'
+export type ModoOperacao = 'TIME-SHIFT' | 'BACKUP' | 'PEAK-SHAVING' | 'QUALIDADE_ENERGIA'
 
 export type BaseCalculoBackup = 'DEMANDA_MAXIMA' | 'DEMANDA_MEDIA_NORMAL'
 
@@ -32,6 +32,14 @@ export interface DadosCliente {
   baseCalculoBackup?: BaseCalculoBackup
   demandaMediaNormalKw?: number // necessário quando base = DEMANDA_MEDIA_NORMAL
   custoEvitadoInterrupcaoAnual?: number // R$/ano, opcional — valor de continuidade não coberto por tarifa
+  // (também usado por QUALIDADE_ENERGIA: custo evitado de desarme/dano de equipamento)
+
+  // modo QUALIDADE_ENERGIA — ride-through de afundamento de tensão/microinterrupção da
+  // distribuidora (rede rural fraca), não é backup de longa duração: dura segundos/minutos,
+  // o que importa é a potência de resposta do PCS mais que a energia armazenada.
+  potenciaCriticaKw?: number // kW das cargas sensíveis a proteger; se omitido, usa demandaMaximaPontaKw
+  duracaoEventoSegundos?: number // duração do afundamento/microinterrupção a suportar
+  eventosPorMes?: number // frequência estimada de eventos — informativo, usado na estimativa de ciclos
 
   // modo PEAK-SHAVING
   limiteDemandaKw?: number

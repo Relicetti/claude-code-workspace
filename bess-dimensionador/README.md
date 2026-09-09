@@ -1,9 +1,17 @@
 # Dimensionador BESS
 
 Dimensionamento técnico + análise financeira de sistemas de armazenamento de energia
-(BESS) para os modos TIME-SHIFT, BACKUP e PEAK-SHAVING. Porta a lógica de
+(BESS) para os modos TIME-SHIFT, BACKUP, PEAK-SHAVING e QUALIDADE_ENERGIA. Porta a lógica de
 `Planilha_Dimensionamento_BESS.xlsx` (caso de referência: Caterpillar Campo Largo / WEG,
 proposta RP0826000), validada célula a célula em `src/lib/engine.test.ts`.
+
+O foco atual de desenvolvimento é o caso de **produtor rural com problemas de atendimento
+da Copel**, usado como base técnica para aprovação de financiamento (linha de crédito
+subsidiada em negociação com um órgão estadual do Paraná). Os modos relevantes pra esse
+caso são **BACKUP** (autonomia de horas numa falta de energia) e **QUALIDADE_ENERGIA**
+(ride-through de afundamento de tensão/microinterrupção, que dura segundos/minutos e
+protege equipamento sensível de desarme/dano — não é o mesmo problema que BACKUP).
+TIME-SHIFT e PEAK-SHAVING continuam funcionais mas não são o foco de evolução agora.
 
 ## Como rodar
 

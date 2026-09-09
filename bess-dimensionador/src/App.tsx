@@ -167,6 +167,7 @@ export default function App() {
                   <option value="TIME-SHIFT">TIME-SHIFT</option>
                   <option value="BACKUP">BACKUP</option>
                   <option value="PEAK-SHAVING">PEAK-SHAVING</option>
+                  <option value="QUALIDADE_ENERGIA">QUALIDADE DE ENERGIA</option>
                 </select>
               </label>
             </div>
@@ -219,6 +220,31 @@ export default function App() {
                 backup não gera economia por arbitragem tarifária — o valor dele é continuidade
                 operacional; informe um custo evitado de interrupção se quiser refletir isso no
                 fluxo de caixa, senão a economia anual desse modo fica em zero.
+              </p>
+            </Section>
+          )}
+
+          {cliente.modoOperacao === 'QUALIDADE_ENERGIA' && (
+            <Section title="Parâmetros de QUALIDADE DE ENERGIA">
+              <div style={grid}>
+                <NumberField
+                  label="Potência crítica a proteger (deixe 0 p/ usar a demanda máxima)"
+                  suffix="kW"
+                  value={cliente.potenciaCriticaKw ?? 0}
+                  onChange={(v) => set('potenciaCriticaKw', v > 0 ? v : undefined)}
+                />
+                <NumberField label="Duração do evento a suportar" suffix="segundos" value={cliente.duracaoEventoSegundos ?? 0} onChange={(v) => set('duracaoEventoSegundos', v)} />
+                <NumberField label="Eventos por mês (opcional, p/ estimativa de ciclos)" value={cliente.eventosPorMes ?? 0} onChange={(v) => set('eventosPorMes', v > 0 ? v : undefined)} />
+                <NumberField label="Custo evitado de desarme/dano (opcional)" suffix="R$/ano" value={cliente.custoEvitadoInterrupcaoAnual ?? 0} onChange={(v) => set('custoEvitadoInterrupcaoAnual', v)} />
+              </div>
+              <p style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
+                Diferente do BACKUP: aqui o BESS só precisa segurar a carga crítica por um
+                afundamento de tensão/microinterrupção breve (segundos a poucos minutos), não
+                por horas — o que importa mais é a potência de resposta do PCS do que a energia
+                armazenada. Sem eventos/mês informado, a estimativa de ciclos usa dias úteis por
+                mês (menos precisa pra esse modo). Também não gera economia por arbitragem
+                tarifária; informe um custo evitado de desarme/dano se quiser refletir isso no
+                fluxo de caixa.
               </p>
             </Section>
           )}
