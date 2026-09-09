@@ -50,25 +50,49 @@ export function calcularDimensionamento(
   const energiaTotalPontaMes = cliente.consumoMedioPontaKwh * cliente.coberturaPontaPercent
 
   // B2: energia necessária por dia útil.
-  // BACKUP tem lógica própria (spec docs/spec-validador-dimensionamento.md): não é uma
-  // fração do consumo de ponta, e sim `horasBackup × demanda-base`, onde a demanda-base é
-  // configurável (mais conservador = demanda máxima medida; mais realista = demanda média
-  // normal fora de ponta, para não sobrepor com o que o time-shift já cobriria). Sem essa
-  // ramificação o dimensionamento de BACKUP ficava reaproveitando por engano a fórmula de
-  // TIME-SHIFT (baseada em consumoMedioPontaKwh), ignorando horasBackup por completo.
+  // BACKUP e QUALIDADE_ENERGIA têm lógica própria (spec
+  // docs/spec-validador-dimensionamento.md): não são uma fração do consumo de ponta.
+  //   - BACKUP: `horasBackup × demanda-base`, configurável (mais conservador = demanda
+  //     máxima medida; mais realista = demanda média normal fora de ponta, pra não
+  //     sobrepor com o que o time-shift já cobriria).
+  //   - QUALIDADE_ENERGIA: ride-through de afundamento de tensão/microinterrupção —
+  //     dura segundos/minutos, não horas. `potência crítica × duração do evento`, não
+  //     `horasPontaPorDia`. Sem essas ramificações o dimensionamento reaproveitava por
+  //     engano a fórmula de TIME-SHIFT (baseada em consumoMedioPontaKwh).
+  // `potenciaReferenciaAutonomia` guarda a potência contra a qual a autonomia em horas
+  // (mais abaixo) deve ser medida nesses dois modos — em TIME-SHIFT/PEAK-SHAVING o
+  // cálculo legado (proporcional a horasPontaPorDia) é mantido.
   let energiaNecessariaDia: number
+  let potenciaReferenciaAutonomia: number | null = null
   if (cliente.modoOperacao === 'BACKUP') {
     const demandaBaseBackup =
       cliente.baseCalculoBackup === 'DEMANDA_MEDIA_NORMAL'
         ? cliente.demandaMediaNormalKw ?? cliente.demandaMaximaPontaKw
         : cliente.demandaMaximaPontaKw
     energiaNecessariaDia = roundUp((cliente.horasBackup ?? 0) * demandaBaseBackup)
+    potenciaReferenciaAutonomia = demandaBaseBackup
+  } else if (cliente.modoOperacao === 'QUALIDADE_ENERGIA') {
+    const potenciaCritica = cliente.potenciaCriticaKw ?? cliente.demandaMaximaPontaKw
+    const duracaoEventoHoras = (cliente.duracaoEventoSegundos ?? 0) / 3600
+    // Sem ROUNDUP aqui: a energia de um evento de poucos segundos é tipicamente uma
+    // fração pequena de kWh, e arredondar pra cima pro inteiro mais próximo (como as
+    // outras vias, herdadas da planilha original) distorceria o resultado.
+    energiaNecessariaDia = potenciaCritica * duracaoEventoHoras
+    potenciaReferenciaAutonomia = potenciaCritica
   } else {
     energiaNecessariaDia = roundUp(energiaTotalPontaMes / cliente.diasUteisPorMes)
   }
 
-  // B17/B21 (DADOS_CLIENTE): ciclos por ano e ciclos totais do projeto
-  const ciclosPorAno = cliente.diasUteisPorMes * 12
+  // B17/B21 (DADOS_CLIENTE): ciclos por ano e ciclos totais do projeto.
+  // Em QUALIDADE_ENERGIA, usa a frequência de eventos informada quando disponível — cada
+  // evento é um ciclo (raso) de degradação, não um ciclo completo por dia útil como nos
+  // outros modos. Nota: isso conta eventos como se fossem ciclos equivalentes cheios, o
+  // que é conservador (superestima degradação) na ausência de um modelo de throughput
+  // por profundidade de descarga (rainflow counting).
+  const ciclosPorAno =
+    cliente.modoOperacao === 'QUALIDADE_ENERGIA' && cliente.eventosPorMes
+      ? cliente.eventosPorMes * 12
+      : cliente.diasUteisPorMes * 12
   const ciclosTotaisProjeto = ciclosPorAno * cliente.vidaUtilAnos
 
   // B24: SoH ao final da vida útil do projeto — usado para dimensionar
@@ -82,11 +106,14 @@ export function calcularDimensionamento(
       ? roundUp(energiaNecessariaDia / (dod * rte * sohFinalProjeto))
       : roundUp(energiaNecessariaDia / (dod * rte))
 
-  // B4: potência necessária — limite de demanda em peak-shaving, senão a demanda de ponta
+  // B4: potência necessária — limite de demanda em peak-shaving, potência crítica em
+  // qualidade de energia, senão a demanda de ponta/máxima medida
   const potenciaNecessaria =
     cliente.modoOperacao === 'PEAK-SHAVING' && cliente.limiteDemandaKw
       ? cliente.demandaMaximaPontaKw - cliente.limiteDemandaKw
-      : cliente.demandaMaximaPontaKw
+      : cliente.modoOperacao === 'QUALIDADE_ENERGIA'
+        ? cliente.potenciaCriticaKw ?? cliente.demandaMaximaPontaKw
+        : cliente.demandaMaximaPontaKw
 
   // B9/B10/B11: número de racks
   const racksPorEnergia = roundUp(capacidadeNominalMinima / capacidadePorRackKwh)
@@ -100,11 +127,15 @@ export function calcularDimensionamento(
   // B16: SoH após 1 ano de operação (ciclos = ciclosPorAno)
   const sohApos1Ano = lookupSoH(ciclosPorAno)
 
-  // B17/B19: autonomia em horas no ano 1 e no último ano do projeto
-  const autonomia1AnoH =
-    ((capacidadeInstalada * sohApos1Ano * dod * rte) / energiaNecessariaDia) * cliente.horasPontaPorDia
-  const autonomiaUltimoAnoH =
-    ((capacidadeInstalada * sohFinalProjeto * dod * rte) / energiaNecessariaDia) * cliente.horasPontaPorDia
+  // B17/B19: autonomia em horas no ano 1 e no último ano do projeto. Em BACKUP/QUALIDADE_ENERGIA
+  // é capacidade útil ÷ potência de referência (resultado já em horas); nos demais modos
+  // mantém o cálculo legado da planilha original (proporcional a horasPontaPorDia).
+  const autonomia1AnoH = potenciaReferenciaAutonomia
+    ? (capacidadeInstalada * sohApos1Ano * dod * rte) / potenciaReferenciaAutonomia
+    : ((capacidadeInstalada * sohApos1Ano * dod * rte) / energiaNecessariaDia) * cliente.horasPontaPorDia
+  const autonomiaUltimoAnoH = potenciaReferenciaAutonomia
+    ? (capacidadeInstalada * sohFinalProjeto * dod * rte) / potenciaReferenciaAutonomia
+    : ((capacidadeInstalada * sohFinalProjeto * dod * rte) / energiaNecessariaDia) * cliente.horasPontaPorDia
 
   return {
     energiaTotalPontaMes,
@@ -252,9 +283,10 @@ export function calcularEconomiaAnual(
       economiaAnualBruta =
         (dim.potenciaNecessaria * tarifaDemandaAno - energiaPerdaCargaDia * tarifaForaPontaAno) * 12
     } else {
-      // BACKUP: a planilha original não modela economia tarifária para este modo
-      // (o valor do backup é continuidade operacional, não arbitragem de tarifa).
-      // Only conta o custo evitado de interrupção informado pelo usuário, se houver.
+      // BACKUP e QUALIDADE_ENERGIA: a planilha original não modela economia tarifária
+      // pra esses modos (o valor é continuidade operacional/proteção de equipamento, não
+      // arbitragem de tarifa). Só conta o custo evitado de interrupção/desarme informado
+      // pelo usuário, se houver.
       economiaAnualBruta = cliente.custoEvitadoInterrupcaoAnual ?? 0
     }
 

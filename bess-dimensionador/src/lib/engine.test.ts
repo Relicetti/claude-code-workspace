@@ -113,6 +113,51 @@ describe('calcularDimensionamento — modo BACKUP', () => {
   })
 })
 
+describe('calcularDimensionamento — modo QUALIDADE_ENERGIA', () => {
+  // Ride-through de afundamento de tensão/microinterrupção da Copel: dura segundos, não
+  // horas. Ex: proteger 200 kW de carga crítica (motores de irrigação/ordenha) por um
+  // evento de 10 segundos.
+  const clienteQE = {
+    ...DADOS_CLIENTE_PADRAO,
+    modoOperacao: 'QUALIDADE_ENERGIA' as const,
+    demandaMaximaPontaKw: 300,
+    potenciaCriticaKw: 200,
+    duracaoEventoSegundos: 10,
+    eventosPorMes: 15,
+  }
+
+  it('energia = potenciaCriticaKw × duração do evento em horas (sem arredondar pra cima)', () => {
+    const dim = calcularDimensionamento(clienteQE, ESPECIFICACOES_BESS_PADRAO)
+    expect(dim.energiaNecessariaDia).toBeCloseTo((200 * 10) / 3600, 6) // ≈0.5556 kWh
+    expect(dim.potenciaNecessaria).toBe(200) // potência crítica, não a demanda máxima da UC
+  })
+
+  it('sem potenciaCriticaKw informado, cai para demandaMaximaPontaKw', () => {
+    const { potenciaCriticaKw, ...semPotenciaCritica } = clienteQE
+    const dim = calcularDimensionamento(semPotenciaCritica, ESPECIFICACOES_BESS_PADRAO)
+    expect(dim.energiaNecessariaDia).toBeCloseTo((300 * 10) / 3600, 6)
+    expect(dim.potenciaNecessaria).toBe(300)
+  })
+
+  it('ciclosPorAno usa eventosPorMes × 12 quando informado (não diasUteisPorMes)', () => {
+    const dim = calcularDimensionamento(clienteQE, ESPECIFICACOES_BESS_PADRAO)
+    expect(dim.ciclosPorAno).toBe(15 * 12)
+  })
+
+  it('sem eventosPorMes, cai para a estimativa genérica de diasUteisPorMes × 12', () => {
+    const { eventosPorMes, ...semEventos } = clienteQE
+    const dim = calcularDimensionamento(semEventos, ESPECIFICACOES_BESS_PADRAO)
+    expect(dim.ciclosPorAno).toBe(DADOS_CLIENTE_PADRAO.diasUteisPorMes * 12)
+  })
+
+  it('autonomia é medida em horas de potência crítica, não em múltiplos de horasPontaPorDia', () => {
+    const bess = { ...ESPECIFICACOES_BESS_PADRAO, racksAdotadoOverride: 1 }
+    const dim = calcularDimensionamento(clienteQE, bess)
+    const esperado = (dim.capacidadeInstalada * dim.sohApos1Ano * bess.dod * bess.rte) / 200
+    expect(dim.autonomia1AnoH).toBeCloseTo(esperado, 6)
+  })
+})
+
 describe('calcularCapex — caso Caterpillar', () => {
   const capex = calcularCapex(CAPEX_INPUTS_PADRAO)
 
