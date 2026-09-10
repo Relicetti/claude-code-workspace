@@ -1,10 +1,19 @@
 # Dimensionador BESS
 
-Dimensionamento técnico + análise financeira de sistemas de armazenamento de energia
-(BESS) para os modos TIME-SHIFT, BACKUP, PEAK-SHAVING, QUALIDADE_ENERGIA e o combinado
-BACKUP_E_QUALIDADE_ENERGIA. Porta a lógica de `Planilha_Dimensionamento_BESS.xlsx` (caso de
-referência: Caterpillar Campo Largo / WEG, proposta RP0826000), validada célula a célula em
-`src/lib/engine.test.ts`.
+Dimensionamento técnico de sistemas de armazenamento de energia (BESS) para os modos
+TIME-SHIFT, BACKUP, PEAK-SHAVING, QUALIDADE_ENERGIA e o combinado
+BACKUP_E_QUALIDADE_ENERGIA. Porta a lógica de dimensionamento de
+`Planilha_Dimensionamento_BESS.xlsx` (caso de referência: Caterpillar Campo Largo / WEG,
+proposta RP0826000), validada célula a célula em `src/lib/engine.test.ts`.
+
+**Sem CAPEX nem indicadores financeiros na aplicação** (decisão do dono do repo,
+2026-09-10): a app existe pra sustentar o pedido de financiamento com a base técnica de
+dimensionamento, não pra fazer a análise financeira do investimento — isso fica a cargo do
+banco/do dono do repo por fora. `calcularCapex`, `calcularEconomiaAnual` e
+`calcularIndicadoresFinanceiros` continuam em `src/lib/engine.ts` e com sua suíte de testes
+intacta (validados célula a célula contra a planilha original), só não são mais chamados
+pela UI (`App.tsx` usa só `calcularDimensionamento` diretamente) — ficam disponíveis caso
+uma ferramenta financeira separada volte a precisar dessa lógica.
 
 O foco atual de desenvolvimento é o caso de **produtor rural com problemas de atendimento
 da Copel**, usado como base técnica para aprovação de financiamento (linha de crédito
@@ -38,11 +47,13 @@ npm run build    # build de produção
 
 ```
 src/
-  types/index.ts   — tipos (DadosCliente, EspecificacoesBess, CapexInputs, resultados)
+  types/index.ts   — tipos (DadosCliente, EspecificacoesBess, resultados)
   lib/soh-curve.ts — curva de degradação (SoH x ciclos) da WEG, com interpolação linear
-  lib/engine.ts    — dimensionamento, CAPEX, economia anual, indicadores financeiros
+  lib/engine.ts    — dimensionamento (usado pela UI) + CAPEX/economia/indicadores financeiros
+                     (não usados pela UI atual, ver seção acima — mantidos e testados)
   lib/defaults.ts  — valores padrão (caso Caterpillar, usado nos testes)
-  App.tsx          — interface com abas (Dados do Cliente, Especificação BESS, CAPEX, Resultados)
+  App.tsx          — interface com abas (Dados do Cliente, Especificação BESS, Resultados,
+                     Relatório Técnico)
 ```
 
 ## Correções em relação à planilha original
@@ -108,7 +119,7 @@ manual; sem ele, o dimensionamento é 100% automático.
 
 ## Próximo passo
 
-Este é o dimensionador + financeiro. O validador de proposta de fornecedor (compara o
-que foi ofertado em PDF contra o que este engine calcula como necessário) está
-especificado em `../ufv-bess-calculator/docs/spec-validador-dimensionamento.md` e ainda
-não foi implementado.
+O validador de proposta de fornecedor (compara o que foi ofertado em PDF contra o que este
+engine calcula como necessário) está especificado em
+`../ufv-bess-calculator/docs/spec-validador-dimensionamento.md` e ainda não foi
+implementado.

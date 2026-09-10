@@ -1,7 +1,7 @@
 {
   "name": "bess-dimensionador",
   "version": "1.0.0",
-  "description": "Dimensionador tecnico-financeiro de sistemas BESS (time-shift, backup, peak-shaving)",
+  "description": "Dimensionador tecnico de sistemas BESS (backup, qualidade de energia, time-shift, peak-shaving) - sem CAPEX/analise financeira",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,8 +14,7 @@
     "jspdf-autotable": "^3.8.2",
     "lucide-react": "^0.363.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "recharts": "^2.10.0"
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
