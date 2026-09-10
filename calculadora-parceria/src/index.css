@@ -1,0 +1,10 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: #f4f3ed; color: #2c2c2a; }
+input:focus, select:focus, button:focus { outline: 2px solid #2a78d6; outline-offset: 2px; }
+button:active { transform: scale(0.98); }
+@media print {
+  .no-print { display: none !important; }
+  .pagina-proposta { box-shadow: none !important; page-break-after: always; break-after: page; }
+  .pagina-proposta:last-child { page-break-after: auto; break-after: auto; }
+}
+@keyframes girar { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
