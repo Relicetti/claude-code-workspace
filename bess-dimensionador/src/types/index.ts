@@ -2,7 +2,7 @@
 // Nomenclatura e comentários referenciam as células da planilha original
 // (Planilha_Dimensionamento_BESS.xlsx) para facilitar auditoria cruzada.
 
-export type ModoOperacao = 'TIME-SHIFT' | 'BACKUP' | 'PEAK-SHAVING' | 'QUALIDADE_ENERGIA'
+export type ModoOperacao = 'TIME-SHIFT' | 'BACKUP' | 'PEAK-SHAVING' | 'QUALIDADE_ENERGIA' | 'BACKUP_E_QUALIDADE_ENERGIA'
 
 export type BaseCalculoBackup = 'DEMANDA_MAXIMA' | 'DEMANDA_MEDIA_NORMAL'
 

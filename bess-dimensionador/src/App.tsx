@@ -93,6 +93,11 @@ export default function App() {
   function set<K extends keyof DadosCliente>(key: K, value: DadosCliente[K]) {
     setCliente((c) => ({ ...c, [key]: value }))
   }
+  // BACKUP_E_QUALIDADE_ENERGIA é o mesmo BESS atendendo as duas funções ao mesmo tempo —
+  // mostra os parâmetros das duas nesse modo, não só de uma.
+  const usaBackup = cliente.modoOperacao === 'BACKUP' || cliente.modoOperacao === 'BACKUP_E_QUALIDADE_ENERGIA'
+  const usaQualidadeEnergia =
+    cliente.modoOperacao === 'QUALIDADE_ENERGIA' || cliente.modoOperacao === 'BACKUP_E_QUALIDADE_ENERGIA'
   function addCargaCritica() {
     setCliente((c) => ({
       ...c,
@@ -183,6 +188,7 @@ export default function App() {
                   <option value="BACKUP">BACKUP</option>
                   <option value="PEAK-SHAVING">PEAK-SHAVING</option>
                   <option value="QUALIDADE_ENERGIA">QUALIDADE DE ENERGIA</option>
+                  <option value="BACKUP_E_QUALIDADE_ENERGIA">BACKUP + QUALIDADE DE ENERGIA</option>
                 </select>
               </label>
             </div>
@@ -210,7 +216,7 @@ export default function App() {
             </div>
           </Section>
 
-          {cliente.modoOperacao === 'BACKUP' && (
+          {usaBackup && (
             <Section title="Parâmetros de BACKUP">
               <div style={grid}>
                 <NumberField label="Horas de backup a garantir" suffix="h" value={cliente.horasBackup ?? 0} onChange={(v) => set('horasBackup', v)} />
@@ -239,7 +245,7 @@ export default function App() {
             </Section>
           )}
 
-          {(cliente.modoOperacao === 'BACKUP' || cliente.modoOperacao === 'QUALIDADE_ENERGIA') && (
+          {(usaBackup || usaQualidadeEnergia) && (
             <Section title="Cargas críticas (opcional)">
               {(cliente.cargasCriticas ?? []).map((carga, i) => (
                 <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
@@ -282,7 +288,7 @@ export default function App() {
             </Section>
           )}
 
-          {cliente.modoOperacao === 'QUALIDADE_ENERGIA' && (
+          {usaQualidadeEnergia && (
             <Section title="Parâmetros de QUALIDADE DE ENERGIA">
               <div style={grid}>
                 <NumberField

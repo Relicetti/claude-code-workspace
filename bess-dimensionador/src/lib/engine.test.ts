@@ -213,6 +213,59 @@ describe('calcularDimensionamento — lista de cargas críticas', () => {
   })
 })
 
+describe('calcularDimensionamento — modo combinado BACKUP_E_QUALIDADE_ENERGIA', () => {
+  const clienteCombinado = {
+    ...DADOS_CLIENTE_PADRAO,
+    modoOperacao: 'BACKUP_E_QUALIDADE_ENERGIA' as const,
+    demandaMaximaPontaKw: 300, // carga total da propriedade (base do backup)
+    horasBackup: 4,
+    baseCalculoBackup: 'DEMANDA_MAXIMA' as const,
+    potenciaCriticaKw: 120, // só as cargas mais sensíveis (base da qualidade de energia)
+    duracaoEventoSegundos: 10,
+  }
+
+  it('energia é dominada pelo backup (horas), não pela energia desprezível do evento de qualidade', () => {
+    const dim = calcularDimensionamento(clienteCombinado, ESPECIFICACOES_BESS_PADRAO)
+    expect(dim.energiaNecessariaDia).toBe(4 * 300) // igual ao BACKUP isolado com a mesma base
+  })
+
+  it('potência necessária é o maior entre a carga de backup e a carga crítica de qualidade', () => {
+    // aqui backup (300 kW) > qualidade de energia (120 kW)
+    const dim = calcularDimensionamento(clienteCombinado, ESPECIFICACOES_BESS_PADRAO)
+    expect(dim.potenciaNecessaria).toBe(300)
+  })
+
+  it('quando a carga crítica de qualidade é maior que a de backup, a potência acompanha ela', () => {
+    const dim = calcularDimensionamento(
+      { ...clienteCombinado, potenciaCriticaKw: 450 },
+      ESPECIFICACOES_BESS_PADRAO
+    )
+    expect(dim.potenciaNecessaria).toBe(450)
+  })
+
+  it('autonomia é medida contra a potência de referência do backup (a função dominante)', () => {
+    const bess = { ...ESPECIFICACOES_BESS_PADRAO, racksAdotadoOverride: 1 }
+    const dim = calcularDimensionamento(clienteCombinado, bess)
+    const esperado = (dim.capacidadeInstalada * dim.sohApos1Ano * bess.dod * bess.rte) / 300
+    expect(dim.autonomia1AnoH).toBeCloseTo(esperado, 6)
+  })
+
+  it('com cargasCriticas preenchida, a mesma soma alimenta os dois lados do máximo', () => {
+    const dim = calcularDimensionamento(
+      {
+        ...clienteCombinado,
+        cargasCriticas: [
+          { nome: 'Irrigação', potenciaKw: 150 },
+          { nome: 'Ordenha', potenciaKw: 50 },
+        ], // soma = 200, substitui tanto demandaMaximaPontaKw quanto potenciaCriticaKw
+      },
+      ESPECIFICACOES_BESS_PADRAO
+    )
+    expect(dim.potenciaNecessaria).toBe(200)
+    expect(dim.energiaNecessariaDia).toBe(4 * 200)
+  })
+})
+
 describe('calcularCapex — caso Caterpillar', () => {
   const capex = calcularCapex(CAPEX_INPUTS_PADRAO)
 
