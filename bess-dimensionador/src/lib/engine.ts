@@ -59,48 +59,60 @@ export function calcularDimensionamento(
   //     dura segundos/minutos, não horas. `potência crítica × duração do evento`, não
   //     `horasPontaPorDia`. Sem essas ramificações o dimensionamento reaproveitava por
   //     engano a fórmula de TIME-SHIFT (baseada em consumoMedioPontaKwh).
+  //   - BACKUP_E_QUALIDADE_ENERGIA: é o mesmo BESS físico atendendo as duas funções ao
+  //     mesmo tempo, não a soma das duas energias. A energia é dominada pelo backup
+  //     (horas >> segundos de um afundamento de tensão — a energia extra que o evento de
+  //     qualidade pediria é desprezível perto da capacidade já dimensionada pro backup).
+  //     A potência do PCS, porém, precisa ser a maior das duas exigências: o conjunto de
+  //     cargas do backup e o conjunto de cargas sensíveis do ride-through podem não ser o
+  //     mesmo (backup cobre a propriedade toda; qualidade de energia normalmente protege
+  //     só os equipamentos mais sensíveis) — o inversor tem que suprir o pico de qualquer
+  //     um dos dois cenários.
   // `potenciaReferenciaAutonomia` guarda a potência contra a qual a autonomia em horas
-  // (mais abaixo) deve ser medida nesses dois modos — em TIME-SHIFT/PEAK-SHAVING o
-  // cálculo legado (proporcional a horasPontaPorDia) é mantido.
+  // (mais abaixo) deve ser medida nesses modos — em TIME-SHIFT/PEAK-SHAVING o cálculo
+  // legado (proporcional a horasPontaPorDia) é mantido.
   // Soma da lista de cargas críticas, quando informada — substitui o valor manual de
   // demanda máxima/potência crítica em BACKUP e QUALIDADE_ENERGIA (ver comentário no tipo
   // DadosCliente). Não afeta TIME-SHIFT/PEAK-SHAVING, que usam demandaMaximaPontaKw direto.
   const potenciaCargasCriticasKw = cliente.cargasCriticas?.length
     ? cliente.cargasCriticas.reduce((soma, c) => soma + c.potenciaKw, 0)
     : undefined
+  const demandaMaximaEfetiva = potenciaCargasCriticasKw ?? cliente.demandaMaximaPontaKw
+  const potenciaCriticaQualidade = potenciaCargasCriticasKw ?? cliente.potenciaCriticaKw ?? cliente.demandaMaximaPontaKw
+
+  const usaBackup = cliente.modoOperacao === 'BACKUP' || cliente.modoOperacao === 'BACKUP_E_QUALIDADE_ENERGIA'
+  const usaQualidadeEnergia =
+    cliente.modoOperacao === 'QUALIDADE_ENERGIA' || cliente.modoOperacao === 'BACKUP_E_QUALIDADE_ENERGIA'
 
   let energiaNecessariaDia: number
   let potenciaReferenciaAutonomia: number | null = null
-  if (cliente.modoOperacao === 'BACKUP') {
-    const demandaMaximaEfetiva = potenciaCargasCriticasKw ?? cliente.demandaMaximaPontaKw
+  if (usaBackup) {
+    // Também cobre o modo combinado: a energia do backup domina o dimensionamento.
     const demandaBaseBackup =
       cliente.baseCalculoBackup === 'DEMANDA_MEDIA_NORMAL'
         ? cliente.demandaMediaNormalKw ?? demandaMaximaEfetiva
         : demandaMaximaEfetiva
     energiaNecessariaDia = roundUp((cliente.horasBackup ?? 0) * demandaBaseBackup)
     potenciaReferenciaAutonomia = demandaBaseBackup
-  } else if (cliente.modoOperacao === 'QUALIDADE_ENERGIA') {
-    const potenciaCritica = potenciaCargasCriticasKw ?? cliente.potenciaCriticaKw ?? cliente.demandaMaximaPontaKw
+  } else if (usaQualidadeEnergia) {
     const duracaoEventoHoras = (cliente.duracaoEventoSegundos ?? 0) / 3600
     // Sem ROUNDUP aqui: a energia de um evento de poucos segundos é tipicamente uma
     // fração pequena de kWh, e arredondar pra cima pro inteiro mais próximo (como as
     // outras vias, herdadas da planilha original) distorceria o resultado.
-    energiaNecessariaDia = potenciaCritica * duracaoEventoHoras
-    potenciaReferenciaAutonomia = potenciaCritica
+    energiaNecessariaDia = potenciaCriticaQualidade * duracaoEventoHoras
+    potenciaReferenciaAutonomia = potenciaCriticaQualidade
   } else {
     energiaNecessariaDia = roundUp(energiaTotalPontaMes / cliente.diasUteisPorMes)
   }
 
   // B17/B21 (DADOS_CLIENTE): ciclos por ano e ciclos totais do projeto.
-  // Em QUALIDADE_ENERGIA, usa a frequência de eventos informada quando disponível — cada
-  // evento é um ciclo (raso) de degradação, não um ciclo completo por dia útil como nos
-  // outros modos. Nota: isso conta eventos como se fossem ciclos equivalentes cheios, o
-  // que é conservador (superestima degradação) na ausência de um modelo de throughput
-  // por profundidade de descarga (rainflow counting).
+  // Quando o modo envolve QUALIDADE_ENERGIA, usa a frequência de eventos informada quando
+  // disponível — cada evento é um ciclo (raso) de degradação, tipicamente bem mais frequente
+  // que um ciclo completo por dia útil. Nota: isso conta eventos como se fossem ciclos
+  // equivalentes cheios, o que é conservador (superestima degradação) na ausência de um
+  // modelo de throughput por profundidade de descarga (rainflow counting).
   const ciclosPorAno =
-    cliente.modoOperacao === 'QUALIDADE_ENERGIA' && cliente.eventosPorMes
-      ? cliente.eventosPorMes * 12
-      : cliente.diasUteisPorMes * 12
+    usaQualidadeEnergia && cliente.eventosPorMes ? cliente.eventosPorMes * 12 : cliente.diasUteisPorMes * 12
   const ciclosTotaisProjeto = ciclosPorAno * cliente.vidaUtilAnos
 
   // B24: SoH ao final da vida útil do projeto — usado para dimensionar
@@ -114,17 +126,20 @@ export function calcularDimensionamento(
       ? roundUp(energiaNecessariaDia / (dod * rte * sohFinalProjeto))
       : roundUp(energiaNecessariaDia / (dod * rte))
 
-  // B4: potência necessária — limite de demanda em peak-shaving, potência crítica em
-  // qualidade de energia, soma das cargas críticas (se houver) em backup, senão a demanda
-  // de ponta/máxima medida
+  // B4: potência necessária — limite de demanda em peak-shaving; no combinado, o maior
+  // entre a carga de backup e a carga crítica de qualidade de energia (ver comentário
+  // acima); isoladamente, a soma das cargas críticas (se houver) ou a demanda/potência
+  // crítica correspondente ao modo.
   const potenciaNecessaria =
     cliente.modoOperacao === 'PEAK-SHAVING' && cliente.limiteDemandaKw
       ? cliente.demandaMaximaPontaKw - cliente.limiteDemandaKw
-      : cliente.modoOperacao === 'QUALIDADE_ENERGIA'
-        ? potenciaCargasCriticasKw ?? cliente.potenciaCriticaKw ?? cliente.demandaMaximaPontaKw
-        : cliente.modoOperacao === 'BACKUP'
-          ? potenciaCargasCriticasKw ?? cliente.demandaMaximaPontaKw
-          : cliente.demandaMaximaPontaKw
+      : cliente.modoOperacao === 'BACKUP_E_QUALIDADE_ENERGIA'
+        ? Math.max(demandaMaximaEfetiva, potenciaCriticaQualidade)
+        : cliente.modoOperacao === 'QUALIDADE_ENERGIA'
+          ? potenciaCriticaQualidade
+          : cliente.modoOperacao === 'BACKUP'
+            ? demandaMaximaEfetiva
+            : cliente.demandaMaximaPontaKw
 
   // B9/B10/B11: número de racks
   const racksPorEnergia = roundUp(capacidadeNominalMinima / capacidadePorRackKwh)

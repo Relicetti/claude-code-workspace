@@ -1,16 +1,28 @@
 # Dimensionador BESS
 
 Dimensionamento técnico + análise financeira de sistemas de armazenamento de energia
-(BESS) para os modos TIME-SHIFT, BACKUP, PEAK-SHAVING e QUALIDADE_ENERGIA. Porta a lógica de
-`Planilha_Dimensionamento_BESS.xlsx` (caso de referência: Caterpillar Campo Largo / WEG,
-proposta RP0826000), validada célula a célula em `src/lib/engine.test.ts`.
+(BESS) para os modos TIME-SHIFT, BACKUP, PEAK-SHAVING, QUALIDADE_ENERGIA e o combinado
+BACKUP_E_QUALIDADE_ENERGIA. Porta a lógica de `Planilha_Dimensionamento_BESS.xlsx` (caso de
+referência: Caterpillar Campo Largo / WEG, proposta RP0826000), validada célula a célula em
+`src/lib/engine.test.ts`.
 
 O foco atual de desenvolvimento é o caso de **produtor rural com problemas de atendimento
 da Copel**, usado como base técnica para aprovação de financiamento (linha de crédito
-subsidiada em negociação com um órgão estadual do Paraná). Os modos relevantes pra esse
-caso são **BACKUP** (autonomia de horas numa falta de energia) e **QUALIDADE_ENERGIA**
-(ride-through de afundamento de tensão/microinterrupção, que dura segundos/minutos e
-protege equipamento sensível de desarme/dano — não é o mesmo problema que BACKUP).
+subsidiada em negociação com um órgão estadual do Paraná). O modo relevante pra esse caso é
+**BACKUP_E_QUALIDADE_ENERGIA**: o mesmo BESS físico atendendo as duas funções ao mesmo
+tempo —
+
+- **BACKUP**: autonomia de horas numa falta de energia prolongada
+- **QUALIDADE_ENERGIA**: ride-through de afundamento de tensão/microinterrupção breve
+  (segundos/minutos), protegendo equipamento sensível de desarme/dano — um problema
+  diferente do backup, não uma variação dele
+
+No combinado, a **energia** armazenada é dimensionada pelo backup (a energia extra que o
+evento de qualidade pediria é desprezível perto de horas de autonomia); a **potência** do
+PCS é o maior valor entre a carga de backup e a carga crítica de qualidade de energia,
+porque os dois conjuntos de carga podem não ser os mesmos (backup cobre a propriedade toda,
+qualidade de energia normalmente só as cargas mais sensíveis). BACKUP e QUALIDADE_ENERGIA
+isolados continuam disponíveis pra quando só uma das duas funções é necessária.
 TIME-SHIFT e PEAK-SHAVING continuam funcionais mas não são o foco de evolução agora.
 
 ## Como rodar
