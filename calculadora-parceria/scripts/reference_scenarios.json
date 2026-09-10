@@ -330,14 +330,14 @@
     "enquadramento": "GD2",
     "fonte": "Solar",
     "modalidade": "Geração Compartilhada",
-    "tarifComp": 0.665,
+    "tarifComp": 0.592,
     "pctCliente": 0.05,
-    "tGerador": 0.539,
-    "fatGerador": 360.07,
+    "tGerador": 0.474,
+    "fatGerador": 317.06,
     "comInterm": 0,
-    "pescocoAlex": 818.33,
-    "mensalAlex": 49.1,
-    "takeRate": 0.2454897299795946
+    "pescocoAlex": 751.62,
+    "mensalAlex": 58.75,
+    "takeRate": 0.28209814213228884
   },
   {
     "concessionaria": "Cemig-D",
@@ -530,14 +530,14 @@
     "enquadramento": "GD2",
     "fonte": "Solar",
     "modalidade": "Geração Compartilhada",
-    "tarifComp": 0.821,
+    "tarifComp": 0.747,
     "pctCliente": 0.1,
-    "tGerador": 0.611,
-    "fatGerador": 366802.85,
+    "tGerador": 0.546,
+    "fatGerador": 327761.07,
     "comInterm": 0,
-    "pescocoAlex": 833642.84,
-    "mensalAlex": 50018.57,
-    "takeRate": 0.22547693100665095
+    "pescocoAlex": 807479.97,
+    "mensalAlex": 75978.91,
+    "takeRate": 0.2911407951126354
   },
   {
     "concessionaria": "Light",
