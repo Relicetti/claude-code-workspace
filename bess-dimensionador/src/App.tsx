@@ -12,11 +12,11 @@ import {
   Legend,
   ReferenceLine,
 } from 'recharts'
-import type { DadosCliente, EspecificacoesBess, CapexInputs, ModoOperacao, CargaCritica } from './types'
+import type { DadosCliente, EspecificacoesBess, CapexInputs, ModoOperacao, CargaCritica, ResultadoCompleto } from './types'
 import { calcularResultadoCompleto } from './lib/engine'
 import { DADOS_CLIENTE_PADRAO, ESPECIFICACOES_BESS_PADRAO, CAPEX_INPUTS_PADRAO } from './lib/defaults'
 
-const TABS = ['Dados do Cliente', 'Especificação BESS', 'CAPEX', 'Resultados'] as const
+const TABS = ['Dados do Cliente', 'Especificação BESS', 'CAPEX', 'Resultados', 'Relatório Técnico'] as const
 type Tab = (typeof TABS)[number]
 
 function fmtBRL(v: number): string {
@@ -470,6 +470,202 @@ export default function App() {
           </Section>
         </>
       )}
+
+      {tab === 'Relatório Técnico' && resultado && (
+        <RelatorioTecnico cliente={cliente} bess={bess} resultado={resultado} usaBackup={usaBackup} usaQualidadeEnergia={usaQualidadeEnergia} />
+      )}
+    </div>
+  )
+}
+
+// Relatório técnico de dimensionamento — só a parte de engenharia (requisitos + resultado
+// do dimensionamento), sem CAPEX nem indicadores financeiros. Pensado pra ser anexado a um
+// pedido de financiamento como a base técnica que justifica o sistema, não a proposta
+// comercial. #relatorio-tecnico + a regra @media print em index.css fazem o "imprimir"
+// mostrar só este conteúdo, escondendo abas/navegação (classe .no-print).
+function RelatorioTecnico({
+  cliente,
+  bess,
+  resultado,
+  usaBackup,
+  usaQualidadeEnergia,
+}: {
+  cliente: DadosCliente
+  bess: EspecificacoesBess
+  resultado: ResultadoCompleto
+  usaBackup: boolean
+  usaQualidadeEnergia: boolean
+}) {
+  const { dimensionamento: dim } = resultado
+  const cargasCriticas = cliente.cargasCriticas ?? []
+  const somaCargasCriticas = cargasCriticas.reduce((s, c) => s + c.potenciaKw, 0)
+
+  const objetivos: string[] = []
+  if (usaBackup) {
+    objetivos.push(
+      `Garantir ${fmtNum(cliente.horasBackup ?? 0, 1)} hora(s) de autonomia às cargas críticas em caso de falta de energia prolongada da distribuidora.`
+    )
+  }
+  if (usaQualidadeEnergia) {
+    objetivos.push(
+      `Suportar afundamentos de tensão/microinterrupções de até ${fmtNum(cliente.duracaoEventoSegundos ?? 0, 0)} segundo(s) sem desarme das cargas sensíveis (ride-through), evitando parada ou dano de equipamento por instabilidade da rede.`
+    )
+  }
+  if (!usaBackup && !usaQualidadeEnergia) {
+    objetivos.push(
+      cliente.modoOperacao === 'TIME-SHIFT'
+        ? 'Deslocar consumo do horário de ponta para o horário fora de ponta, reduzindo custo de energia por arbitragem tarifária.'
+        : 'Limitar a demanda contratada evitando ultrapassagem, reduzindo custo de demanda.'
+    )
+  }
+
+  const h2: React.CSSProperties = { fontSize: 15, fontWeight: 700, marginTop: 28, marginBottom: 10, color: '#2c2c2a' }
+  const p: React.CSSProperties = { fontSize: 13, lineHeight: 1.6, color: '#3a3a37' }
+
+  return (
+    <div id="relatorio-tecnico" style={{ background: '#fff', border: '1px solid #e3e2da', borderRadius: 8, padding: 32 }}>
+      <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+        <button
+          onClick={() => window.print()}
+          style={{ padding: '8px 16px', border: 'none', background: '#2a78d6', color: '#fff', borderRadius: 4, fontSize: 13, cursor: 'pointer' }}
+        >
+          Imprimir / salvar como PDF
+        </button>
+      </div>
+
+      <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Relatório Técnico de Dimensionamento — Sistema BESS</h1>
+      <p style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>
+        Cliente: <strong>{cliente.nomeCliente}</strong> — Modalidade tarifária: {cliente.modalidadeTarifaria || '—'}
+      </p>
+      <p style={{ fontSize: 12, color: '#888' }}>Emitido em {new Date().toLocaleDateString('pt-BR')}</p>
+
+      <h2 style={h2}>1. Objetivo do sistema</h2>
+      {objetivos.map((texto, i) => (
+        <p key={i} style={p}>
+          {texto}
+        </p>
+      ))}
+
+      <h2 style={h2}>2. Cargas críticas consideradas</h2>
+      {cargasCriticas.length > 0 ? (
+        <>
+          <table>
+            <thead>
+              <tr>
+                <th>Carga</th>
+                <th>Potência (kW)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cargasCriticas.map((c, i) => (
+                <tr key={i}>
+                  <td>{c.nome || '(sem nome)'}</td>
+                  <td>{fmtNum(c.potenciaKw)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p style={{ ...p, marginTop: 8, fontWeight: 600 }}>Total: {fmtNum(somaCargasCriticas)} kW</p>
+        </>
+      ) : (
+        <p style={p}>
+          Não detalhadas item a item — o dimensionamento usa o valor agregado de demanda
+          máxima/potência crítica informado ({fmtNum(dim.potenciaNecessaria)} kW).
+        </p>
+      )}
+
+      <h2 style={h2}>3. Premissas de dimensionamento</h2>
+      <table>
+        <tbody>
+          {usaBackup && (
+            <>
+              <tr>
+                <td>Horas de backup a garantir</td>
+                <td>{fmtNum(cliente.horasBackup ?? 0, 1)} h</td>
+              </tr>
+              <tr>
+                <td>Base de cálculo da energia de backup</td>
+                <td>
+                  {cliente.baseCalculoBackup === 'DEMANDA_MEDIA_NORMAL'
+                    ? 'Demanda média normal (realista)'
+                    : 'Demanda máxima medida (conservador)'}
+                </td>
+              </tr>
+            </>
+          )}
+          {usaQualidadeEnergia && (
+            <tr>
+              <td>Duração do evento a suportar</td>
+              <td>{fmtNum(cliente.duracaoEventoSegundos ?? 0, 0)} s</td>
+            </tr>
+          )}
+          <tr>
+            <td>Profundidade de descarga (DoD)</td>
+            <td>{fmtPct(bess.dod)}</td>
+          </tr>
+          <tr>
+            <td>Eficiência round-trip (RTE)</td>
+            <td>{fmtPct(bess.rte)}</td>
+          </tr>
+          <tr>
+            <td>Vida útil do projeto</td>
+            <td>{cliente.vidaUtilAnos} anos</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2 style={h2}>4. Resultado do dimensionamento</h2>
+      <table>
+        <tbody>
+          <tr>
+            <td>Energia necessária</td>
+            <td>{fmtNum(dim.energiaNecessariaDia, 2)} kWh</td>
+          </tr>
+          <tr>
+            <td>Capacidade nominal mínima</td>
+            <td>{fmtNum(dim.capacidadeNominalMinima)} kWh</td>
+          </tr>
+          <tr>
+            <td>Potência necessária</td>
+            <td>{fmtNum(dim.potenciaNecessaria)} kW</td>
+          </tr>
+          <tr>
+            <td style={{ fontWeight: 600 }}>Racks/containers adotados</td>
+            <td style={{ fontWeight: 600 }}>{dim.racksAdotado}</td>
+          </tr>
+          <tr>
+            <td style={{ fontWeight: 600 }}>Capacidade instalada</td>
+            <td style={{ fontWeight: 600 }}>{fmtNum(dim.capacidadeInstalada)} kWh</td>
+          </tr>
+          <tr>
+            <td style={{ fontWeight: 600 }}>Potência instalada</td>
+            <td style={{ fontWeight: 600 }}>{fmtNum(dim.potenciaInstalada)} kW</td>
+          </tr>
+          <tr>
+            <td>Autonomia no ano 1</td>
+            <td>{fmtNum(dim.autonomia1AnoH, 2)} h</td>
+          </tr>
+          <tr>
+            <td>Autonomia no ano {cliente.vidaUtilAnos} (fim de vida útil)</td>
+            <td>{fmtNum(dim.autonomiaUltimoAnoH, 2)} h</td>
+          </tr>
+          <tr>
+            <td>SoH (estado de saúde da bateria) no ano 1</td>
+            <td>{fmtPct(dim.sohApos1Ano)}</td>
+          </tr>
+          <tr>
+            <td>SoH no ano {cliente.vidaUtilAnos}</td>
+            <td>{fmtPct(dim.sohFinalProjeto)}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p style={{ fontSize: 11, color: '#999', marginTop: 28, lineHeight: 1.6 }}>
+        Relatório técnico gerado pelo Dimensionador BESS. Considera degradação de capacidade
+        ao longo da vida útil (curva de SoH por ciclos), garantindo que a autonomia informada
+        no fim de vida útil ainda atenda ao requisito operacional. Não inclui CAPEX ou análise
+        financeira — apenas a base técnica de dimensionamento.
+      </p>
     </div>
   )
 }

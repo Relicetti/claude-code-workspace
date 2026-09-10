@@ -67,6 +67,19 @@ Também foi omitida a tabela de "opções de financiamento" (`DIMENSIONAMENTO!E3
 referenciava um arquivo Excel externo que não existe mais (`[1]ECONOMIA_ANUAL!O2`) e uma
 célula vazia — resíduo de outra planilha, não uma regra de negócio válida.
 
+## Relatório técnico exportável
+
+A aba "Relatório Técnico" gera um documento pronto pra anexar a um pedido de
+financiamento: objetivo do sistema, cargas críticas consideradas, premissas de
+dimensionamento e o resultado (energia/potência necessárias, racks, capacidade e potência
+instaladas, autonomia e SoH ano 1 e fim de vida útil). Deliberadamente **sem CAPEX nem
+indicadores financeiros** — é só a base técnica de engenharia, não a proposta comercial.
+
+Exporta como PDF via impressão do navegador ("Imprimir / salvar como PDF" → destino
+"Salvar como PDF"), sem dependência de biblioteca de geração de PDF: o CSS de impressão em
+`index.css` (`@media print`) esconde toda a navegação e mostra só o conteúdo de
+`#relatorio-tecnico`.
+
 ## Nº de racks: automático vs. manual
 
 O nº de racks é calculado por padrão como `MAX(racksPorEnergia, racksPorPotencia)`. A
