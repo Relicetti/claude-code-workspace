@@ -62,17 +62,25 @@ export function calcularDimensionamento(
   // `potenciaReferenciaAutonomia` guarda a potência contra a qual a autonomia em horas
   // (mais abaixo) deve ser medida nesses dois modos — em TIME-SHIFT/PEAK-SHAVING o
   // cálculo legado (proporcional a horasPontaPorDia) é mantido.
+  // Soma da lista de cargas críticas, quando informada — substitui o valor manual de
+  // demanda máxima/potência crítica em BACKUP e QUALIDADE_ENERGIA (ver comentário no tipo
+  // DadosCliente). Não afeta TIME-SHIFT/PEAK-SHAVING, que usam demandaMaximaPontaKw direto.
+  const potenciaCargasCriticasKw = cliente.cargasCriticas?.length
+    ? cliente.cargasCriticas.reduce((soma, c) => soma + c.potenciaKw, 0)
+    : undefined
+
   let energiaNecessariaDia: number
   let potenciaReferenciaAutonomia: number | null = null
   if (cliente.modoOperacao === 'BACKUP') {
+    const demandaMaximaEfetiva = potenciaCargasCriticasKw ?? cliente.demandaMaximaPontaKw
     const demandaBaseBackup =
       cliente.baseCalculoBackup === 'DEMANDA_MEDIA_NORMAL'
-        ? cliente.demandaMediaNormalKw ?? cliente.demandaMaximaPontaKw
-        : cliente.demandaMaximaPontaKw
+        ? cliente.demandaMediaNormalKw ?? demandaMaximaEfetiva
+        : demandaMaximaEfetiva
     energiaNecessariaDia = roundUp((cliente.horasBackup ?? 0) * demandaBaseBackup)
     potenciaReferenciaAutonomia = demandaBaseBackup
   } else if (cliente.modoOperacao === 'QUALIDADE_ENERGIA') {
-    const potenciaCritica = cliente.potenciaCriticaKw ?? cliente.demandaMaximaPontaKw
+    const potenciaCritica = potenciaCargasCriticasKw ?? cliente.potenciaCriticaKw ?? cliente.demandaMaximaPontaKw
     const duracaoEventoHoras = (cliente.duracaoEventoSegundos ?? 0) / 3600
     // Sem ROUNDUP aqui: a energia de um evento de poucos segundos é tipicamente uma
     // fração pequena de kWh, e arredondar pra cima pro inteiro mais próximo (como as
@@ -107,13 +115,16 @@ export function calcularDimensionamento(
       : roundUp(energiaNecessariaDia / (dod * rte))
 
   // B4: potência necessária — limite de demanda em peak-shaving, potência crítica em
-  // qualidade de energia, senão a demanda de ponta/máxima medida
+  // qualidade de energia, soma das cargas críticas (se houver) em backup, senão a demanda
+  // de ponta/máxima medida
   const potenciaNecessaria =
     cliente.modoOperacao === 'PEAK-SHAVING' && cliente.limiteDemandaKw
       ? cliente.demandaMaximaPontaKw - cliente.limiteDemandaKw
       : cliente.modoOperacao === 'QUALIDADE_ENERGIA'
-        ? cliente.potenciaCriticaKw ?? cliente.demandaMaximaPontaKw
-        : cliente.demandaMaximaPontaKw
+        ? potenciaCargasCriticasKw ?? cliente.potenciaCriticaKw ?? cliente.demandaMaximaPontaKw
+        : cliente.modoOperacao === 'BACKUP'
+          ? potenciaCargasCriticasKw ?? cliente.demandaMaximaPontaKw
+          : cliente.demandaMaximaPontaKw
 
   // B9/B10/B11: número de racks
   const racksPorEnergia = roundUp(capacidadeNominalMinima / capacidadePorRackKwh)

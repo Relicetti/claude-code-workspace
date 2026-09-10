@@ -12,7 +12,7 @@ import {
   Legend,
   ReferenceLine,
 } from 'recharts'
-import type { DadosCliente, EspecificacoesBess, CapexInputs, ModoOperacao } from './types'
+import type { DadosCliente, EspecificacoesBess, CapexInputs, ModoOperacao, CargaCritica } from './types'
 import { calcularResultadoCompleto } from './lib/engine'
 import { DADOS_CLIENTE_PADRAO, ESPECIFICACOES_BESS_PADRAO, CAPEX_INPUTS_PADRAO } from './lib/defaults'
 
@@ -92,6 +92,21 @@ export default function App() {
 
   function set<K extends keyof DadosCliente>(key: K, value: DadosCliente[K]) {
     setCliente((c) => ({ ...c, [key]: value }))
+  }
+  function addCargaCritica() {
+    setCliente((c) => ({
+      ...c,
+      cargasCriticas: [...(c.cargasCriticas ?? []), { nome: '', potenciaKw: 0 }],
+    }))
+  }
+  function updateCargaCritica(index: number, campo: keyof CargaCritica, valor: string | number) {
+    setCliente((c) => ({
+      ...c,
+      cargasCriticas: (c.cargasCriticas ?? []).map((carga, i) => (i === index ? { ...carga, [campo]: valor } : carga)),
+    }))
+  }
+  function removeCargaCritica(index: number) {
+    setCliente((c) => ({ ...c, cargasCriticas: (c.cargasCriticas ?? []).filter((_, i) => i !== index) }))
   }
   function setBessField<K extends keyof EspecificacoesBess>(key: K, value: EspecificacoesBess[K]) {
     setBess((b) => ({ ...b, [key]: value }))
@@ -220,6 +235,49 @@ export default function App() {
                 backup não gera economia por arbitragem tarifária — o valor dele é continuidade
                 operacional; informe um custo evitado de interrupção se quiser refletir isso no
                 fluxo de caixa, senão a economia anual desse modo fica em zero.
+              </p>
+            </Section>
+          )}
+
+          {(cliente.modoOperacao === 'BACKUP' || cliente.modoOperacao === 'QUALIDADE_ENERGIA') && (
+            <Section title="Cargas críticas (opcional)">
+              {(cliente.cargasCriticas ?? []).map((carga, i) => (
+                <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                  <input
+                    placeholder="Ex: motor de irrigação"
+                    value={carga.nome}
+                    onChange={(e) => updateCargaCritica(i, 'nome', e.target.value)}
+                    style={{ flex: 1, padding: '6px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: 14 }}
+                  />
+                  <input
+                    type="number"
+                    placeholder="kW"
+                    value={carga.potenciaKw}
+                    onChange={(e) => updateCargaCritica(i, 'potenciaKw', Number(e.target.value))}
+                    style={{ width: 100, padding: '6px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: 14 }}
+                  />
+                  <button
+                    onClick={() => removeCargaCritica(i)}
+                    style={{ border: 'none', background: 'transparent', color: '#a33', cursor: 'pointer', fontSize: 13 }}
+                  >
+                    remover
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={addCargaCritica}
+                style={{ padding: '6px 12px', border: '1px solid #2a78d6', background: '#fff', color: '#2a78d6', borderRadius: 4, fontSize: 13, cursor: 'pointer' }}
+              >
+                + Adicionar carga
+              </button>
+              <p style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
+                Some as cargas que precisam continuar ligadas na falta de energia (BACKUP) ou
+                sobreviver a um afundamento de tensão sem desarmar (QUALIDADE DE ENERGIA) — ex:
+                motor de irrigação, ordenha, câmara fria. Total atual:{' '}
+                <strong>{fmtNum((cliente.cargasCriticas ?? []).reduce((s, c) => s + c.potenciaKw, 0))} kW</strong>.{' '}
+                {(cliente.cargasCriticas ?? []).length > 0
+                  ? 'Com a lista preenchida, esse total substitui o campo manual de demanda máxima/potência crítica abaixo.'
+                  : 'Vazia, o dimensionamento usa o campo manual de demanda máxima/potência crítica abaixo.'}
               </p>
             </Section>
           )}

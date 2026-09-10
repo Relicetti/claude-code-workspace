@@ -158,6 +158,61 @@ describe('calcularDimensionamento — modo QUALIDADE_ENERGIA', () => {
   })
 })
 
+describe('calcularDimensionamento — lista de cargas críticas', () => {
+  const cargas = [
+    { nome: 'Motor de irrigação', potenciaKw: 120 },
+    { nome: 'Ordenha', potenciaKw: 45 },
+    { nome: 'Câmara fria', potenciaKw: 35 },
+  ] // soma = 200 kW
+
+  it('BACKUP: soma das cargas críticas substitui demandaMaximaPontaKw (base DEMANDA_MAXIMA)', () => {
+    const cliente = {
+      ...DADOS_CLIENTE_PADRAO,
+      modoOperacao: 'BACKUP' as const,
+      demandaMaximaPontaKw: 1279, // deve ser ignorado quando há cargasCriticas
+      horasBackup: 4,
+      baseCalculoBackup: 'DEMANDA_MAXIMA' as const,
+      cargasCriticas: cargas,
+    }
+    const dim = calcularDimensionamento(cliente, ESPECIFICACOES_BESS_PADRAO)
+    expect(dim.energiaNecessariaDia).toBe(4 * 200)
+    expect(dim.potenciaNecessaria).toBe(200)
+  })
+
+  it('BACKUP: sem cargasCriticas, comportamento não muda (usa demandaMaximaPontaKw)', () => {
+    const cliente = {
+      ...DADOS_CLIENTE_PADRAO,
+      modoOperacao: 'BACKUP' as const,
+      demandaMaximaPontaKw: 1279,
+      horasBackup: 4,
+      baseCalculoBackup: 'DEMANDA_MAXIMA' as const,
+    }
+    const dim = calcularDimensionamento(cliente, ESPECIFICACOES_BESS_PADRAO)
+    expect(dim.energiaNecessariaDia).toBe(4 * 1279)
+  })
+
+  it('QUALIDADE_ENERGIA: soma das cargas críticas tem prioridade sobre potenciaCriticaKw e demandaMaximaPontaKw', () => {
+    const cliente = {
+      ...DADOS_CLIENTE_PADRAO,
+      modoOperacao: 'QUALIDADE_ENERGIA' as const,
+      demandaMaximaPontaKw: 300,
+      potenciaCriticaKw: 250, // deve ser ignorado quando há cargasCriticas
+      duracaoEventoSegundos: 10,
+      cargasCriticas: cargas,
+    }
+    const dim = calcularDimensionamento(cliente, ESPECIFICACOES_BESS_PADRAO)
+    expect(dim.potenciaNecessaria).toBe(200)
+    expect(dim.energiaNecessariaDia).toBeCloseTo((200 * 10) / 3600, 6)
+  })
+
+  it('lista vazia é tratada igual a lista omitida', () => {
+    const base = { ...DADOS_CLIENTE_PADRAO, modoOperacao: 'BACKUP' as const, horasBackup: 4 }
+    const semLista = calcularDimensionamento(base, ESPECIFICACOES_BESS_PADRAO)
+    const listaVazia = calcularDimensionamento({ ...base, cargasCriticas: [] }, ESPECIFICACOES_BESS_PADRAO)
+    expect(listaVazia.energiaNecessariaDia).toBe(semLista.energiaNecessariaDia)
+  })
+})
+
 describe('calcularCapex — caso Caterpillar', () => {
   const capex = calcularCapex(CAPEX_INPUTS_PADRAO)
 

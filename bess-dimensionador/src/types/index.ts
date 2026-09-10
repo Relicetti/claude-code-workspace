@@ -6,6 +6,15 @@ export type ModoOperacao = 'TIME-SHIFT' | 'BACKUP' | 'PEAK-SHAVING' | 'QUALIDADE
 
 export type BaseCalculoBackup = 'DEMANDA_MAXIMA' | 'DEMANDA_MEDIA_NORMAL'
 
+// Item da lista de cargas críticas — o que precisa continuar ligado durante uma falta de
+// energia (BACKUP) ou sobreviver a um afundamento de tensão sem desarmar (QUALIDADE_ENERGIA).
+// Existe pra dar ao laudo o detalhamento item a item (motor de irrigação, ordenha, câmara
+// fria etc.) que justifica o número final pro banco, em vez de só um total digitado à mão.
+export interface CargaCritica {
+  nome: string
+  potenciaKw: number
+}
+
 export interface DadosCliente {
   nomeCliente: string
   modalidadeTarifaria: string // informativo (ex: "A4 Verde")
@@ -27,6 +36,11 @@ export interface DadosCliente {
   coberturaPontaPercent: number // B25 — % da energia de ponta que o BESS deve cobrir (0–1)
   ipca: number // B26 — reajuste anual do O&M
 
+  // Lista de cargas críticas (BACKUP e QUALIDADE_ENERGIA) — quando preenchida, a soma das
+  // potências substitui o valor manual de demanda máxima/potência crítica desses modos
+  // (ver engine.ts). Vazia/omitida, cai para os campos manuais abaixo.
+  cargasCriticas?: CargaCritica[]
+
   // modo BACKUP
   horasBackup?: number
   baseCalculoBackup?: BaseCalculoBackup
@@ -37,7 +51,7 @@ export interface DadosCliente {
   // modo QUALIDADE_ENERGIA — ride-through de afundamento de tensão/microinterrupção da
   // distribuidora (rede rural fraca), não é backup de longa duração: dura segundos/minutos,
   // o que importa é a potência de resposta do PCS mais que a energia armazenada.
-  potenciaCriticaKw?: number // kW das cargas sensíveis a proteger; se omitido, usa demandaMaximaPontaKw
+  potenciaCriticaKw?: number // kW das cargas sensíveis a proteger; se omitido, usa cargasCriticas ou demandaMaximaPontaKw
   duracaoEventoSegundos?: number // duração do afundamento/microinterrupção a suportar
   eventosPorMes?: number // frequência estimada de eventos — informativo, usado na estimativa de ciclos
 
