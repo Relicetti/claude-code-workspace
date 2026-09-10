@@ -67,6 +67,23 @@ Também foi omitida a tabela de "opções de financiamento" (`DIMENSIONAMENTO!E3
 referenciava um arquivo Excel externo que não existe mais (`[1]ECONOMIA_ANUAL!O2`) e uma
 célula vazia — resíduo de outra planilha, não uma regra de negócio válida.
 
+## Grupo tarifário (A ou B)
+
+Seletor em "Cliente e modalidade" — muda quais campos a UI pede na seção "Consumo e
+demanda", porque o que existe na fatura é diferente:
+
+- **Grupo A** (alta tensão): consumo ponta, demanda máxima medida, demanda contratada,
+  tarifa ponta e tarifa fora-ponta separadas — os campos originais da planilha.
+- **Grupo B** (baixa tensão — o caso típico do produtor rural): só consumo médio mensal
+  (kWh) e uma tarifa única. Não existe demanda medida pela distribuidora, então o campo
+  correspondente vira "potência total estimada da propriedade" — um número que o cliente
+  chuta, não que vem da fatura. Por isso, pra BACKUP/QUALIDADE_ENERGIA, detalhar a lista de
+  cargas críticas (que já existe independente do grupo) é preferível a confiar nesse valor.
+
+Não muda a lógica de cálculo — `demandaMaximaPontaKw`/`consumoMedioPontaKwh`/
+`tarifaPontaComML` continuam os mesmos campos internamente, só reaproveitados com outro
+sentido/rótulo no Grupo B (ver comentários em `src/types/index.ts`).
+
 ## Relatório técnico exportável
 
 A aba "Relatório Técnico" gera um documento pronto pra anexar a um pedido de

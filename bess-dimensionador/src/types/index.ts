@@ -6,6 +6,14 @@ export type ModoOperacao = 'TIME-SHIFT' | 'BACKUP' | 'PEAK-SHAVING' | 'QUALIDADE
 
 export type BaseCalculoBackup = 'DEMANDA_MAXIMA' | 'DEMANDA_MEDIA_NORMAL'
 
+// Grupo A (alta tensão: fatura com demanda contratada/medida em kW, tarifa ponta/fora-ponta
+// separada) vs Grupo B (baixa tensão: só consumo em kWh, sem demanda medida pela
+// distribuidora — o caso típico do produtor rural). Não muda a fórmula de dimensionamento
+// em si, mas muda quais campos existem de fato na fatura do cliente e como a UI os coleta
+// (ver App.tsx) — pedir "demanda máxima medida na ponta" pra um Grupo B não faz sentido,
+// esse número não existe na fatura dele.
+export type GrupoTarifario = 'A' | 'B'
+
 // Item da lista de cargas críticas — o que precisa continuar ligado durante uma falta de
 // energia (BACKUP) ou sobreviver a um afundamento de tensão sem desarmar (QUALIDADE_ENERGIA).
 // Existe pra dar ao laudo o detalhamento item a item (motor de irrigação, ordenha, câmara
@@ -17,14 +25,19 @@ export interface CargaCritica {
 
 export interface DadosCliente {
   nomeCliente: string
-  modalidadeTarifaria: string // informativo (ex: "A4 Verde")
+  modalidadeTarifaria: string // informativo (ex: "A4 Verde" no Grupo A, "B2 Rural" no Grupo B)
+  grupoTarifario: GrupoTarifario
 
   // aba DADOS_CLIENTE
-  consumoMedioPontaKwh: number // B4 — consumo médio mensal na ponta (dias úteis)
-  demandaMaximaPontaKw: number // B5 — demanda máxima medida na ponta
-  demandaContratadaKw: number // B6
-  tarifaPontaComML: number // B8 — R$/kWh, tarifa ponta já com margem de lucro/impostos embutidos
-  tarifaForaPonta: number // B9 — R$/kWh
+  // No Grupo B, consumoMedioPontaKwh e tarifaPontaComML são reaproveitados como consumo
+  // médio mensal total e tarifa única (a UI relabela, o engine não distingue) — ver
+  // comentário em GrupoTarifario. demandaMaximaPontaKw também é reaproveitado como a
+  // potência estimada da propriedade quando não há cargasCriticas detalhada.
+  consumoMedioPontaKwh: number // B4 — consumo médio mensal na ponta (dias úteis) — Grupo A; consumo médio mensal total — Grupo B
+  demandaMaximaPontaKw: number // B5 — demanda máxima medida na ponta (Grupo A) ou potência estimada da propriedade (Grupo B, sem medição)
+  demandaContratadaKw: number // B6 — não se aplica ao Grupo B (sem demanda contratada)
+  tarifaPontaComML: number // B8 — R$/kWh, tarifa ponta já com margem de lucro/impostos embutidos (Grupo A) ou tarifa única (Grupo B)
+  tarifaForaPonta: number // B9 — R$/kWh — não se aplica ao Grupo B (sem tarifa diferenciada ponta/fora-ponta)
 
   horasPontaPorDia: number // B14
   diasUteisPorMes: number // B15

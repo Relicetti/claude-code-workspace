@@ -178,6 +178,17 @@ export default function App() {
                 />
               </label>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
+                <span style={{ color: '#5a5a55' }}>Grupo tarifário</span>
+                <select
+                  value={cliente.grupoTarifario}
+                  onChange={(e) => set('grupoTarifario', e.target.value as DadosCliente['grupoTarifario'])}
+                  style={{ padding: '6px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: 14 }}
+                >
+                  <option value="A">Grupo A (alta tensão — demanda em kW)</option>
+                  <option value="B">Grupo B (baixa tensão — só kWh, sem demanda medida)</option>
+                </select>
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
                 <span style={{ color: '#5a5a55' }}>Modo de operação</span>
                 <select
                   value={cliente.modoOperacao}
@@ -195,13 +206,34 @@ export default function App() {
           </Section>
 
           <Section title="Consumo e demanda (fatura)">
-            <div style={grid}>
-              <NumberField label="Consumo médio ponta" suffix="kWh/mês" value={cliente.consumoMedioPontaKwh} onChange={(v) => set('consumoMedioPontaKwh', v)} />
-              <NumberField label="Demanda máxima medida na ponta" suffix="kW" value={cliente.demandaMaximaPontaKw} onChange={(v) => set('demandaMaximaPontaKw', v)} />
-              <NumberField label="Demanda contratada" suffix="kW" value={cliente.demandaContratadaKw} onChange={(v) => set('demandaContratadaKw', v)} />
-              <NumberField label="Tarifa ponta (c/ ML)" suffix="R$/kWh" value={cliente.tarifaPontaComML} onChange={(v) => set('tarifaPontaComML', v)} step={0.0001} />
-              <NumberField label="Tarifa fora ponta" suffix="R$/kWh" value={cliente.tarifaForaPonta} onChange={(v) => set('tarifaForaPonta', v)} step={0.0001} />
-            </div>
+            {cliente.grupoTarifario === 'A' ? (
+              <div style={grid}>
+                <NumberField label="Consumo médio ponta" suffix="kWh/mês" value={cliente.consumoMedioPontaKwh} onChange={(v) => set('consumoMedioPontaKwh', v)} />
+                <NumberField label="Demanda máxima medida na ponta" suffix="kW" value={cliente.demandaMaximaPontaKw} onChange={(v) => set('demandaMaximaPontaKw', v)} />
+                <NumberField label="Demanda contratada" suffix="kW" value={cliente.demandaContratadaKw} onChange={(v) => set('demandaContratadaKw', v)} />
+                <NumberField label="Tarifa ponta (c/ ML)" suffix="R$/kWh" value={cliente.tarifaPontaComML} onChange={(v) => set('tarifaPontaComML', v)} step={0.0001} />
+                <NumberField label="Tarifa fora ponta" suffix="R$/kWh" value={cliente.tarifaForaPonta} onChange={(v) => set('tarifaForaPonta', v)} step={0.0001} />
+              </div>
+            ) : (
+              <>
+                <div style={grid}>
+                  <NumberField label="Consumo médio mensal" suffix="kWh/mês" value={cliente.consumoMedioPontaKwh} onChange={(v) => set('consumoMedioPontaKwh', v)} />
+                  <NumberField label="Tarifa" suffix="R$/kWh" value={cliente.tarifaPontaComML} onChange={(v) => set('tarifaPontaComML', v)} step={0.0001} />
+                  <NumberField
+                    label="Potência total estimada da propriedade (sem medição de demanda)"
+                    suffix="kW"
+                    value={cliente.demandaMaximaPontaKw}
+                    onChange={(v) => set('demandaMaximaPontaKw', v)}
+                  />
+                </div>
+                <p style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
+                  Grupo B não tem demanda contratada nem tarifa diferenciada ponta/fora-ponta —
+                  a distribuidora só mede consumo em kWh. Pra BACKUP e QUALIDADE DE ENERGIA, o
+                  ideal é detalhar as cargas críticas (seção mais abaixo) em vez de confiar
+                  numa potência total estimada; sem elas, o dimensionamento usa esse valor.
+                </p>
+              </>
+            )}
           </Section>
 
           <Section title="Premissas operacionais e financeiras">
