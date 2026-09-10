@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Sun, Calculator, Table2, FileText, AlertTriangle, Download, Upload, Printer, Database, RefreshCw, CheckCircle2, Search, ClipboardList,
   Users, LogOut, Trash2, Percent, RotateCcw, ShieldCheck,
@@ -147,6 +147,70 @@ function PercentField({ value, onChange, placeholder }: {
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value === '' ? undefined : Number(e.target.value) / 100)}
     />
+  );
+}
+
+/** Combobox de texto livre + sugestões filtradas, em React puro. Substitui
+ * input+datalist nativo: o Safari (macOS/iOS) não abre a lista de sugestões
+ * do <datalist> de forma confiável — esse componente funciona igual em
+ * qualquer navegador. */
+function ComboBox({ value, onChange, options }: {
+  value: string; onChange: (v: string) => void; options: string[];
+}) {
+  const [aberto, setAberto] = useState(false);
+  const [indiceAtivo, setIndiceAtivo] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const filtradas = useMemo(() => {
+    const termo = value.trim().toLowerCase();
+    const lista = termo ? options.filter((o) => o.toLowerCase().includes(termo)) : options;
+    return lista.slice(0, 30);
+  }, [value, options]);
+
+  useEffect(() => {
+    const aoClicarFora = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setAberto(false);
+    };
+    document.addEventListener('mousedown', aoClicarFora);
+    return () => document.removeEventListener('mousedown', aoClicarFora);
+  }, []);
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative' }}>
+      <input
+        style={inputStyle} value={value}
+        onChange={(e) => { onChange(e.target.value); setAberto(true); setIndiceAtivo(0); }}
+        onFocus={() => setAberto(true)}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown') { e.preventDefault(); setAberto(true); setIndiceAtivo((i) => Math.min(i + 1, filtradas.length - 1)); }
+          else if (e.key === 'ArrowUp') { e.preventDefault(); setIndiceAtivo((i) => Math.max(i - 1, 0)); }
+          else if (e.key === 'Enter') { if (aberto && filtradas[indiceAtivo]) { e.preventDefault(); onChange(filtradas[indiceAtivo]); setAberto(false); } }
+          else if (e.key === 'Escape') { setAberto(false); }
+        }}
+      />
+      {aberto && filtradas.length > 0 && (
+        <ul style={{
+          position: 'absolute', zIndex: 20, top: '100%', left: 0, right: 0, marginTop: 4,
+          background: '#fff', border: `1px solid ${C.bord}`, borderRadius: 6, maxHeight: 240,
+          overflowY: 'auto', boxShadow: '0 8px 20px rgba(0,0,0,0.12)', listStyle: 'none',
+          padding: 4, margin: 0,
+        }}>
+          {filtradas.map((op, i) => (
+            <li
+              key={op}
+              onMouseDown={(e) => { e.preventDefault(); onChange(op); setAberto(false); }}
+              onMouseEnter={() => setIndiceAtivo(i)}
+              style={{
+                padding: '6px 8px', borderRadius: 4, fontSize: 13, cursor: 'pointer',
+                background: i === indiceAtivo ? C.azulC : 'transparent', color: C.esc,
+              }}
+            >
+              {op}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -430,13 +494,7 @@ function AppAutenticado({ usuario, onLogout, onUsuarioAtualizado }: {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
             <Section title="Gerador">
               <Field label="Distribuidora">
-                <input
-                  list="distribuidoras" style={inputStyle} value={input.distribuidora}
-                  onChange={(e) => setDistribuidora(e.target.value)}
-                />
-                <datalist id="distribuidoras">
-                  {DISTRIBUIDORAS.map((d) => <option key={d} value={d} />)}
-                </datalist>
+                <ComboBox value={input.distribuidora} onChange={setDistribuidora} options={DISTRIBUIDORAS} />
               </Field>
               <Field label="Ano do contrato">
                 <NumberField value={input.ano} onChange={(v) => set('ano', v ?? new Date().getFullYear())} step={1} />
