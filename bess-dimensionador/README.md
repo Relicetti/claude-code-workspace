@@ -1,8 +1,9 @@
 # Dimensionador BESS
 
-Dimensionamento técnico de sistemas de armazenamento de energia (BESS) para os modos
-TIME-SHIFT, BACKUP, PEAK-SHAVING, QUALIDADE_ENERGIA e o combinado
-BACKUP_E_QUALIDADE_ENERGIA. Porta a lógica de dimensionamento de
+Dimensionamento técnico de sistemas de armazenamento de energia (BESS) para as funções
+TIME-SHIFT, BACKUP, PEAK-SHAVING e QUALIDADE_ENERGIA — marcáveis em **checkbox**, o cliente
+pode combinar quantas se aplicarem ao mesmo tempo (o mesmo BESS físico atendendo, por
+exemplo, BACKUP + QUALIDADE_ENERGIA). Porta a lógica de dimensionamento de
 `Planilha_Dimensionamento_BESS.xlsx` (caso de referência: Caterpillar Campo Largo / WEG,
 proposta RP0826000), validada célula a célula em `src/lib/engine.test.ts`.
 
@@ -17,21 +18,37 @@ uma ferramenta financeira separada volte a precisar dessa lógica.
 
 O foco atual de desenvolvimento é o caso de **produtor rural com problemas de atendimento
 da Copel**, usado como base técnica para aprovação de financiamento (linha de crédito
-subsidiada em negociação com um órgão estadual do Paraná). O modo relevante pra esse caso é
-**BACKUP_E_QUALIDADE_ENERGIA**: o mesmo BESS físico atendendo as duas funções ao mesmo
-tempo —
+subsidiada em negociação com um órgão estadual do Paraná). As funções relevantes pra esse
+caso são **BACKUP** + **QUALIDADE_ENERGIA** marcadas juntas — o mesmo BESS físico atendendo
+as duas ao mesmo tempo:
 
 - **BACKUP**: autonomia de horas numa falta de energia prolongada
 - **QUALIDADE_ENERGIA**: ride-through de afundamento de tensão/microinterrupção breve
   (segundos/minutos), protegendo equipamento sensível de desarme/dano — um problema
   diferente do backup, não uma variação dele
 
-No combinado, a **energia** armazenada é dimensionada pelo backup (a energia extra que o
-evento de qualidade pediria é desprezível perto de horas de autonomia); a **potência** do
-PCS é o maior valor entre a carga de backup e a carga crítica de qualidade de energia,
-porque os dois conjuntos de carga podem não ser os mesmos (backup cobre a propriedade toda,
-qualidade de energia normalmente só as cargas mais sensíveis). BACKUP e QUALIDADE_ENERGIA
-isolados continuam disponíveis pra quando só uma das duas funções é necessária.
+## Como as funções se combinam (`calcularDimensionamento`)
+
+Qualquer subconjunto das quatro funções pode estar marcado ao mesmo tempo. A regra de
+combinação (`src/lib/engine.ts`) separa energia em duas parcelas conceitualmente
+diferentes, que se somam:
+
+- **energia de reserva** (BACKUP e/ou QUALIDADE_ENERGIA) — energia de emergência que
+  precisa ficar disponível *além* do uso diário. BACKUP domina sobre QUALIDADE_ENERGIA
+  quando os dois estão marcados (a energia extra que o evento de qualidade pediria é
+  desprezível perto de horas de autonomia).
+- **energia de ciclagem** (TIME-SHIFT e/ou PEAK-SHAVING) — energia usada em ciclos diários
+  de arbitragem/corte de pico. Os dois partem da mesma fórmula base, então usa o maior dos
+  dois em vez de somar (evita contar a mesma energia duas vezes).
+
+A **potência** necessária é o maior valor entre as exigências de todas as funções
+marcadas — o PCS precisa suprir o pico de qualquer um dos cenários habilitados
+simultaneamente (ex: BACKUP e QUALIDADE_ENERGIA podem ter conjuntos de carga diferentes —
+propriedade toda vs. só as cargas mais sensíveis).
+
+Com um único modo marcado, essa regra se reduz exatamente ao comportamento anterior
+(quando cada modo era mutuamente exclusivo) — a suíte de testes cobre tanto os modos
+isolados quanto combinações novas (ex: BACKUP + TIME-SHIFT).
 TIME-SHIFT e PEAK-SHAVING continuam funcionais mas não são o foco de evolução agora.
 
 ## Como rodar
@@ -83,17 +100,19 @@ célula vazia — resíduo de outra planilha, não uma regra de negócio válida
 Seletor em "Cliente e modalidade" — muda quais campos a UI pede na seção "Consumo e
 demanda", porque o que existe na fatura é diferente:
 
-- **Grupo A** (alta tensão): consumo ponta, demanda máxima medida, demanda contratada,
-  tarifa ponta e tarifa fora-ponta separadas — os campos originais da planilha.
+- **Grupo A** (alta tensão): consumo médio ponta, demanda máxima medida, demanda
+  contratada — os campos originais da planilha (menos as tarifas, removidas da UI junto
+  com CAPEX/financeiro).
 - **Grupo B** (baixa tensão — o caso típico do produtor rural): só consumo médio mensal
-  (kWh) e uma tarifa única. Não existe demanda medida pela distribuidora, então o campo
-  correspondente vira "potência total estimada da propriedade" — um número que o cliente
-  chuta, não que vem da fatura. Por isso, pra BACKUP/QUALIDADE_ENERGIA, detalhar a lista de
-  cargas críticas (que já existe independente do grupo) é preferível a confiar nesse valor.
+  (kWh). Não existe demanda medida pela distribuidora, então o campo correspondente vira
+  "potência total estimada da propriedade" — um número que o cliente chuta, não que vem da
+  fatura. Por isso, pra BACKUP/QUALIDADE_ENERGIA, detalhar a lista de cargas críticas (que
+  já existe independente do grupo) é preferível a confiar nesse valor.
 
-Não muda a lógica de cálculo — `demandaMaximaPontaKw`/`consumoMedioPontaKwh`/
-`tarifaPontaComML` continuam os mesmos campos internamente, só reaproveitados com outro
-sentido/rótulo no Grupo B (ver comentários em `src/types/index.ts`).
+Não muda a lógica de cálculo — `demandaMaximaPontaKw`/`consumoMedioPontaKwh` continuam os
+mesmos campos internamente, só reaproveitados com outro sentido/rótulo no Grupo B (ver
+comentários em `src/types/index.ts`). `tarifaPontaComML`/`tarifaForaPonta` continuam no
+tipo (usados só pelas funções financeiras não expostas na UI, ver seção acima).
 
 ## Relatório técnico exportável
 

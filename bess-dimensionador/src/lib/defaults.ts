@@ -16,7 +16,7 @@ export const DADOS_CLIENTE_PADRAO: DadosCliente = {
   horasPontaPorDia: 3,
   diasUteisPorMes: 22,
   vidaUtilAnos: 20,
-  modoOperacao: 'TIME-SHIFT',
+  modosOperacao: ['TIME-SHIFT'],
 
   tma: 0.12,
   inflacaoAnualTarifa: 0.06,
