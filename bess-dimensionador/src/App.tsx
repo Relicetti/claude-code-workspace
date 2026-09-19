@@ -78,11 +78,18 @@ export default function App() {
   function set<K extends keyof DadosCliente>(key: K, value: DadosCliente[K]) {
     setCliente((c) => ({ ...c, [key]: value }))
   }
-  // BACKUP_E_QUALIDADE_ENERGIA é o mesmo BESS atendendo as duas funções ao mesmo tempo —
-  // mostra os parâmetros das duas nesse modo, não só de uma.
-  const usaBackup = cliente.modoOperacao === 'BACKUP' || cliente.modoOperacao === 'BACKUP_E_QUALIDADE_ENERGIA'
-  const usaQualidadeEnergia =
-    cliente.modoOperacao === 'QUALIDADE_ENERGIA' || cliente.modoOperacao === 'BACKUP_E_QUALIDADE_ENERGIA'
+  // Checkbox: o cliente pode marcar mais de uma função ao mesmo tempo (ex: BACKUP +
+  // QUALIDADE_ENERGIA no mesmo BESS) — ver a lógica de combinação em engine.ts.
+  function toggleModo(modo: ModoOperacao) {
+    setCliente((c) => ({
+      ...c,
+      modosOperacao: c.modosOperacao.includes(modo)
+        ? c.modosOperacao.filter((m) => m !== modo)
+        : [...c.modosOperacao, modo],
+    }))
+  }
+  const usaBackup = cliente.modosOperacao.includes('BACKUP')
+  const usaQualidadeEnergia = cliente.modosOperacao.includes('QUALIDADE_ENERGIA')
   function addCargaCritica() {
     setCliente((c) => ({
       ...c,
@@ -171,20 +178,30 @@ export default function App() {
                   <option value="B">Grupo B (baixa tensão — só kWh, sem demanda medida)</option>
                 </select>
               </label>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
-                <span style={{ color: '#5a5a55' }}>Modo de operação</span>
-                <select
-                  value={cliente.modoOperacao}
-                  onChange={(e) => set('modoOperacao', e.target.value as ModoOperacao)}
-                  style={{ padding: '6px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: 14 }}
-                >
-                  <option value="TIME-SHIFT">TIME-SHIFT</option>
-                  <option value="BACKUP">BACKUP</option>
-                  <option value="PEAK-SHAVING">PEAK-SHAVING</option>
-                  <option value="QUALIDADE_ENERGIA">QUALIDADE DE ENERGIA</option>
-                  <option value="BACKUP_E_QUALIDADE_ENERGIA">BACKUP + QUALIDADE DE ENERGIA</option>
-                </select>
-              </label>
+            </div>
+
+            <div style={{ marginTop: 16 }}>
+              <span style={{ color: '#5a5a55', fontSize: 13 }}>
+                Funções do BESS <span style={{ color: '#999' }}>(marque quantas se aplicarem — o mesmo BESS pode atender mais de uma)</span>
+              </span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 8 }}>
+                {(
+                  [
+                    ['TIME-SHIFT', 'TIME-SHIFT'],
+                    ['BACKUP', 'BACKUP'],
+                    ['PEAK-SHAVING', 'PEAK-SHAVING'],
+                    ['QUALIDADE_ENERGIA', 'QUALIDADE DE ENERGIA'],
+                  ] as [ModoOperacao, string][]
+                ).map(([modo, label]) => (
+                  <label key={modo} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={cliente.modosOperacao.includes(modo)} onChange={() => toggleModo(modo)} />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              {cliente.modosOperacao.length === 0 && (
+                <p style={{ fontSize: 12, color: '#a33', marginTop: 8 }}>Marque ao menos uma função pra dimensionar o sistema.</p>
+              )}
             </div>
           </Section>
 
@@ -194,14 +211,11 @@ export default function App() {
                 <NumberField label="Consumo médio ponta" suffix="kWh/mês" value={cliente.consumoMedioPontaKwh} onChange={(v) => set('consumoMedioPontaKwh', v)} />
                 <NumberField label="Demanda máxima medida na ponta" suffix="kW" value={cliente.demandaMaximaPontaKw} onChange={(v) => set('demandaMaximaPontaKw', v)} />
                 <NumberField label="Demanda contratada" suffix="kW" value={cliente.demandaContratadaKw} onChange={(v) => set('demandaContratadaKw', v)} />
-                <NumberField label="Tarifa ponta (c/ ML)" suffix="R$/kWh" value={cliente.tarifaPontaComML} onChange={(v) => set('tarifaPontaComML', v)} step={0.0001} />
-                <NumberField label="Tarifa fora ponta" suffix="R$/kWh" value={cliente.tarifaForaPonta} onChange={(v) => set('tarifaForaPonta', v)} step={0.0001} />
               </div>
             ) : (
               <>
                 <div style={grid}>
                   <NumberField label="Consumo médio mensal" suffix="kWh/mês" value={cliente.consumoMedioPontaKwh} onChange={(v) => set('consumoMedioPontaKwh', v)} />
-                  <NumberField label="Tarifa" suffix="R$/kWh" value={cliente.tarifaPontaComML} onChange={(v) => set('tarifaPontaComML', v)} step={0.0001} />
                   <NumberField
                     label="Potência total estimada da propriedade (sem medição de demanda)"
                     suffix="kW"
@@ -244,15 +258,11 @@ export default function App() {
                   </select>
                 </label>
                 <NumberField label="Demanda média normal (fora ponta)" suffix="kW" value={cliente.demandaMediaNormalKw ?? 0} onChange={(v) => set('demandaMediaNormalKw', v)} />
-                <NumberField label="Custo evitado de interrupção (opcional)" suffix="R$/ano" value={cliente.custoEvitadoInterrupcaoAnual ?? 0} onChange={(v) => set('custoEvitadoInterrupcaoAnual', v)} />
               </div>
               <p style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
                 Energia de backup = horas de backup × demanda-base escolhida acima (não é uma
                 fração do consumo de ponta). Com base "demanda média normal", informe também a
-                demanda média — sem ela o cálculo cai para a demanda máxima medida. O modo
-                backup não gera economia por arbitragem tarifária — o valor dele é continuidade
-                operacional; informe um custo evitado de interrupção se quiser refletir isso no
-                fluxo de caixa, senão a economia anual desse modo fica em zero.
+                demanda média — sem ela o cálculo cai para a demanda máxima medida.
               </p>
             </Section>
           )}
@@ -311,25 +321,21 @@ export default function App() {
                 />
                 <NumberField label="Duração do evento a suportar" suffix="segundos" value={cliente.duracaoEventoSegundos ?? 0} onChange={(v) => set('duracaoEventoSegundos', v)} />
                 <NumberField label="Eventos por mês (opcional, p/ estimativa de ciclos)" value={cliente.eventosPorMes ?? 0} onChange={(v) => set('eventosPorMes', v > 0 ? v : undefined)} />
-                <NumberField label="Custo evitado de desarme/dano (opcional)" suffix="R$/ano" value={cliente.custoEvitadoInterrupcaoAnual ?? 0} onChange={(v) => set('custoEvitadoInterrupcaoAnual', v)} />
               </div>
               <p style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
                 Diferente do BACKUP: aqui o BESS só precisa segurar a carga crítica por um
                 afundamento de tensão/microinterrupção breve (segundos a poucos minutos), não
                 por horas — o que importa mais é a potência de resposta do PCS do que a energia
                 armazenada. Sem eventos/mês informado, a estimativa de ciclos usa dias úteis por
-                mês (menos precisa pra esse modo). Também não gera economia por arbitragem
-                tarifária; informe um custo evitado de desarme/dano se quiser refletir isso no
-                fluxo de caixa.
+                mês (menos precisa pra esse modo).
               </p>
             </Section>
           )}
 
-          {cliente.modoOperacao === 'PEAK-SHAVING' && (
+          {cliente.modosOperacao.includes('PEAK-SHAVING') && (
             <Section title="Parâmetros de PEAK-SHAVING">
               <div style={grid}>
                 <NumberField label="Limite de demanda a não ultrapassar" suffix="kW" value={cliente.limiteDemandaKw ?? 0} onChange={(v) => set('limiteDemandaKw', v)} />
-                <NumberField label="Tarifa de demanda evitada" suffix="R$/kW/mês" value={cliente.tarifaDemandaUltrapassagem ?? 0} onChange={(v) => set('tarifaDemandaUltrapassagem', v)} step={0.01} />
               </div>
             </Section>
           )}
@@ -405,6 +411,8 @@ function RelatorioTecnico({
   const cargasCriticas = cliente.cargasCriticas ?? []
   const somaCargasCriticas = cargasCriticas.reduce((s, c) => s + c.potenciaKw, 0)
 
+  // O cliente pode marcar mais de uma função (checkbox) — lista um objetivo por função
+  // ativa, não é mais um "senão" único de modo exclusivo.
   const objetivos: string[] = []
   if (usaBackup) {
     objetivos.push(
@@ -416,12 +424,11 @@ function RelatorioTecnico({
       `Suportar afundamentos de tensão/microinterrupções de até ${fmtNum(cliente.duracaoEventoSegundos ?? 0, 0)} segundo(s) sem desarme das cargas sensíveis (ride-through), evitando parada ou dano de equipamento por instabilidade da rede.`
     )
   }
-  if (!usaBackup && !usaQualidadeEnergia) {
-    objetivos.push(
-      cliente.modoOperacao === 'TIME-SHIFT'
-        ? 'Deslocar consumo do horário de ponta para o horário fora de ponta, reduzindo custo de energia por arbitragem tarifária.'
-        : 'Limitar a demanda contratada evitando ultrapassagem, reduzindo custo de demanda.'
-    )
+  if (cliente.modosOperacao.includes('TIME-SHIFT')) {
+    objetivos.push('Deslocar consumo do horário de ponta para o horário fora de ponta, reduzindo custo de energia por arbitragem tarifária.')
+  }
+  if (cliente.modosOperacao.includes('PEAK-SHAVING')) {
+    objetivos.push('Limitar a demanda contratada evitando ultrapassagem, reduzindo custo de demanda.')
   }
 
   const h2: React.CSSProperties = { fontSize: 15, fontWeight: 700, marginTop: 28, marginBottom: 10, color: '#2c2c2a' }

@@ -2,7 +2,12 @@
 // Nomenclatura e comentários referenciam as células da planilha original
 // (Planilha_Dimensionamento_BESS.xlsx) para facilitar auditoria cruzada.
 
-export type ModoOperacao = 'TIME-SHIFT' | 'BACKUP' | 'PEAK-SHAVING' | 'QUALIDADE_ENERGIA' | 'BACKUP_E_QUALIDADE_ENERGIA'
+// As quatro funções atômicas do BESS. O cliente pode marcar mais de uma ao mesmo tempo
+// (checkbox na UI, não mais um seletor único) — o mesmo BESS físico pode, por exemplo,
+// atender BACKUP e QUALIDADE_ENERGIA simultaneamente. Ver `DadosCliente.modosOperacao` e a
+// lógica de combinação em `engine.ts` (energia de reserva soma com energia de ciclagem;
+// potência necessária é o maior valor entre as funções ativas).
+export type ModoOperacao = 'TIME-SHIFT' | 'BACKUP' | 'PEAK-SHAVING' | 'QUALIDADE_ENERGIA'
 
 export type BaseCalculoBackup = 'DEMANDA_MAXIMA' | 'DEMANDA_MEDIA_NORMAL'
 
@@ -42,7 +47,10 @@ export interface DadosCliente {
   horasPontaPorDia: number // B14
   diasUteisPorMes: number // B15
   vidaUtilAnos: number // B18
-  modoOperacao: ModoOperacao // B19
+  // B19 — checkbox na UI: um ou mais modos ativos ao mesmo tempo (ex: BACKUP +
+  // QUALIDADE_ENERGIA). Vazio é um estado válido só transitoriamente na UI (nada
+  // selecionado ainda); calcularDimensionamento trata como "nenhuma exigência".
+  modosOperacao: ModoOperacao[]
 
   tma: number // B23 — taxa mínima de atratividade (fração, ex 0.12)
   inflacaoAnualTarifa: number // B24 — reajuste anual de tarifa

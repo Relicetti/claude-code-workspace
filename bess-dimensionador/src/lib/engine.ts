@@ -44,33 +44,16 @@ export function calcularDimensionamento(
   bess: EspecificacoesBess
 ): DimensionamentoResult {
   const { dod, rte, capacidadePorRackKwh, potenciaPorRackKw } = bess
+  const modos = cliente.modosOperacao
+  const usaTimeShift = modos.includes('TIME-SHIFT')
+  const usaBackup = modos.includes('BACKUP')
+  const usaPeakShaving = modos.includes('PEAK-SHAVING')
+  const usaQualidadeEnergia = modos.includes('QUALIDADE_ENERGIA')
 
   // B1: energia total na ponta a cobrir no mês, conforme % de cobertura desejado
-  // (não se aplica ao modo BACKUP — ver energiaNecessariaDia abaixo)
+  // (só usada por TIME-SHIFT/PEAK-SHAVING — ver energiaCiclagem abaixo)
   const energiaTotalPontaMes = cliente.consumoMedioPontaKwh * cliente.coberturaPontaPercent
 
-  // B2: energia necessária por dia útil.
-  // BACKUP e QUALIDADE_ENERGIA têm lógica própria (spec
-  // docs/spec-validador-dimensionamento.md): não são uma fração do consumo de ponta.
-  //   - BACKUP: `horasBackup × demanda-base`, configurável (mais conservador = demanda
-  //     máxima medida; mais realista = demanda média normal fora de ponta, pra não
-  //     sobrepor com o que o time-shift já cobriria).
-  //   - QUALIDADE_ENERGIA: ride-through de afundamento de tensão/microinterrupção —
-  //     dura segundos/minutos, não horas. `potência crítica × duração do evento`, não
-  //     `horasPontaPorDia`. Sem essas ramificações o dimensionamento reaproveitava por
-  //     engano a fórmula de TIME-SHIFT (baseada em consumoMedioPontaKwh).
-  //   - BACKUP_E_QUALIDADE_ENERGIA: é o mesmo BESS físico atendendo as duas funções ao
-  //     mesmo tempo, não a soma das duas energias. A energia é dominada pelo backup
-  //     (horas >> segundos de um afundamento de tensão — a energia extra que o evento de
-  //     qualidade pediria é desprezível perto da capacidade já dimensionada pro backup).
-  //     A potência do PCS, porém, precisa ser a maior das duas exigências: o conjunto de
-  //     cargas do backup e o conjunto de cargas sensíveis do ride-through podem não ser o
-  //     mesmo (backup cobre a propriedade toda; qualidade de energia normalmente protege
-  //     só os equipamentos mais sensíveis) — o inversor tem que suprir o pico de qualquer
-  //     um dos dois cenários.
-  // `potenciaReferenciaAutonomia` guarda a potência contra a qual a autonomia em horas
-  // (mais abaixo) deve ser medida nesses modos — em TIME-SHIFT/PEAK-SHAVING o cálculo
-  // legado (proporcional a horasPontaPorDia) é mantido.
   // Soma da lista de cargas críticas, quando informada — substitui o valor manual de
   // demanda máxima/potência crítica em BACKUP e QUALIDADE_ENERGIA (ver comentário no tipo
   // DadosCliente). Não afeta TIME-SHIFT/PEAK-SHAVING, que usam demandaMaximaPontaKw direto.
@@ -80,30 +63,45 @@ export function calcularDimensionamento(
   const demandaMaximaEfetiva = potenciaCargasCriticasKw ?? cliente.demandaMaximaPontaKw
   const potenciaCriticaQualidade = potenciaCargasCriticasKw ?? cliente.potenciaCriticaKw ?? cliente.demandaMaximaPontaKw
 
-  const usaBackup = cliente.modoOperacao === 'BACKUP' || cliente.modoOperacao === 'BACKUP_E_QUALIDADE_ENERGIA'
-  const usaQualidadeEnergia =
-    cliente.modoOperacao === 'QUALIDADE_ENERGIA' || cliente.modoOperacao === 'BACKUP_E_QUALIDADE_ENERGIA'
-
-  let energiaNecessariaDia: number
+  // B2: energia necessária por dia útil. O cliente pode marcar mais de um modo ao mesmo
+  // tempo (checkbox), então a energia total é a soma de duas parcelas conceitualmente
+  // diferentes (spec docs/spec-validador-dimensionamento.md):
+  //   - energiaReserva (BACKUP e/ou QUALIDADE_ENERGIA): energia de emergência que precisa
+  //     ficar disponível, ADEMAIS do uso diário — não é uma fração do consumo de ponta.
+  //     BACKUP domina sobre QUALIDADE_ENERGIA quando os dois estão ativos (horas de
+  //     autonomia >> segundos de um afundamento de tensão — a energia extra que o evento
+  //     de qualidade pediria é desprezível perto da capacidade já dimensionada pro
+  //     backup). `potenciaReferenciaAutonomia` guarda a potência contra a qual a
+  //     autonomia em horas (mais abaixo) deve ser medida.
+  //   - energiaCiclagem (TIME-SHIFT e/ou PEAK-SHAVING): energia usada em ciclos diários de
+  //     arbitragem/corte de pico — os dois modos partem da mesma "capacidade cíclica
+  //     diária" (mesma fórmula base), então usa o maior dos dois em vez de somar, senão
+  //     contaria a mesma energia duas vezes se ambos ativos.
+  // Sem energiaReserva (nem BACKUP nem QUALIDADE_ENERGIA marcados), a soma se reduz à
+  // fórmula legada de ciclagem; sem energiaCiclagem, se reduz à fórmula legada de reserva
+  // — isso preserva o comportamento de cada modo isolado exatamente como antes.
+  let energiaReserva = 0
   let potenciaReferenciaAutonomia: number | null = null
   if (usaBackup) {
-    // Também cobre o modo combinado: a energia do backup domina o dimensionamento.
     const demandaBaseBackup =
       cliente.baseCalculoBackup === 'DEMANDA_MEDIA_NORMAL'
         ? cliente.demandaMediaNormalKw ?? demandaMaximaEfetiva
         : demandaMaximaEfetiva
-    energiaNecessariaDia = roundUp((cliente.horasBackup ?? 0) * demandaBaseBackup)
+    energiaReserva = roundUp((cliente.horasBackup ?? 0) * demandaBaseBackup)
     potenciaReferenciaAutonomia = demandaBaseBackup
   } else if (usaQualidadeEnergia) {
     const duracaoEventoHoras = (cliente.duracaoEventoSegundos ?? 0) / 3600
     // Sem ROUNDUP aqui: a energia de um evento de poucos segundos é tipicamente uma
     // fração pequena de kWh, e arredondar pra cima pro inteiro mais próximo (como as
     // outras vias, herdadas da planilha original) distorceria o resultado.
-    energiaNecessariaDia = potenciaCriticaQualidade * duracaoEventoHoras
+    energiaReserva = potenciaCriticaQualidade * duracaoEventoHoras
     potenciaReferenciaAutonomia = potenciaCriticaQualidade
-  } else {
-    energiaNecessariaDia = roundUp(energiaTotalPontaMes / cliente.diasUteisPorMes)
   }
+
+  const energiaCiclagem =
+    usaTimeShift || usaPeakShaving ? roundUp(energiaTotalPontaMes / cliente.diasUteisPorMes) : 0
+
+  const energiaNecessariaDia = energiaReserva + energiaCiclagem
 
   // B17/B21 (DADOS_CLIENTE): ciclos por ano e ciclos totais do projeto.
   // Quando o modo envolve QUALIDADE_ENERGIA, usa a frequência de eventos informada quando
@@ -119,27 +117,28 @@ export function calcularDimensionamento(
   // PEAK-SHAVING com folga suficiente para garantir a potência no fim de vida
   const sohFinalProjeto = lookupSoH(ciclosTotaisProjeto)
 
-  // B3: capacidade nominal mínima. Em PEAK-SHAVING, divide também pelo SoH final
-  // (garante que o sistema ainda atenda ao limite de demanda mesmo degradado).
-  const capacidadeNominalMinima =
-    cliente.modoOperacao === 'PEAK-SHAVING'
-      ? roundUp(energiaNecessariaDia / (dod * rte * sohFinalProjeto))
-      : roundUp(energiaNecessariaDia / (dod * rte))
+  // B3: capacidade nominal mínima. Com PEAK-SHAVING ativo, divide também pelo SoH final
+  // (garante que o sistema ainda atenda ao limite de demanda mesmo degradado) — aplicado
+  // ao total (reserva + ciclagem) por simplicidade quando os dois tipos de energia
+  // convivem num mesmo BESS combinado.
+  const capacidadeNominalMinima = usaPeakShaving
+    ? roundUp(energiaNecessariaDia / (dod * rte * sohFinalProjeto))
+    : roundUp(energiaNecessariaDia / (dod * rte))
 
-  // B4: potência necessária — limite de demanda em peak-shaving; no combinado, o maior
-  // entre a carga de backup e a carga crítica de qualidade de energia (ver comentário
-  // acima); isoladamente, a soma das cargas críticas (se houver) ou a demanda/potência
-  // crítica correspondente ao modo.
-  const potenciaNecessaria =
-    cliente.modoOperacao === 'PEAK-SHAVING' && cliente.limiteDemandaKw
-      ? cliente.demandaMaximaPontaKw - cliente.limiteDemandaKw
-      : cliente.modoOperacao === 'BACKUP_E_QUALIDADE_ENERGIA'
-        ? Math.max(demandaMaximaEfetiva, potenciaCriticaQualidade)
-        : cliente.modoOperacao === 'QUALIDADE_ENERGIA'
-          ? potenciaCriticaQualidade
-          : cliente.modoOperacao === 'BACKUP'
-            ? demandaMaximaEfetiva
-            : cliente.demandaMaximaPontaKw
+  // B4: potência necessária — o maior valor entre as exigências de cada modo ativo, já
+  // que o PCS precisa suprir o pico de qualquer um dos cenários habilitados
+  // simultaneamente (ex: BACKUP + QUALIDADE_ENERGIA podem ter conjuntos de carga
+  // diferentes — propriedade toda vs. só cargas sensíveis).
+  const potenciasCandidatas: number[] = []
+  if (usaTimeShift) potenciasCandidatas.push(cliente.demandaMaximaPontaKw)
+  if (usaPeakShaving) {
+    potenciasCandidatas.push(
+      cliente.limiteDemandaKw ? cliente.demandaMaximaPontaKw - cliente.limiteDemandaKw : cliente.demandaMaximaPontaKw
+    )
+  }
+  if (usaBackup) potenciasCandidatas.push(demandaMaximaEfetiva)
+  if (usaQualidadeEnergia) potenciasCandidatas.push(potenciaCriticaQualidade)
+  const potenciaNecessaria = potenciasCandidatas.length ? Math.max(...potenciasCandidatas) : cliente.demandaMaximaPontaKw
 
   // B9/B10/B11: número de racks
   const racksPorEnergia = roundUp(capacidadeNominalMinima / capacidadePorRackKwh)
@@ -292,8 +291,12 @@ export function calcularEconomiaAnual(
     // O&M reajustado pelo IPCA (DADOS_CLIENTE!B26)
     const omAno = capex.omAnual * Math.pow(1 + cliente.ipca, i)
 
+    // Prioridade TIME-SHIFT > PEAK-SHAVING > BACKUP/QUALIDADE_ENERGIA quando mais de um
+    // modo está ativo — mesma ordem de precedência que o dimensionamento já tinha antes
+    // do checkbox permitir combinações (nenhum teste cobre a combinação de economia entre
+    // modos de arbitragem tarifária, então mantém-se o comportamento single-mode aqui).
     let economiaAnualBruta: number
-    if (cliente.modoOperacao === 'TIME-SHIFT') {
+    if (cliente.modosOperacao.includes('TIME-SHIFT')) {
       // O = (K*I - L*H - M*F) * diasUteisPorMes * 12
       economiaAnualBruta =
         (energiaNecessariaDia * deltaTarifario -
@@ -301,7 +304,7 @@ export function calcularEconomiaAnual(
           energiaComplementarDia * tarifaPontaAno) *
         cliente.diasUteisPorMes *
         12
-    } else if (cliente.modoOperacao === 'PEAK-SHAVING') {
+    } else if (cliente.modosOperacao.includes('PEAK-SHAVING')) {
       // CORRIGIDO: usa tarifaDemandaUltrapassagem informada pelo usuário em vez do
       // #REF! quebrado da planilha original. Economia = demanda evitada de
       // ultrapassagem * tarifa de demanda, menos custo da energia perdida no ciclo.

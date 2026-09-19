@@ -6,6 +6,7 @@ import {
   calcularIndicadoresFinanceiros,
 } from './engine'
 import { DADOS_CLIENTE_PADRAO, ESPECIFICACOES_BESS_PADRAO, CAPEX_INPUTS_PADRAO } from './defaults'
+import type { ModoOperacao } from '../types'
 
 // A planilha de referência define racksAdotado=1 manualmente (célula digitada,
 // não pela fórmula MAX(racksPorEnergia, racksPorPotencia) — que daria 2). Para
@@ -68,7 +69,7 @@ describe('calcularDimensionamento — modo BACKUP', () => {
   // de negócio (lá é indústria/comercial, aqui é o caso rural de referência).
   const clienteBackupBase = {
     ...DADOS_CLIENTE_PADRAO,
-    modoOperacao: 'BACKUP' as const,
+    modosOperacao: ['BACKUP'] as ModoOperacao[],
     demandaMaximaPontaKw: 1279,
     demandaMediaNormalKw: 988,
     horasBackup: 4,
@@ -119,7 +120,7 @@ describe('calcularDimensionamento — modo QUALIDADE_ENERGIA', () => {
   // evento de 10 segundos.
   const clienteQE = {
     ...DADOS_CLIENTE_PADRAO,
-    modoOperacao: 'QUALIDADE_ENERGIA' as const,
+    modosOperacao: ['QUALIDADE_ENERGIA'] as ModoOperacao[],
     demandaMaximaPontaKw: 300,
     potenciaCriticaKw: 200,
     duracaoEventoSegundos: 10,
@@ -168,7 +169,7 @@ describe('calcularDimensionamento — lista de cargas críticas', () => {
   it('BACKUP: soma das cargas críticas substitui demandaMaximaPontaKw (base DEMANDA_MAXIMA)', () => {
     const cliente = {
       ...DADOS_CLIENTE_PADRAO,
-      modoOperacao: 'BACKUP' as const,
+      modosOperacao: ['BACKUP'] as ModoOperacao[],
       demandaMaximaPontaKw: 1279, // deve ser ignorado quando há cargasCriticas
       horasBackup: 4,
       baseCalculoBackup: 'DEMANDA_MAXIMA' as const,
@@ -182,7 +183,7 @@ describe('calcularDimensionamento — lista de cargas críticas', () => {
   it('BACKUP: sem cargasCriticas, comportamento não muda (usa demandaMaximaPontaKw)', () => {
     const cliente = {
       ...DADOS_CLIENTE_PADRAO,
-      modoOperacao: 'BACKUP' as const,
+      modosOperacao: ['BACKUP'] as ModoOperacao[],
       demandaMaximaPontaKw: 1279,
       horasBackup: 4,
       baseCalculoBackup: 'DEMANDA_MAXIMA' as const,
@@ -194,7 +195,7 @@ describe('calcularDimensionamento — lista de cargas críticas', () => {
   it('QUALIDADE_ENERGIA: soma das cargas críticas tem prioridade sobre potenciaCriticaKw e demandaMaximaPontaKw', () => {
     const cliente = {
       ...DADOS_CLIENTE_PADRAO,
-      modoOperacao: 'QUALIDADE_ENERGIA' as const,
+      modosOperacao: ['QUALIDADE_ENERGIA'] as ModoOperacao[],
       demandaMaximaPontaKw: 300,
       potenciaCriticaKw: 250, // deve ser ignorado quando há cargasCriticas
       duracaoEventoSegundos: 10,
@@ -206,7 +207,7 @@ describe('calcularDimensionamento — lista de cargas críticas', () => {
   })
 
   it('lista vazia é tratada igual a lista omitida', () => {
-    const base = { ...DADOS_CLIENTE_PADRAO, modoOperacao: 'BACKUP' as const, horasBackup: 4 }
+    const base = { ...DADOS_CLIENTE_PADRAO, modosOperacao: ['BACKUP'] as ModoOperacao[], horasBackup: 4 }
     const semLista = calcularDimensionamento(base, ESPECIFICACOES_BESS_PADRAO)
     const listaVazia = calcularDimensionamento({ ...base, cargasCriticas: [] }, ESPECIFICACOES_BESS_PADRAO)
     expect(listaVazia.energiaNecessariaDia).toBe(semLista.energiaNecessariaDia)
@@ -216,7 +217,7 @@ describe('calcularDimensionamento — lista de cargas críticas', () => {
 describe('calcularDimensionamento — modo combinado BACKUP_E_QUALIDADE_ENERGIA', () => {
   const clienteCombinado = {
     ...DADOS_CLIENTE_PADRAO,
-    modoOperacao: 'BACKUP_E_QUALIDADE_ENERGIA' as const,
+    modosOperacao: ['BACKUP', 'QUALIDADE_ENERGIA'] as ModoOperacao[],
     demandaMaximaPontaKw: 300, // carga total da propriedade (base do backup)
     horasBackup: 4,
     baseCalculoBackup: 'DEMANDA_MAXIMA' as const,
@@ -263,6 +264,62 @@ describe('calcularDimensionamento — modo combinado BACKUP_E_QUALIDADE_ENERGIA'
     )
     expect(dim.potenciaNecessaria).toBe(200)
     expect(dim.energiaNecessariaDia).toBe(4 * 200)
+  })
+})
+
+describe('calcularDimensionamento — checkbox genérico (mais de dois modos ao mesmo tempo)', () => {
+  // BACKUP_E_QUALIDADE_ENERGIA era um valor de enum especial; agora modosOperacao é uma
+  // lista e qualquer combinação é válida — inclusive combos com TIME-SHIFT/PEAK-SHAVING
+  // que antes não existiam. Estes testes cobrem a regra geral: energia = reserva (BACKUP
+  // domina sobre QUALIDADE_ENERGIA) + ciclagem (TIME-SHIFT/PEAK-SHAVING, sem dobrar
+  // contagem entre os dois); potência = máximo entre as exigências de todos os modos ativos.
+  const base = {
+    ...DADOS_CLIENTE_PADRAO,
+    consumoMedioPontaKwh: 6600, // energiaTotalPontaMes/diasUteisPorMes (22) = 300 kWh/dia de ciclagem
+    demandaMaximaPontaKw: 500,
+    horasBackup: 4,
+    baseCalculoBackup: 'DEMANDA_MAXIMA' as const,
+  }
+
+  it('BACKUP sozinho: energia = só a reserva (sem ciclagem)', () => {
+    const dim = calcularDimensionamento({ ...base, modosOperacao: ['BACKUP'] }, ESPECIFICACOES_BESS_PADRAO)
+    expect(dim.energiaNecessariaDia).toBe(4 * 500) // 2000, sem soma de ciclagem
+  })
+
+  it('TIME-SHIFT sozinho: energia = só a ciclagem (sem reserva)', () => {
+    const dim = calcularDimensionamento({ ...base, modosOperacao: ['TIME-SHIFT'] }, ESPECIFICACOES_BESS_PADRAO)
+    expect(dim.energiaNecessariaDia).toBe(300) // 6600/22, sem soma de reserva
+  })
+
+  it('BACKUP + TIME-SHIFT: energia = reserva + ciclagem somadas', () => {
+    const dim = calcularDimensionamento(
+      { ...base, modosOperacao: ['BACKUP', 'TIME-SHIFT'] },
+      ESPECIFICACOES_BESS_PADRAO
+    )
+    expect(dim.energiaNecessariaDia).toBe(4 * 500 + 300) // 2300
+  })
+
+  it('TIME-SHIFT + PEAK-SHAVING: usa o maior dos dois, não a soma (mesma capacidade cíclica)', () => {
+    const dim = calcularDimensionamento(
+      { ...base, modosOperacao: ['TIME-SHIFT', 'PEAK-SHAVING'], limiteDemandaKw: 100 },
+      ESPECIFICACOES_BESS_PADRAO
+    )
+    // energiaCiclagem é a mesma fórmula pros dois (300), não 600
+    expect(dim.energiaNecessariaDia).toBe(300)
+  })
+
+  it('potência necessária é o máximo entre todos os modos ativos', () => {
+    const dim = calcularDimensionamento(
+      { ...base, modosOperacao: ['BACKUP', 'PEAK-SHAVING'], limiteDemandaKw: 450 }, // peak-shaving pede só 50 kW
+      ESPECIFICACOES_BESS_PADRAO
+    )
+    expect(dim.potenciaNecessaria).toBe(500) // backup (500) > peak-shaving (500-450=50)
+  })
+
+  it('nenhum modo marcado: energia zerada, não quebra o cálculo', () => {
+    const dim = calcularDimensionamento({ ...base, modosOperacao: [] }, ESPECIFICACOES_BESS_PADRAO)
+    expect(dim.energiaNecessariaDia).toBe(0)
+    expect(Number.isFinite(dim.capacidadeNominalMinima)).toBe(true)
   })
 })
 
