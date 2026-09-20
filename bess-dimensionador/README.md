@@ -95,9 +95,11 @@ deliberada: sempre claro, porque é pensado pra ser impresso em papel, não lido
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
+cp .env.example .env   # preencher ANTHROPIC_API_KEY (só necessário pra extração de fatura)
+npm run dev      # sobe client (Vite, :5173) + backend (Express, :3001) juntos
 npm test         # roda a suíte de validação contra a planilha (vitest)
-npm run build    # build de produção
+npm run build    # build de produção (client)
+npm start        # produção: NODE_ENV=production node server/index.js (serve o dist/ também)
 ```
 
 ## Estrutura
@@ -166,6 +168,25 @@ Exporta como PDF via impressão do navegador ("Imprimir / salvar como PDF" → d
 "Salvar como PDF"), sem dependência de biblioteca de geração de PDF: o CSS de impressão em
 `index.css` (`@media print`) esconde toda a navegação e mostra só o conteúdo de
 `#relatorio-tecnico`.
+
+## Extração de dados da fatura (COPEL)
+
+No primeiro passo do wizard ("Dados Cliente") dá pra subir o PDF da fatura da COPEL e
+extrair automaticamente nome do cliente, UC, consumo médio, grupo tarifário, endereço e CEP
+— sempre pré-preenchendo campos editáveis, nunca travando um valor: extração por IA é
+conveniência, não fonte de verdade (mesma regra aplicada em `tarifas/` e `usinas/ia.py` no
+monorepo). Nome do representante, telefone e email não estão na fatura e são sempre
+digitados à mão.
+
+A extração roda num backend Express mínimo (`server/`, mesmo padrão de `controle-calorico/`)
+que chama a API da Anthropic (`@anthropic-ai/sdk`, modelo `claude-opus-5`) com o PDF como
+`document` content block e um prompt específico pro layout da COPEL — o app assume que a
+fatura enviada é sempre da COPEL, não tenta ser genérico pra outras distribuidoras. Requer
+`ANTHROPIC_API_KEY` no `.env` (ver `.env.example`).
+
+**Só funciona rodando localmente** (`npm run dev` ou `npm start`) — a versão publicada como
+Artifact é um bundle estático sem backend, então o upload de fatura não tem efeito lá; os
+campos continuam preenchíveis à mão normalmente.
 
 ## Nº de racks: automático vs. manual
 

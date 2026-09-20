@@ -32,6 +32,18 @@ export interface DadosCliente {
   nomeCliente: string
   grupoTarifario: GrupoTarifario
 
+  // Identificação/contato — puramente informativo pro relatório e pro dossiê de
+  // financiamento, não entram em nenhum cálculo de engine.ts. unidadeConsumidora/endereco/
+  // cep vêm preferencialmente da extração automática da fatura (upload de PDF da COPEL,
+  // ver server/anthropic.js e o botão de extração no passo "Dados Cliente" de App.tsx);
+  // nomeRepresentante/telefone/email são sempre digitados à mão (não estão na fatura).
+  unidadeConsumidora?: string
+  endereco?: string
+  cep?: string
+  nomeRepresentante?: string
+  telefoneRepresentante?: string
+  emailRepresentante?: string
+
   // aba DADOS_CLIENTE
   // No Grupo B, consumoMedioPontaKwh e tarifaPontaComML são reaproveitados como consumo
   // médio mensal total e tarifa única (a UI relabela, o engine não distingue) — ver
