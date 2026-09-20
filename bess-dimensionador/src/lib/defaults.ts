@@ -8,7 +8,6 @@ export const DADOS_CLIENTE_PADRAO: DadosCliente = {
 
   consumoMedioPontaKwh: 67939,
   demandaMaximaPontaKw: 1279,
-  demandaContratadaKw: 1500,
   tarifaPontaComML: 1.46549,
   tarifaForaPonta: 0.14262,
 

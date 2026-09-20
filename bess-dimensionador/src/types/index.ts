@@ -39,7 +39,6 @@ export interface DadosCliente {
   // potência estimada da propriedade quando não há cargasCriticas detalhada.
   consumoMedioPontaKwh: number // B4 — consumo médio mensal na ponta (dias úteis) — Grupo A; consumo médio mensal total — Grupo B
   demandaMaximaPontaKw: number // B5 — demanda máxima medida na ponta (Grupo A) ou potência estimada da propriedade (Grupo B, sem medição)
-  demandaContratadaKw: number // B6 — não se aplica ao Grupo B (sem demanda contratada)
   tarifaPontaComML: number // B8 — R$/kWh, tarifa ponta já com margem de lucro/impostos embutidos (Grupo A) ou tarifa única (Grupo B)
   tarifaForaPonta: number // B9 — R$/kWh — não se aplica ao Grupo B (sem tarifa diferenciada ponta/fora-ponta)
 

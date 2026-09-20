@@ -208,7 +208,6 @@ export default function App() {
                   <NumberField label="Consumo médio ponta" suffix="kWh/mês" value={cliente.consumoMedioPontaKwh} onChange={(v) => set('consumoMedioPontaKwh', v)} />
                 )}
                 <NumberField label="Demanda máxima medida na ponta" suffix="kW" value={cliente.demandaMaximaPontaKw} onChange={(v) => set('demandaMaximaPontaKw', v)} />
-                <NumberField label="Demanda contratada" suffix="kW" value={cliente.demandaContratadaKw} onChange={(v) => set('demandaContratadaKw', v)} />
               </div>
             ) : (
               <>
@@ -267,12 +266,14 @@ export default function App() {
                     <option value="DEMANDA_MAXIMA">Demanda máxima medida (conservador)</option>
                   </select>
                 </label>
-                <NumberField label="Demanda média normal (fora ponta)" suffix="kW" value={cliente.demandaMediaNormalKw ?? 0} onChange={(v) => set('demandaMediaNormalKw', v)} />
+                {(cliente.baseCalculoBackup ?? 'DEMANDA_MEDIA_NORMAL') === 'DEMANDA_MEDIA_NORMAL' && (
+                  <NumberField label="Demanda média normal (fora ponta)" suffix="kW" value={cliente.demandaMediaNormalKw ?? 0} onChange={(v) => set('demandaMediaNormalKw', v)} />
+                )}
               </div>
               <p style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
                 Energia de backup = horas de backup × demanda-base escolhida acima (não é uma
-                fração do consumo de ponta). Com base "demanda média normal", informe também a
-                demanda média — sem ela o cálculo cai para a demanda máxima medida.
+                fração do consumo de ponta). Sem a demanda média informada, o cálculo cai para
+                a demanda máxima medida.
               </p>
             </Section>
           )}
