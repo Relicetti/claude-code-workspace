@@ -117,13 +117,15 @@ export function calcularDimensionamento(
   // PEAK-SHAVING com folga suficiente para garantir a potência no fim de vida
   const sohFinalProjeto = lookupSoH(ciclosTotaisProjeto)
 
-  // B3: capacidade nominal mínima. Com PEAK-SHAVING ativo, divide também pelo SoH final
-  // (garante que o sistema ainda atenda ao limite de demanda mesmo degradado) — aplicado
-  // ao total (reserva + ciclagem) por simplicidade quando os dois tipos de energia
-  // convivem num mesmo BESS combinado.
-  const capacidadeNominalMinima = usaPeakShaving
-    ? roundUp(energiaNecessariaDia / (dod * rte * sohFinalProjeto))
-    : roundUp(energiaNecessariaDia / (dod * rte))
+  // B3: capacidade nominal mínima. Com PEAK-SHAVING ativo, a parcela de CICLAGEM precisa
+  // de folga extra pra ainda cobrir a mesma energia útil já degradada no fim da vida útil
+  // — mas só ela: a parcela de RESERVA (BACKUP/QUALIDADE_ENERGIA) não leva essa folga
+  // aqui porque seu comportamento em fim de vida já é reportado à parte via
+  // autonomiaUltimoAnoH (inflar a reserva também infla capacidadeInstalada sem necessidade
+  // e distorce a proporção usada em capacidadeReservaKwh, abaixo).
+  const energiaCiclagemPonderada = usaPeakShaving ? energiaCiclagem / sohFinalProjeto : energiaCiclagem
+  const energiaPonderadaTotal = energiaReserva + energiaCiclagemPonderada
+  const capacidadeNominalMinima = roundUp(energiaPonderadaTotal / (dod * rte))
 
   // B4: potência necessária — o maior valor entre as exigências de cada modo ativo, já
   // que o PCS precisa suprir o pico de qualquer um dos cenários habilitados
@@ -152,14 +154,25 @@ export function calcularDimensionamento(
   // B16: SoH após 1 ano de operação (ciclos = ciclosPorAno)
   const sohApos1Ano = lookupSoH(ciclosPorAno)
 
+  // Fração da capacidade instalada de fato disponível como reserva de emergência — evita
+  // que a autonomia de BACKUP/QUALIDADE_ENERGIA conte de forma otimista energia que, num
+  // BESS combinado, pode já estar comprometida com ciclagem diária (TIME-SHIFT/
+  // PEAK-SHAVING) no momento de uma falha. Atribuída proporcionalmente ao peso de cada
+  // parcela na mesma base que gerou capacidadeNominalMinima (energiaPonderadaTotal) — com
+  // um único modo de reserva marcado (sem ciclagem), essa fração é 1 e o resultado é
+  // idêntico a usar capacidadeInstalada inteira, como antes.
+  const capacidadeReservaKwh =
+    energiaPonderadaTotal > 0 ? (energiaReserva / energiaPonderadaTotal) * capacidadeInstalada : capacidadeInstalada
+
   // B17/B19: autonomia em horas no ano 1 e no último ano do projeto. Em BACKUP/QUALIDADE_ENERGIA
-  // é capacidade útil ÷ potência de referência (resultado já em horas); nos demais modos
-  // mantém o cálculo legado da planilha original (proporcional a horasPontaPorDia).
+  // é a capacidade de reserva (ver acima) ÷ potência de referência (resultado já em horas);
+  // nos demais modos mantém o cálculo legado da planilha original (proporcional a
+  // horasPontaPorDia), sobre a capacidade instalada inteira.
   const autonomia1AnoH = potenciaReferenciaAutonomia
-    ? (capacidadeInstalada * sohApos1Ano * dod * rte) / potenciaReferenciaAutonomia
+    ? (capacidadeReservaKwh * sohApos1Ano * dod * rte) / potenciaReferenciaAutonomia
     : ((capacidadeInstalada * sohApos1Ano * dod * rte) / energiaNecessariaDia) * cliente.horasPontaPorDia
   const autonomiaUltimoAnoH = potenciaReferenciaAutonomia
-    ? (capacidadeInstalada * sohFinalProjeto * dod * rte) / potenciaReferenciaAutonomia
+    ? (capacidadeReservaKwh * sohFinalProjeto * dod * rte) / potenciaReferenciaAutonomia
     : ((capacidadeInstalada * sohFinalProjeto * dod * rte) / energiaNecessariaDia) * cliente.horasPontaPorDia
 
   return {

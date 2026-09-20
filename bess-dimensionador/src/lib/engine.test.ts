@@ -323,6 +323,71 @@ describe('calcularDimensionamento — checkbox genérico (mais de dois modos ao 
   })
 })
 
+describe('calcularDimensionamento — autonomia e capacidade corretas em combos mistos (reserva + ciclagem)', () => {
+  // Motivação: com BACKUP/QUALIDADE_ENERGIA (reserva) e TIME-SHIFT/PEAK-SHAVING (ciclagem)
+  // marcados juntos, parte da capacidade instalada é disputada pelos dois usos. Contar a
+  // capacidade inteira como se estivesse sempre livre pro backup (comportamento inicial do
+  // checkbox) era otimista demais — ver conversa com o dono do repo. Estes testes travam a
+  // correção: autonomia usa só a fração de capacidade proporcional à reserva, e a folga de
+  // fim de vida (SoH) do PEAK-SHAVING pesa só na parcela de ciclagem.
+  const clienteMisto = {
+    ...DADOS_CLIENTE_PADRAO,
+    consumoMedioPontaKwh: 6600, // 300 kWh/dia de ciclagem (diasUteisPorMes=22)
+    demandaMaximaPontaKw: 500,
+    horasBackup: 4,
+    baseCalculoBackup: 'DEMANDA_MAXIMA' as const,
+  }
+
+  it('BACKUP+TIME-SHIFT: autonomia usa só a fração de reserva da capacidade instalada, não a instalada inteira', () => {
+    const bess = { ...ESPECIFICACOES_BESS_PADRAO, racksAdotadoOverride: 1 }
+    const dimMisto = calcularDimensionamento({ ...clienteMisto, modosOperacao: ['BACKUP', 'TIME-SHIFT'] }, bess)
+    const dimSoBackup = calcularDimensionamento({ ...clienteMisto, modosOperacao: ['BACKUP'] }, bess)
+
+    // energiaReserva = 4×500 = 2000; energiaCiclagem = 300; fração de reserva = 2000/2300
+    const fracaoReserva = 2000 / 2300
+    const capacidadeReservaEsperada = fracaoReserva * dimMisto.capacidadeInstalada
+    const autonomiaEsperada = (capacidadeReservaEsperada * dimMisto.sohApos1Ano * bess.dod * bess.rte) / 500
+    expect(dimMisto.autonomia1AnoH).toBeCloseTo(autonomiaEsperada, 6)
+
+    // estritamente menor que se toda a capacidade instalada contasse como reserva (o que
+    // seria otimista demais com o BESS também ocupado em ciclagem diária)
+    expect(dimMisto.autonomia1AnoH).toBeLessThan(
+      (dimMisto.capacidadeInstalada * dimMisto.sohApos1Ano * bess.dod * bess.rte) / 500
+    )
+
+    // BACKUP sozinho, mesma capacidadeInstalada (mesmo override) — sem ciclagem disputando
+    // o mesmo BESS, usa a capacidade inteira como reserva, então tem mais autonomia
+    expect(dimSoBackup.autonomia1AnoH).toBeGreaterThan(dimMisto.autonomia1AnoH)
+  })
+
+  it('BACKUP+PEAK-SHAVING: a folga de fim de vida (SoH) pesa só na parcela de ciclagem, não na reserva', () => {
+    const cliente = {
+      ...clienteMisto,
+      modosOperacao: ['BACKUP', 'PEAK-SHAVING'] as ModoOperacao[],
+      limiteDemandaKw: 400,
+    }
+    const dim = calcularDimensionamento(cliente, ESPECIFICACOES_BESS_PADRAO)
+
+    const energiaReserva = 4 * 500 // 2000
+    const energiaCiclagem = 300
+    const sohFinal = dim.sohFinalProjeto
+    const esperado = Math.ceil((energiaReserva + energiaCiclagem / sohFinal) / (0.98 * 0.92))
+    expect(dim.capacidadeNominalMinima).toBe(esperado)
+
+    // se a folga inflasse a reserva também (comportamento anterior), o mínimo seria maior
+    const comportamentoAnterior = Math.ceil((energiaReserva + energiaCiclagem) / (0.98 * 0.92 * sohFinal))
+    expect(dim.capacidadeNominalMinima).toBeLessThan(comportamentoAnterior)
+  })
+
+  it('com um único modo de reserva marcado (sem ciclagem), a fração de reserva é 1 — sem mudança de comportamento', () => {
+    const dim = calcularDimensionamento({ ...clienteMisto, modosOperacao: ['BACKUP'] }, ESPECIFICACOES_BESS_PADRAO)
+    const autonomiaSemFracao =
+      (dim.capacidadeInstalada * dim.sohApos1Ano * ESPECIFICACOES_BESS_PADRAO.dod * ESPECIFICACOES_BESS_PADRAO.rte) /
+      500
+    expect(dim.autonomia1AnoH).toBeCloseTo(autonomiaSemFracao, 6)
+  })
+})
+
 describe('calcularCapex — caso Caterpillar', () => {
   const capex = calcularCapex(CAPEX_INPUTS_PADRAO)
 

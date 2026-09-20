@@ -46,9 +46,22 @@ marcadas — o PCS precisa suprir o pico de qualquer um dos cenários habilitado
 simultaneamente (ex: BACKUP e QUALIDADE_ENERGIA podem ter conjuntos de carga diferentes —
 propriedade toda vs. só as cargas mais sensíveis).
 
-Com um único modo marcado, essa regra se reduz exatamente ao comportamento anterior
-(quando cada modo era mutuamente exclusivo) — a suíte de testes cobre tanto os modos
-isolados quanto combinações novas (ex: BACKUP + TIME-SHIFT).
+Dois refinamentos garantem que a **autonomia reportada não seja otimista** quando reserva e
+ciclagem convivem no mesmo BESS (ex: BACKUP + TIME-SHIFT):
+
+- A folga de fim de vida útil (SoH) do PEAK-SHAVING pesa só na parcela de ciclagem, não na
+  de reserva — a reserva já tem seu próprio retrato de fim de vida em `autonomiaUltimoAnoH`,
+  não precisa de uma folga extra embutida em `capacidadeNominalMinima`.
+- A autonomia de BACKUP/QUALIDADE_ENERGIA é calculada sobre a **fração da capacidade
+  instalada proporcional à reserva** (`capacidadeReservaKwh`), não sobre a capacidade
+  instalada inteira — senão a energia que às vezes está ocupada com ciclagem diária
+  contaria como se estivesse sempre livre pro backup.
+
+Com um único modo marcado — ou só modos de reserva, ou só modos de ciclagem — essas duas
+frações se reduzem a 1 e o resultado é idêntico ao comportamento anterior (quando cada modo
+era mutuamente exclusivo); a suíte de testes cobre os modos isolados, combinações sem
+conflito de capacidade (ex: BACKUP + QUALIDADE_ENERGIA) e combinações mistas (ex: BACKUP +
+TIME-SHIFT, BACKUP + PEAK-SHAVING) explicitamente.
 TIME-SHIFT e PEAK-SHAVING continuam funcionais mas não são o foco de evolução agora.
 
 ## Como rodar
