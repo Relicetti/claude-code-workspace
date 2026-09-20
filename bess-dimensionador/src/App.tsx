@@ -183,19 +183,7 @@ export default function App() {
                     onChange={(v) => set('demandaMaximaPontaKw', v)}
                   />
                 </div>
-                <p className="note">
-                  Grupo B não tem demanda contratada nem tarifa diferenciada ponta/fora-ponta —
-                  a distribuidora só mede consumo em kWh. Pra BACKUP e QUALIDADE DE ENERGIA, o
-                  ideal é detalhar as cargas críticas (seção mais abaixo) em vez de confiar
-                  numa potência total estimada; sem elas, o dimensionamento usa esse valor.
-                </p>
               </>
-            )}
-            {!usaCiclagem && (
-              <p className="note">
-                Consumo médio não é pedido porque nenhuma função marcada (BACKUP/QUALIDADE DE
-                ENERGIA) usa esse valor — ele só entra no cálculo de TIME-SHIFT/PEAK-SHAVING.
-              </p>
             )}
           </Section>
 
@@ -231,11 +219,6 @@ export default function App() {
                   <NumberField label="Demanda média normal (fora ponta)" suffix="kW" value={cliente.demandaMediaNormalKw ?? 0} onChange={(v) => set('demandaMediaNormalKw', v)} />
                 )}
               </div>
-              <p className="note">
-                Energia de backup = horas de backup × demanda-base escolhida acima (não é uma
-                fração do consumo de ponta). Sem a demanda média informada, o cálculo cai para
-                a demanda máxima medida.
-              </p>
             </Section>
           )}
 
@@ -265,13 +248,7 @@ export default function App() {
                 + Adicionar carga
               </button>
               <p className="note">
-                Some as cargas que precisam continuar ligadas na falta de energia (BACKUP) ou
-                sobreviver a um afundamento de tensão sem desarmar (QUALIDADE DE ENERGIA) — ex:
-                motor de irrigação, ordenha, câmara fria. Total atual:{' '}
-                <strong>{fmtNum((cliente.cargasCriticas ?? []).reduce((s, c) => s + c.potenciaKw, 0))} kW</strong>.{' '}
-                {(cliente.cargasCriticas ?? []).length > 0
-                  ? 'Com a lista preenchida, esse total substitui o campo manual de demanda máxima/potência crítica abaixo.'
-                  : 'Vazia, o dimensionamento usa o campo manual de demanda máxima/potência crítica abaixo.'}
+                Total: <strong>{fmtNum((cliente.cargasCriticas ?? []).reduce((s, c) => s + c.potenciaKw, 0))} kW</strong>
               </p>
             </Section>
           )}
@@ -288,13 +265,6 @@ export default function App() {
                 <NumberField label="Duração do evento a suportar" suffix="segundos" value={cliente.duracaoEventoSegundos ?? 0} onChange={(v) => set('duracaoEventoSegundos', v)} />
                 <NumberField label="Eventos por mês (opcional, p/ estimativa de ciclos)" value={cliente.eventosPorMes ?? 0} onChange={(v) => set('eventosPorMes', v > 0 ? v : undefined)} />
               </div>
-              <p className="note">
-                Diferente do BACKUP: aqui o BESS só precisa segurar a carga crítica por um
-                afundamento de tensão/microinterrupção breve (segundos a poucos minutos), não
-                por horas — o que importa mais é a potência de resposta do PCS do que a energia
-                armazenada. Sem eventos/mês informado, a estimativa de ciclos usa dias úteis por
-                mês (menos precisa pra esse modo).
-              </p>
             </Section>
           )}
 
