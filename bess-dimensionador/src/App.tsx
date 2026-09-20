@@ -105,11 +105,6 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <h1>Dimensionador BESS</h1>
-        <p>
-          Dimensionamento técnico de sistemas de armazenamento de energia (backup, qualidade
-          de energia, time-shift, peak-shaving) — sem CAPEX nem análise financeira. Valores
-          padrão: caso Caterpillar Campo Largo / WEG.
-        </p>
       </header>
 
       <nav className="tabs">
