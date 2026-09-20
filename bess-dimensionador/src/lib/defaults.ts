@@ -4,7 +4,6 @@ import type { DadosCliente, EspecificacoesBess, CapexInputs } from '../types'
 
 export const DADOS_CLIENTE_PADRAO: DadosCliente = {
   nomeCliente: 'Caterpillar Campo Largo',
-  modalidadeTarifaria: 'A4 Verde',
   grupoTarifario: 'A',
 
   consumoMedioPontaKwh: 67939,
