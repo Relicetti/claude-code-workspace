@@ -160,14 +160,6 @@ export default function App() {
                 />
               </label>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
-                <span style={{ color: '#5a5a55' }}>Modalidade tarifária</span>
-                <input
-                  value={cliente.modalidadeTarifaria}
-                  onChange={(e) => set('modalidadeTarifaria', e.target.value)}
-                  style={{ padding: '6px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: 14 }}
-                />
-              </label>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
                 <span style={{ color: '#5a5a55' }}>Grupo tarifário</span>
                 <select
                   value={cliente.grupoTarifario}
@@ -447,7 +439,7 @@ function RelatorioTecnico({
 
       <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Relatório Técnico de Dimensionamento — Sistema BESS</h1>
       <p style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>
-        Cliente: <strong>{cliente.nomeCliente}</strong> — Modalidade tarifária: {cliente.modalidadeTarifaria || '—'}
+        Cliente: <strong>{cliente.nomeCliente}</strong> — Grupo tarifário: {cliente.grupoTarifario}
       </p>
       <p style={{ fontSize: 12, color: '#888' }}>Emitido em {new Date().toLocaleDateString('pt-BR')}</p>
 

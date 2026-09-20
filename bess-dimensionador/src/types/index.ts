@@ -30,7 +30,6 @@ export interface CargaCritica {
 
 export interface DadosCliente {
   nomeCliente: string
-  modalidadeTarifaria: string // informativo (ex: "A4 Verde" no Grupo A, "B2 Rural" no Grupo B)
   grupoTarifario: GrupoTarifario
 
   // aba DADOS_CLIENTE
