@@ -64,6 +64,22 @@ conflito de capacidade (ex: BACKUP + QUALIDADE_ENERGIA) e combinações mistas (
 TIME-SHIFT, BACKUP + PEAK-SHAVING) explicitamente.
 TIME-SHIFT e PEAK-SHAVING continuam funcionais mas não são o foco de evolução agora.
 
+## Fluxo em etapas (wizard)
+
+A interface é um fluxo linear de 5 etapas — Dados Cliente, Característica da Carga,
+Premissas BESS, Especificação BESS, Resultados — com botões "Avançar"/"Voltar" em vez de
+abas livres. "Avançar" só libera quando a etapa atual está completamente preenchida: cada
+etapa tem uma lista de `Check` (`stepChecks` em `App.tsx`) que depende do que já foi
+escolhido antes (grupo tarifário, funções do BESS marcadas) — ex: "Consumo médio" só entra
+na lista de Característica da Carga se TIME-SHIFT ou PEAK-SHAVING estiver marcado, porque
+só essas funções usam esse valor no cálculo. Faltando algo, a mensagem abaixo do botão diz
+exatamente o quê. Etapas já concluídas ficam clicáveis no indicador do topo (pra voltar
+direto), mas não dá pra pular etapas futuras sem preencher as anteriores.
+
+O Relatório Técnico não é uma etapa do fluxo — é acessado por um botão na etapa de
+Resultados (a última), já que é uma visualização/exportação do resultado, não mais um dado
+a preencher.
+
 ## Design
 
 Paleta sóbria (grafite/ardósia com um acento azul-petróleo) e estilo minimalista — inputs
