@@ -50,12 +50,23 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
+function arquivoParaBase64(arquivo: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const leitor = new FileReader()
+    leitor.onload = () => resolve((leitor.result as string).split(',')[1] ?? '')
+    leitor.onerror = () => reject(leitor.error)
+    leitor.readAsDataURL(arquivo)
+  })
+}
+
 export default function App() {
   const [stepIndex, setStepIndex] = useState(0)
   const [cliente, setCliente] = useState<DadosCliente>(DADOS_CLIENTE_PADRAO)
   const [bess, setBess] = useState<EspecificacoesBess>(ESPECIFICACOES_BESS_PADRAO)
   const [erro, setErro] = useState<string | null>(null)
   const [mostrarRelatorio, setMostrarRelatorio] = useState(false)
+  const [extraindoFatura, setExtraindoFatura] = useState(false)
+  const [erroExtracaoFatura, setErroExtracaoFatura] = useState<string | null>(null)
 
   // Só o dimensionamento técnico — sem CAPEX nem indicadores financeiros (decisão do dono
   // do repo: essa ferramenta é a base técnica pro financiamento, não a análise financeira).
@@ -82,6 +93,45 @@ export default function App() {
         : [...c.modosOperacao, modo],
     }))
   }
+  // Extração automática (IA) dos dados da fatura da COPEL — só funciona rodando localmente
+  // (npm run dev / npm run start), já que depende do backend em server/. Os valores voltam
+  // sempre editáveis: a extração é conveniência, nunca fonte de verdade (mesma regra de
+  // IA-como-fallback usada em tarifas/ e usinas/ia.py no monorepo).
+  async function extrairFatura(arquivo: File) {
+    setExtraindoFatura(true)
+    setErroExtracaoFatura(null)
+    try {
+      const pdfBase64 = await arquivoParaBase64(arquivo)
+      const resposta = await fetch('/api/extrair-fatura', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pdfBase64 }),
+      })
+      if (!resposta.ok) {
+        const corpo = await resposta.json().catch(() => ({}))
+        throw new Error(corpo.error || 'Falha ao extrair dados da fatura.')
+      }
+      const dados = await resposta.json()
+      setCliente((c) => ({
+        ...c,
+        nomeCliente: dados.nomeCliente || c.nomeCliente,
+        unidadeConsumidora: dados.unidadeConsumidora || c.unidadeConsumidora,
+        consumoMedioPontaKwh: dados.consumoMedioPontaKwh || c.consumoMedioPontaKwh,
+        grupoTarifario: dados.grupoTarifario || c.grupoTarifario,
+        endereco: dados.endereco || c.endereco,
+        cep: dados.cep || c.cep,
+      }))
+    } catch (err) {
+      setErroExtracaoFatura(
+        err instanceof Error
+          ? `${err.message} Preencha os dados manualmente, ou tente novamente rodando o app localmente (a extração não funciona nesta versão publicada).`
+          : 'Falha ao extrair dados da fatura. Preencha manualmente.'
+      )
+    } finally {
+      setExtraindoFatura(false)
+    }
+  }
+
   const usaBackup = cliente.modosOperacao.includes('BACKUP')
   const usaQualidadeEnergia = cliente.modosOperacao.includes('QUALIDADE_ENERGIA')
   // TIME-SHIFT/PEAK-SHAVING são as únicas funções que usam consumo/cobertura da ponta
@@ -198,21 +248,73 @@ export default function App() {
       ) : (
         <>
           {stepIndex === 0 && (
-            <Section title="Cliente e modalidade">
-              <div className="field-grid">
+            <>
+              <Section title="Fatura (COPEL)">
                 <label className="field">
-                  <span className="field__label">Cliente</span>
-                  <input className="input" value={cliente.nomeCliente} onChange={(e) => set('nomeCliente', e.target.value)} />
+                  <span className="field__label">
+                    Upload da fatura em PDF <span className="unit">(opcional — extrai nome, UC, consumo, grupo e endereço)</span>
+                  </span>
+                  <input
+                    className="input"
+                    type="file"
+                    accept="application/pdf"
+                    disabled={extraindoFatura}
+                    onChange={(e) => {
+                      const arquivo = e.target.files?.[0]
+                      if (arquivo) extrairFatura(arquivo)
+                      e.target.value = ''
+                    }}
+                  />
                 </label>
-                <label className="field">
-                  <span className="field__label">Grupo tarifário</span>
-                  <select className="input" value={cliente.grupoTarifario} onChange={(e) => set('grupoTarifario', e.target.value as DadosCliente['grupoTarifario'])}>
-                    <option value="A">Grupo A (alta tensão — demanda em kW)</option>
-                    <option value="B">Grupo B (baixa tensão — só kWh, sem demanda medida)</option>
-                  </select>
-                </label>
-              </div>
-            </Section>
+                {extraindoFatura && <p className="note">Extraindo dados da fatura…</p>}
+                {erroExtracaoFatura && <p className="note note--warn">{erroExtracaoFatura}</p>}
+              </Section>
+
+              <Section title="Cliente e modalidade">
+                <div className="field-grid">
+                  <label className="field">
+                    <span className="field__label">Cliente</span>
+                    <input className="input" value={cliente.nomeCliente} onChange={(e) => set('nomeCliente', e.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span className="field__label">Grupo tarifário</span>
+                    <select className="input" value={cliente.grupoTarifario} onChange={(e) => set('grupoTarifario', e.target.value as DadosCliente['grupoTarifario'])}>
+                      <option value="A">Grupo A (alta tensão — demanda em kW)</option>
+                      <option value="B">Grupo B (baixa tensão — só kWh, sem demanda medida)</option>
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span className="field__label">Unidade consumidora (UC)</span>
+                    <input className="input" value={cliente.unidadeConsumidora ?? ''} onChange={(e) => set('unidadeConsumidora', e.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span className="field__label">Endereço</span>
+                    <input className="input" value={cliente.endereco ?? ''} onChange={(e) => set('endereco', e.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span className="field__label">CEP</span>
+                    <input className="input" value={cliente.cep ?? ''} onChange={(e) => set('cep', e.target.value)} />
+                  </label>
+                </div>
+              </Section>
+
+              <Section title="Representante">
+                <div className="field-grid">
+                  <label className="field">
+                    <span className="field__label">Nome do representante</span>
+                    <input className="input" value={cliente.nomeRepresentante ?? ''} onChange={(e) => set('nomeRepresentante', e.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span className="field__label">Telefone</span>
+                    <input className="input" value={cliente.telefoneRepresentante ?? ''} onChange={(e) => set('telefoneRepresentante', e.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span className="field__label">Email</span>
+                    <input className="input" type="email" value={cliente.emailRepresentante ?? ''} onChange={(e) => set('emailRepresentante', e.target.value)} />
+                  </label>
+                </div>
+              </Section>
+            </>
           )}
 
           {stepIndex === 1 && (
@@ -474,7 +576,22 @@ function RelatorioTecnico({
       <h1>Relatório Técnico de Dimensionamento — Sistema BESS</h1>
       <p className="report__meta">
         Cliente: <strong>{cliente.nomeCliente}</strong> — Grupo tarifário: {cliente.grupoTarifario}
+        {cliente.unidadeConsumidora ? <> — UC: {cliente.unidadeConsumidora}</> : null}
       </p>
+      {(cliente.endereco || cliente.cep) && (
+        <p className="report__meta">
+          {cliente.endereco}
+          {cliente.endereco && cliente.cep ? ' — ' : ''}
+          {cliente.cep ? `CEP ${cliente.cep}` : ''}
+        </p>
+      )}
+      {(cliente.nomeRepresentante || cliente.telefoneRepresentante || cliente.emailRepresentante) && (
+        <p className="report__meta">
+          Representante: {cliente.nomeRepresentante}
+          {cliente.telefoneRepresentante ? ` — ${cliente.telefoneRepresentante}` : ''}
+          {cliente.emailRepresentante ? ` — ${cliente.emailRepresentante}` : ''}
+        </p>
+      )}
       <p className="report__meta">Emitido em {new Date().toLocaleDateString('pt-BR')}</p>
 
       <h2>1. Objetivo do sistema</h2>
