@@ -64,6 +64,17 @@ conflito de capacidade (ex: BACKUP + QUALIDADE_ENERGIA) e combinações mistas (
 TIME-SHIFT, BACKUP + PEAK-SHAVING) explicitamente.
 TIME-SHIFT e PEAK-SHAVING continuam funcionais mas não são o foco de evolução agora.
 
+## Design
+
+Paleta sóbria (grafite/ardósia com um acento azul-petróleo) e estilo minimalista — inputs
+sublinhados em vez de caixas com borda, funções do BESS como chips arredondados em vez de
+checkbox+label, cards com radius maior e sem sombra. Tipografia: **IBM Plex Sans** pro texto
+e **IBM Plex Mono** pros números (mesma família desenhada pela IBM pra uso técnico/dados —
+cabe numa ferramenta de dimensionamento; carregada via Google Fonts em `index.html`, com
+fallback pra fonte do sistema se offline). Tokens de cor em `src/index.css` (`:root`), com
+variante escura via `prefers-color-scheme` — o relatório técnico (`.report`) é a exceção
+deliberada: sempre claro, porque é pensado pra ser impresso em papel, não lido na tela.
+
 ## Como rodar
 
 ```bash

@@ -27,34 +27,22 @@ function NumberField({
   step?: number
 }) {
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
-      <span style={{ color: '#5a5a55' }}>
-        {label} {suffix ? <span style={{ color: '#999' }}>({suffix})</span> : null}
+    <label className="field">
+      <span className="field__label">
+        {label} {suffix ? <span className="unit">({suffix})</span> : null}
       </span>
-      <input
-        type="number"
-        value={value}
-        step={step ?? 'any'}
-        onChange={(e) => onChange(Number(e.target.value))}
-        style={{ padding: '6px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: 14 }}
-      />
+      <input className="input" type="number" value={value} step={step ?? 'any'} onChange={(e) => onChange(Number(e.target.value))} />
     </label>
   )
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ background: '#fff', border: '1px solid #e3e2da', borderRadius: 8, padding: 16, marginBottom: 16 }}>
-      <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: '#2c2c2a' }}>{title}</h3>
+    <div className="card">
+      <h3 className="card__title">{title}</h3>
       {children}
     </div>
   )
-}
-
-const grid: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-  gap: 12,
 }
 
 export default function App() {
@@ -114,73 +102,48 @@ export default function App() {
   }
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: 24 }}>
-      <header style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700 }}>Dimensionador BESS</h1>
-        <p style={{ color: '#666', fontSize: 13, marginTop: 4 }}>
+    <div className="app">
+      <header className="app-header">
+        <h1>Dimensionador BESS</h1>
+        <p>
           Dimensionamento técnico de sistemas de armazenamento de energia (backup, qualidade
           de energia, time-shift, peak-shaving) — sem CAPEX nem análise financeira. Valores
           padrão: caso Caterpillar Campo Largo / WEG.
         </p>
       </header>
 
-      <nav style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid #e3e2da' }}>
+      <nav className="tabs">
         {TABS.map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            style={{
-              padding: '8px 14px',
-              border: 'none',
-              background: 'transparent',
-              borderBottom: tab === t ? '2px solid #2a78d6' : '2px solid transparent',
-              color: tab === t ? '#2a78d6' : '#666',
-              fontWeight: tab === t ? 600 : 400,
-              fontSize: 13,
-              cursor: 'pointer',
-            }}
-          >
+          <button key={t} onClick={() => setTab(t)} className={tab === t ? 'is-active' : ''}>
             {t}
           </button>
         ))}
       </nav>
 
-      {erro && (
-        <div style={{ background: '#fde8e8', border: '1px solid #f3b4b4', color: '#a33', padding: 12, borderRadius: 6, marginBottom: 16 }}>
-          {erro}
-        </div>
-      )}
+      {erro && <div className="error-banner">{erro}</div>}
 
       {tab === 'Dados do Cliente' && (
         <>
           <Section title="Cliente e modalidade">
-            <div style={grid}>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
-                <span style={{ color: '#5a5a55' }}>Cliente</span>
-                <input
-                  value={cliente.nomeCliente}
-                  onChange={(e) => set('nomeCliente', e.target.value)}
-                  style={{ padding: '6px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: 14 }}
-                />
+            <div className="field-grid">
+              <label className="field">
+                <span className="field__label">Cliente</span>
+                <input className="input" value={cliente.nomeCliente} onChange={(e) => set('nomeCliente', e.target.value)} />
               </label>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
-                <span style={{ color: '#5a5a55' }}>Grupo tarifário</span>
-                <select
-                  value={cliente.grupoTarifario}
-                  onChange={(e) => set('grupoTarifario', e.target.value as DadosCliente['grupoTarifario'])}
-                  style={{ padding: '6px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: 14 }}
-                >
+              <label className="field">
+                <span className="field__label">Grupo tarifário</span>
+                <select className="input" value={cliente.grupoTarifario} onChange={(e) => set('grupoTarifario', e.target.value as DadosCliente['grupoTarifario'])}>
                   <option value="A">Grupo A (alta tensão — demanda em kW)</option>
                   <option value="B">Grupo B (baixa tensão — só kWh, sem demanda medida)</option>
                 </select>
               </label>
             </div>
 
-            <div style={{ marginTop: 16 }}>
-              <span style={{ color: '#5a5a55', fontSize: 13 }}>
-                Funções do BESS <span style={{ color: '#999' }}>(marque quantas se aplicarem — o mesmo BESS pode atender mais de uma)</span>
+            <div style={{ marginTop: 20 }}>
+              <span className="field__label">
+                Funções do BESS <span className="unit">(marque quantas se aplicarem — o mesmo BESS pode atender mais de uma)</span>
               </span>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 8 }}>
+              <div className="chip-group">
                 {(
                   [
                     ['TIME-SHIFT', 'TIME-SHIFT'],
@@ -189,21 +152,19 @@ export default function App() {
                     ['QUALIDADE_ENERGIA', 'QUALIDADE DE ENERGIA'],
                   ] as [ModoOperacao, string][]
                 ).map(([modo, label]) => (
-                  <label key={modo} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                  <label key={modo} className="chip">
                     <input type="checkbox" checked={cliente.modosOperacao.includes(modo)} onChange={() => toggleModo(modo)} />
                     {label}
                   </label>
                 ))}
               </div>
-              {cliente.modosOperacao.length === 0 && (
-                <p style={{ fontSize: 12, color: '#a33', marginTop: 8 }}>Marque ao menos uma função pra dimensionar o sistema.</p>
-              )}
+              {cliente.modosOperacao.length === 0 && <p className="note note--warn">Marque ao menos uma função pra dimensionar o sistema.</p>}
             </div>
           </Section>
 
           <Section title="Consumo e demanda (fatura)">
             {cliente.grupoTarifario === 'A' ? (
-              <div style={grid}>
+              <div className="field-grid">
                 {usaCiclagem && (
                   <NumberField label="Consumo médio ponta" suffix="kWh/mês" value={cliente.consumoMedioPontaKwh} onChange={(v) => set('consumoMedioPontaKwh', v)} />
                 )}
@@ -211,7 +172,7 @@ export default function App() {
               </div>
             ) : (
               <>
-                <div style={grid}>
+                <div className="field-grid">
                   {usaCiclagem && (
                     <NumberField label="Consumo médio mensal" suffix="kWh/mês" value={cliente.consumoMedioPontaKwh} onChange={(v) => set('consumoMedioPontaKwh', v)} />
                   )}
@@ -222,7 +183,7 @@ export default function App() {
                     onChange={(v) => set('demandaMaximaPontaKw', v)}
                   />
                 </div>
-                <p style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
+                <p className="note">
                   Grupo B não tem demanda contratada nem tarifa diferenciada ponta/fora-ponta —
                   a distribuidora só mede consumo em kWh. Pra BACKUP e QUALIDADE DE ENERGIA, o
                   ideal é detalhar as cargas críticas (seção mais abaixo) em vez de confiar
@@ -231,7 +192,7 @@ export default function App() {
               </>
             )}
             {!usaCiclagem && (
-              <p style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
+              <p className="note">
                 Consumo médio não é pedido porque nenhuma função marcada (BACKUP/QUALIDADE DE
                 ENERGIA) usa esse valor — ele só entra no cálculo de TIME-SHIFT/PEAK-SHAVING.
               </p>
@@ -239,7 +200,7 @@ export default function App() {
           </Section>
 
           <Section title="Premissas operacionais">
-            <div style={grid}>
+            <div className="field-grid">
               {usaCiclagem && (
                 <NumberField label="Horas de ponta por dia" suffix="h" value={cliente.horasPontaPorDia} onChange={(v) => set('horasPontaPorDia', v)} />
               )}
@@ -253,14 +214,14 @@ export default function App() {
 
           {usaBackup && (
             <Section title="Parâmetros de BACKUP">
-              <div style={grid}>
+              <div className="field-grid">
                 <NumberField label="Horas de backup a garantir" suffix="h" value={cliente.horasBackup ?? 0} onChange={(v) => set('horasBackup', v)} />
-                <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
-                  <span style={{ color: '#5a5a55' }}>Base de cálculo da energia de backup</span>
+                <label className="field">
+                  <span className="field__label">Base de cálculo da energia de backup</span>
                   <select
+                    className="input"
                     value={cliente.baseCalculoBackup ?? 'DEMANDA_MEDIA_NORMAL'}
                     onChange={(e) => set('baseCalculoBackup', e.target.value as DadosCliente['baseCalculoBackup'])}
-                    style={{ padding: '6px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: 14 }}
                   >
                     <option value="DEMANDA_MEDIA_NORMAL">Demanda média normal (realista)</option>
                     <option value="DEMANDA_MAXIMA">Demanda máxima medida (conservador)</option>
@@ -270,7 +231,7 @@ export default function App() {
                   <NumberField label="Demanda média normal (fora ponta)" suffix="kW" value={cliente.demandaMediaNormalKw ?? 0} onChange={(v) => set('demandaMediaNormalKw', v)} />
                 )}
               </div>
-              <p style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
+              <p className="note">
                 Energia de backup = horas de backup × demanda-base escolhida acima (não é uma
                 fração do consumo de ponta). Sem a demanda média informada, o cálculo cai para
                 a demanda máxima medida.
@@ -281,35 +242,29 @@ export default function App() {
           {(usaBackup || usaQualidadeEnergia) && (
             <Section title="Cargas críticas (opcional)">
               {(cliente.cargasCriticas ?? []).map((carga, i) => (
-                <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                <div key={i} className="carga-row">
                   <input
+                    className="input"
                     placeholder="Ex: motor de irrigação"
                     value={carga.nome}
                     onChange={(e) => updateCargaCritica(i, 'nome', e.target.value)}
-                    style={{ flex: 1, padding: '6px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: 14 }}
                   />
                   <input
+                    className="input input--kw"
                     type="number"
                     placeholder="kW"
                     value={carga.potenciaKw}
                     onChange={(e) => updateCargaCritica(i, 'potenciaKw', Number(e.target.value))}
-                    style={{ width: 100, padding: '6px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: 14 }}
                   />
-                  <button
-                    onClick={() => removeCargaCritica(i)}
-                    style={{ border: 'none', background: 'transparent', color: '#a33', cursor: 'pointer', fontSize: 13 }}
-                  >
+                  <button className="btn btn--text" onClick={() => removeCargaCritica(i)}>
                     remover
                   </button>
                 </div>
               ))}
-              <button
-                onClick={addCargaCritica}
-                style={{ padding: '6px 12px', border: '1px solid #2a78d6', background: '#fff', color: '#2a78d6', borderRadius: 4, fontSize: 13, cursor: 'pointer' }}
-              >
+              <button className="btn btn--outline" onClick={addCargaCritica}>
                 + Adicionar carga
               </button>
-              <p style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
+              <p className="note">
                 Some as cargas que precisam continuar ligadas na falta de energia (BACKUP) ou
                 sobreviver a um afundamento de tensão sem desarmar (QUALIDADE DE ENERGIA) — ex:
                 motor de irrigação, ordenha, câmara fria. Total atual:{' '}
@@ -323,7 +278,7 @@ export default function App() {
 
           {usaQualidadeEnergia && (
             <Section title="Parâmetros de QUALIDADE DE ENERGIA">
-              <div style={grid}>
+              <div className="field-grid">
                 <NumberField
                   label="Potência crítica a proteger (deixe 0 p/ usar a demanda máxima)"
                   suffix="kW"
@@ -333,7 +288,7 @@ export default function App() {
                 <NumberField label="Duração do evento a suportar" suffix="segundos" value={cliente.duracaoEventoSegundos ?? 0} onChange={(v) => set('duracaoEventoSegundos', v)} />
                 <NumberField label="Eventos por mês (opcional, p/ estimativa de ciclos)" value={cliente.eventosPorMes ?? 0} onChange={(v) => set('eventosPorMes', v > 0 ? v : undefined)} />
               </div>
-              <p style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
+              <p className="note">
                 Diferente do BACKUP: aqui o BESS só precisa segurar a carga crítica por um
                 afundamento de tensão/microinterrupção breve (segundos a poucos minutos), não
                 por horas — o que importa mais é a potência de resposta do PCS do que a energia
@@ -345,7 +300,7 @@ export default function App() {
 
           {cliente.modosOperacao.includes('PEAK-SHAVING') && (
             <Section title="Parâmetros de PEAK-SHAVING">
-              <div style={grid}>
+              <div className="field-grid">
                 <NumberField label="Limite de demanda a não ultrapassar" suffix="kW" value={cliente.limiteDemandaKw ?? 0} onChange={(v) => set('limiteDemandaKw', v)} />
               </div>
             </Section>
@@ -355,7 +310,7 @@ export default function App() {
 
       {tab === 'Especificação BESS' && (
         <Section title="Unidade / rack do BESS">
-          <div style={grid}>
+          <div className="field-grid">
             <NumberField label="Capacidade por rack" suffix="kWh" value={bess.capacidadePorRackKwh} onChange={(v) => setBessField('capacidadePorRackKwh', v)} />
             <NumberField label="Potência por rack" suffix="kW" value={bess.potenciaPorRackKw} onChange={(v) => setBessField('potenciaPorRackKw', v)} />
             <NumberField label="Profundidade de descarga (DoD)" suffix="0–1" value={bess.dod} onChange={(v) => setBessField('dod', v)} step={0.01} />
@@ -368,7 +323,7 @@ export default function App() {
             />
           </div>
           {dimensionamento && (
-            <p style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
+            <p className="note">
               Mínimo calculado: {dimensionamento.racksPorEnergia} rack(s) por energia,{' '}
               {dimensionamento.racksPorPotencia} por potência → adotado:{' '}
               <strong>{dimensionamento.racksAdotado}</strong>.
@@ -379,7 +334,7 @@ export default function App() {
 
       {tab === 'Resultados' && dimensionamento && (
         <Section title="Dimensionamento">
-          <div style={grid}>
+          <div className="stat-grid">
             <Stat label="Energia necessária/dia" value={`${fmtNum(dimensionamento.energiaNecessariaDia)} kWh`} />
             <Stat label="Capacidade nominal mínima" value={`${fmtNum(dimensionamento.capacidadeNominalMinima)} kWh`} />
             <Stat label="Potência necessária" value={`${fmtNum(dimensionamento.potenciaNecessaria)} kW`} />
@@ -405,7 +360,9 @@ export default function App() {
 // do dimensionamento), sem CAPEX nem indicadores financeiros. Pensado pra ser anexado a um
 // pedido de financiamento como a base técnica que justifica o sistema, não a proposta
 // comercial. #relatorio-tecnico + a regra @media print em index.css fazem o "imprimir"
-// mostrar só este conteúdo, escondendo abas/navegação (classe .no-print).
+// mostrar só este conteúdo, escondendo abas/navegação (classe .no-print). A classe .report
+// fixa cores claras explícitas (não segue o tema escuro) — é pensada pra ser impressa em
+// papel, não pra ser lida na tela do jeito que o resto do app é.
 function RelatorioTecnico({
   cliente,
   bess,
@@ -442,34 +399,26 @@ function RelatorioTecnico({
     objetivos.push('Limitar a demanda contratada evitando ultrapassagem, reduzindo custo de demanda.')
   }
 
-  const h2: React.CSSProperties = { fontSize: 15, fontWeight: 700, marginTop: 28, marginBottom: 10, color: '#2c2c2a' }
-  const p: React.CSSProperties = { fontSize: 13, lineHeight: 1.6, color: '#3a3a37' }
-
   return (
-    <div id="relatorio-tecnico" style={{ background: '#fff', border: '1px solid #e3e2da', borderRadius: 8, padding: 32 }}>
-      <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <button
-          onClick={() => window.print()}
-          style={{ padding: '8px 16px', border: 'none', background: '#2a78d6', color: '#fff', borderRadius: 4, fontSize: 13, cursor: 'pointer' }}
-        >
+    <div id="relatorio-tecnico" className="report">
+      <div className="no-print report__print-bar">
+        <button className="btn btn--primary" onClick={() => window.print()}>
           Imprimir / salvar como PDF
         </button>
       </div>
 
-      <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Relatório Técnico de Dimensionamento — Sistema BESS</h1>
-      <p style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>
+      <h1>Relatório Técnico de Dimensionamento — Sistema BESS</h1>
+      <p className="report__meta">
         Cliente: <strong>{cliente.nomeCliente}</strong> — Grupo tarifário: {cliente.grupoTarifario}
       </p>
-      <p style={{ fontSize: 12, color: '#888' }}>Emitido em {new Date().toLocaleDateString('pt-BR')}</p>
+      <p className="report__meta">Emitido em {new Date().toLocaleDateString('pt-BR')}</p>
 
-      <h2 style={h2}>1. Objetivo do sistema</h2>
+      <h2>1. Objetivo do sistema</h2>
       {objetivos.map((texto, i) => (
-        <p key={i} style={p}>
-          {texto}
-        </p>
+        <p key={i}>{texto}</p>
       ))}
 
-      <h2 style={h2}>2. Cargas críticas consideradas</h2>
+      <h2>2. Cargas críticas consideradas</h2>
       {cargasCriticas.length > 0 ? (
         <>
           <table>
@@ -488,16 +437,16 @@ function RelatorioTecnico({
               ))}
             </tbody>
           </table>
-          <p style={{ ...p, marginTop: 8, fontWeight: 600 }}>Total: {fmtNum(somaCargasCriticas)} kW</p>
+          <p style={{ marginTop: 10, fontWeight: 600 }}>Total: {fmtNum(somaCargasCriticas)} kW</p>
         </>
       ) : (
-        <p style={p}>
+        <p>
           Não detalhadas item a item — o dimensionamento usa o valor agregado de demanda
           máxima/potência crítica informado ({fmtNum(dim.potenciaNecessaria)} kW).
         </p>
       )}
 
-      <h2 style={h2}>3. Premissas de dimensionamento</h2>
+      <h2>3. Premissas de dimensionamento</h2>
       <table>
         <tbody>
           {usaBackup && (
@@ -537,7 +486,7 @@ function RelatorioTecnico({
         </tbody>
       </table>
 
-      <h2 style={h2}>4. Resultado do dimensionamento</h2>
+      <h2>4. Resultado do dimensionamento</h2>
       <table>
         <tbody>
           <tr>
@@ -583,7 +532,7 @@ function RelatorioTecnico({
         </tbody>
       </table>
 
-      <p style={{ fontSize: 11, color: '#999', marginTop: 28, lineHeight: 1.6 }}>
+      <p className="report__footnote">
         Relatório técnico gerado pelo Dimensionador BESS. Considera degradação de capacidade
         ao longo da vida útil (curva de SoH por ciclos), garantindo que a autonomia informada
         no fim de vida útil ainda atenda ao requisito operacional. Não inclui CAPEX ou análise
@@ -594,10 +543,11 @@ function RelatorioTecnico({
 }
 
 function Stat({ label, value, destaque, alerta }: { label: string; value: string; destaque?: boolean; alerta?: boolean }) {
+  const modifier = alerta ? ' stat--danger' : destaque ? ' stat--success' : ''
   return (
-    <div style={{ padding: 10, background: alerta ? '#fde8e8' : destaque ? '#eaf4e5' : '#f7f7f3', borderRadius: 6 }}>
-      <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 16, fontWeight: 700, color: alerta ? '#a33' : destaque ? '#2a7a3a' : '#2c2c2a' }}>{value}</div>
+    <div className={`stat${modifier}`}>
+      <div className="stat__label">{label}</div>
+      <div className="stat__value">{value}</div>
     </div>
   )
 }
