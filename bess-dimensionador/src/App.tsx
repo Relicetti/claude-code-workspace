@@ -90,6 +90,10 @@ export default function App() {
   }
   const usaBackup = cliente.modosOperacao.includes('BACKUP')
   const usaQualidadeEnergia = cliente.modosOperacao.includes('QUALIDADE_ENERGIA')
+  // TIME-SHIFT/PEAK-SHAVING são as únicas funções que usam consumo/cobertura da ponta
+  // (energiaCiclagem em engine.ts) — sem nenhuma das duas marcadas, esses campos não
+  // entram em cálculo nenhum e não devem ser pedidos.
+  const usaCiclagem = cliente.modosOperacao.includes('TIME-SHIFT') || cliente.modosOperacao.includes('PEAK-SHAVING')
   function addCargaCritica() {
     setCliente((c) => ({
       ...c,
@@ -200,14 +204,18 @@ export default function App() {
           <Section title="Consumo e demanda (fatura)">
             {cliente.grupoTarifario === 'A' ? (
               <div style={grid}>
-                <NumberField label="Consumo médio ponta" suffix="kWh/mês" value={cliente.consumoMedioPontaKwh} onChange={(v) => set('consumoMedioPontaKwh', v)} />
+                {usaCiclagem && (
+                  <NumberField label="Consumo médio ponta" suffix="kWh/mês" value={cliente.consumoMedioPontaKwh} onChange={(v) => set('consumoMedioPontaKwh', v)} />
+                )}
                 <NumberField label="Demanda máxima medida na ponta" suffix="kW" value={cliente.demandaMaximaPontaKw} onChange={(v) => set('demandaMaximaPontaKw', v)} />
                 <NumberField label="Demanda contratada" suffix="kW" value={cliente.demandaContratadaKw} onChange={(v) => set('demandaContratadaKw', v)} />
               </div>
             ) : (
               <>
                 <div style={grid}>
-                  <NumberField label="Consumo médio mensal" suffix="kWh/mês" value={cliente.consumoMedioPontaKwh} onChange={(v) => set('consumoMedioPontaKwh', v)} />
+                  {usaCiclagem && (
+                    <NumberField label="Consumo médio mensal" suffix="kWh/mês" value={cliente.consumoMedioPontaKwh} onChange={(v) => set('consumoMedioPontaKwh', v)} />
+                  )}
                   <NumberField
                     label="Potência total estimada da propriedade (sem medição de demanda)"
                     suffix="kW"
@@ -223,14 +231,24 @@ export default function App() {
                 </p>
               </>
             )}
+            {!usaCiclagem && (
+              <p style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
+                Consumo médio não é pedido porque nenhuma função marcada (BACKUP/QUALIDADE DE
+                ENERGIA) usa esse valor — ele só entra no cálculo de TIME-SHIFT/PEAK-SHAVING.
+              </p>
+            )}
           </Section>
 
           <Section title="Premissas operacionais">
             <div style={grid}>
-              <NumberField label="Horas de ponta por dia" suffix="h" value={cliente.horasPontaPorDia} onChange={(v) => set('horasPontaPorDia', v)} />
+              {usaCiclagem && (
+                <NumberField label="Horas de ponta por dia" suffix="h" value={cliente.horasPontaPorDia} onChange={(v) => set('horasPontaPorDia', v)} />
+              )}
               <NumberField label="Dias úteis por mês" value={cliente.diasUteisPorMes} onChange={(v) => set('diasUteisPorMes', v)} />
               <NumberField label="Vida útil do projeto" suffix="anos" value={cliente.vidaUtilAnos} onChange={(v) => set('vidaUtilAnos', v)} />
-              <NumberField label="Cobertura da ponta pelo BESS" suffix="0–1" value={cliente.coberturaPontaPercent} onChange={(v) => set('coberturaPontaPercent', v)} step={0.01} />
+              {usaCiclagem && (
+                <NumberField label="Cobertura da ponta pelo BESS" suffix="0–1" value={cliente.coberturaPontaPercent} onChange={(v) => set('coberturaPontaPercent', v)} step={0.01} />
+              )}
             </div>
           </Section>
 
