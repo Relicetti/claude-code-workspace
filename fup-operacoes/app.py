@@ -279,6 +279,28 @@ def resetar_senha(usuario_id):
     return redirect(url_for("listar_usuarios_view"))
 
 
+@app.route("/usuarios/<int:usuario_id>/admin", methods=["POST"])
+def definir_admin(usuario_id):
+    if not session.get("usuario_admin"):
+        return "Só administradores podem alterar o tipo de usuário.", 403
+    novo_valor = request.form.get("is_admin") == "1"
+    with db.conectar() as conn:
+        usuario = db.buscar_usuario(conn, usuario_id)
+        if usuario is None:
+            return "Usuário não encontrado", 404
+        if usuario["is_admin"] and not novo_valor and db.contar_admins(conn) <= 1:
+            flash("Não dá pra tirar o último administrador do sistema.", "danger")
+            return redirect(url_for("listar_usuarios_view"))
+        db.definir_admin(conn, usuario_id, novo_valor)
+        db.registrar_atividade(
+            conn, session["usuario_nome"],
+            f"Tornou {usuario['nome']} {'admin' if novo_valor else 'operador'}",
+            None, agora().isoformat(timespec="seconds"),
+        )
+    flash(f"{usuario['nome']} agora é {'administrador' if novo_valor else 'operador'}.", "success")
+    return redirect(url_for("listar_usuarios_view"))
+
+
 @app.route("/usuarios/<int:usuario_id>/excluir", methods=["POST"])
 def excluir_usuario(usuario_id):
     if not session.get("usuario_admin"):
