@@ -30,6 +30,13 @@
           <td>{{ u.email or '—' }}</td>
           <td>{{ 'Admin' if u.is_admin else 'Operador' }}</td>
           <td class="d-flex gap-2">
+            {% if u.id != session.usuario_id %}
+            <form action="{{ url_for('definir_admin', usuario_id=u.id) }}" method="post"
+                  onsubmit="return confirm('{{ 'Tirar' if u.is_admin else 'Tornar' }} {{ u.nome }} {{ 'de administrador' if u.is_admin else 'administrador' }}?');">
+              <input type="hidden" name="is_admin" value="{{ '0' if u.is_admin else '1' }}">
+              <button type="submit" class="btn btn-sm btn-outline-secondary">{{ 'Tornar operador' if u.is_admin else 'Tornar admin' }}</button>
+            </form>
+            {% endif %}
             <form action="{{ url_for('resetar_senha', usuario_id=u.id) }}" method="post"
                   onsubmit="return confirm('Resetar a senha de {{ u.nome }} pro padrão (\'#energia\')?');">
               <button type="submit" class="btn btn-sm btn-outline-warning">Resetar senha</button>
