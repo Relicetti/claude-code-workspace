@@ -338,15 +338,18 @@ def buscar_usina(conn, usina_id):
 
 def buscar_usinas_ativas_por_pessoa(conn, termo=None, etapa=None):
     """Usinas onde a pessoa é a carteira ou o executivo, ou onde o termo bate
-    com o nome da usina (busca parcial); opcionalmente também filtra por
+    com o nome ou a UG da usina (busca parcial; a UG é comparada normalizada,
+    então pontos/hífens/espaços não atrapalham); opcionalmente também filtra por
     etapa atual. Busca em qualquer status (ativa, operação, rescindida) --
     senão usina que já operou ou foi rescindida nunca aparece na busca."""
     condicoes = []
     params = []
     if termo:
         coringa = f"%{termo}%"
-        condicoes.append("(dono_carteira LIKE ? OR executivo LIKE ? OR nome_ufv LIKE ?)")
-        params += [coringa, coringa, coringa]
+        ug = normalizar_ug(termo)
+        coringa_ug = f"%{ug}%" if ug else None  # termo só de pontuação não casa com toda UG
+        condicoes.append("(dono_carteira LIKE ? OR executivo LIKE ? OR nome_ufv LIKE ? OR ug LIKE ?)")
+        params += [coringa, coringa, coringa, coringa_ug]
     if etapa:
         condicoes.append("etapa_atual = ? AND status = 'ativa'")
         params.append(etapa)
