@@ -312,6 +312,17 @@ def ug_existe(conn, ug_raw):
     return conn.execute("SELECT 1 FROM usinas WHERE ug = ? LIMIT 1", (ug,)).fetchone() is not None
 
 
+def buscar_usina_por_ug(conn, ug_raw, exceto_id=None):
+    """Usina (qualquer status) que já usa essa UG, ignorando `exceto_id` --
+    usado pra avisar antes de cadastrar/editar, já que a UG é única."""
+    ug = normalizar_ug(ug_raw)
+    if not ug:
+        return None
+    return conn.execute(
+        "SELECT * FROM usinas WHERE ug = ? AND id != ? LIMIT 1", (ug, exceto_id or 0)
+    ).fetchone()
+
+
 def data_entrada_etapa_final_por_usina(conn, etapa):
     """Data em que cada usina entrou numa etapa final (Operação/Rescindida)."""
     linhas = conn.execute(

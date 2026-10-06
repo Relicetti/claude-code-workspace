@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Erro{% endblock %}
+{% block content %}
+
+<div class="card shadow-sm mt-4" style="max-width: 640px;">
+  <div class="card-body">
+    <h4 class="mb-3">Não foi possível concluir essa ação</h4>
+    <p>Aconteceu um erro inesperado, mas o sistema continua no ar.</p>
+    <p class="mb-4">Volte e tente de novo. Se continuar acontecendo, avise um administrador
+      informando o que estava fazendo e o horário: <strong>{{ hora }}</strong>.</p>
+    <a href="javascript:history.back()" class="btn btn-primary">&larr; Voltar</a>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">Ir para o painel</a>
+  </div>
+</div>
+
+{% endblock %}

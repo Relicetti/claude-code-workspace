@@ -1,5 +1,6 @@
 import io
 import os
+import sqlite3
 from datetime import date, datetime, time as dtime, timedelta
 
 from flask import (Flask, flash, redirect, render_template, request, send_file,
@@ -24,6 +25,25 @@ db.iniciar_banco()
 db.bootstrap_admin(generate_password_hash)
 
 ROTAS_PUBLICAS = {"login", "static"}
+
+PAGINA_ERRO_SIMPLES = """<!doctype html><meta charset="utf-8"><title>Erro</title>
+<div style="font-family:sans-serif;max-width:560px;margin:60px auto">
+<h3>Não foi possível concluir essa ação</h3>
+<p>Aconteceu um erro inesperado, mas o sistema continua no ar.</p>
+<p><a href="javascript:history.back()">&larr; Voltar</a> e tente de novo.
+Se continuar, avise um administrador (horário: {hora}).</p></div>"""
+
+
+@app.errorhandler(500)
+def erro_interno(e):
+    # o traceback já vai pro log do Railway antes de chegar aqui; pro usuário
+    # mostra uma página amigável em vez do "Internal Server Error" cru
+    hora = agora().strftime("%d/%m/%Y %H:%M")
+    try:
+        return render_template("erro.html", hora=hora), 500
+    except Exception:
+        # se nem a página com o layout renderiza (ex.: banco indisponível)
+        return PAGINA_ERRO_SIMPLES.format(hora=hora), 500
 
 HORA_SNAPSHOT = dtime(8, 0)  # toda segunda a partir desse horário
 HORA_BACKUP_DIARIO = dtime(23, 0)  # todo dia a partir desse horário
@@ -911,19 +931,46 @@ def rejeitar_pendente(contrato_id):
 
 @app.route("/usinas/nova", methods=["GET", "POST"])
 def nova_usina():
+    def _form_com_erro(usina_existente):
+        # devolve o formulário preenchido avisando que a UG já é de outra usina
+        # (inclusive em operação/rescindida), em vez de estourar erro 500
+        with db.conectar() as conn:
+            usuarios = db.listar_usuarios(conn)
+        return render_template("nova_usina.html", etapas=db.ETAPAS, usuarios=usuarios,
+                               form=request.form, usina_existente=usina_existente)
+
     if request.method == "GET":
         with db.conectar() as conn:
             usuarios = db.listar_usuarios(conn)
-        return render_template("nova_usina.html", etapas=db.ETAPAS, usuarios=usuarios)
+        return render_template("nova_usina.html", etapas=db.ETAPAS, usuarios=usuarios, form={})
+
+    ug_raw = request.form.get("ug", "").strip()
+    with db.conectar() as conn:
+        existente = db.buscar_usina_por_ug(conn, ug_raw)
+    if existente:
+        return _form_com_erro(existente)
 
     hoje_iso = hoje().isoformat()
     data_assinatura = request.form.get("data_assinatura", "").strip() or None
     pendencia = request.form.get("pendencia", "").strip()
     etapa_inicial = "Assinado c/ Pendência" if pendencia else "TT Usina"
+    try:
+        usina_id = _cadastrar_usina_do_form(ug_raw, data_assinatura, pendencia, etapa_inicial, hoje_iso)
+    except sqlite3.IntegrityError:
+        # dois envios ao mesmo tempo (ex.: duplo clique) com a mesma UG
+        with db.conectar() as conn:
+            existente = db.buscar_usina_por_ug(conn, ug_raw)
+        if existente is None:
+            raise
+        return _form_com_erro(existente)
+    return redirect(url_for("ver_usina", usina_id=usina_id))
+
+
+def _cadastrar_usina_do_form(ug_raw, data_assinatura, pendencia, etapa_inicial, hoje_iso):
     with db.conectar() as conn:
         usina_id = db.criar_usina(
             conn,
-            ug_raw=request.form.get("ug", "").strip(),
+            ug_raw=ug_raw,
             nome_ufv=request.form.get("nome_ufv", "").strip(),
             concessionaria=request.form.get("concessionaria", "").strip(),
             dono_carteira=request.form.get("dono_carteira", "").strip(),
@@ -942,7 +989,7 @@ def nova_usina():
             request.form.get("nome_ufv", "").strip(),
             agora().isoformat(timespec="seconds"),
         )
-    return redirect(url_for("ver_usina", usina_id=usina_id))
+    return usina_id
 
 
 @app.route("/usinas/modelo")
@@ -1093,6 +1140,12 @@ def editar_usina(usina_id):
         if request.method == "GET":
             usuarios = db.listar_usuarios(conn)
             return render_template("editar_usina.html", usina=dict(usina), usuarios=usuarios)
+
+        outra = db.buscar_usina_por_ug(conn, request.form.get("ug", ""), exceto_id=usina_id)
+        if outra:
+            usuarios = db.listar_usuarios(conn)
+            return render_template("editar_usina.html", usina=dict(usina), usuarios=usuarios,
+                                   usina_existente=outra)
 
         db.atualizar_usina(conn, usina_id, {
             "ug_raw": request.form.get("ug", "").strip(),
