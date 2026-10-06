@@ -10,25 +10,26 @@
 <div class="card shadow-sm" style="max-width: 640px;">
   <div class="card-body">
     <h4 class="mb-3">Cadastrar nova usina</h4>
-    <form method="post">
+    {% include "_aviso_ug_existente.html" %}
+    <form method="post" onsubmit="this.querySelector('button[type=submit]').disabled = true;">
       <div class="mb-3">
         <label class="form-label">UG</label>
-        <input type="text" name="ug" class="form-control" required>
+        <input type="text" name="ug" class="form-control" value="{{ form.get('ug', '') }}" required{% if usina_existente %} autofocus{% endif %}>
       </div>
       <div class="mb-3">
         <label class="form-label">Nome UFV</label>
-        <input type="text" name="nome_ufv" class="form-control" required>
+        <input type="text" name="nome_ufv" class="form-control" value="{{ form.get('nome_ufv', '') }}" required>
       </div>
       <div class="mb-3">
         <label class="form-label">Concessionária</label>
-        <input type="text" name="concessionaria" class="form-control">
+        <input type="text" name="concessionaria" class="form-control" value="{{ form.get('concessionaria', '') }}">
       </div>
       <div class="mb-3">
         <label class="form-label">Carteira (dono da carteira)</label>
         <select name="dono_carteira" class="form-select">
           <option value="">—</option>
           {% for u in usuarios %}
-            <option value="{{ u.nome }}">{{ u.nome }}</option>
+            <option value="{{ u.nome }}"{% if form.get('dono_carteira') == u.nome %} selected{% endif %}>{{ u.nome }}</option>
           {% endfor %}
         </select>
       </div>
@@ -37,28 +38,28 @@
         <select name="executivo" class="form-select">
           <option value="">—</option>
           {% for u in usuarios %}
-            <option value="{{ u.nome }}">{{ u.nome }}</option>
+            <option value="{{ u.nome }}"{% if form.get('executivo') == u.nome %} selected{% endif %}>{{ u.nome }}</option>
           {% endfor %}
         </select>
       </div>
       <div class="mb-3">
         <label class="form-label">Geração média mensal (kWh)</label>
-        <input type="text" name="geracao_media_mensal" class="form-control" inputmode="decimal" placeholder="ex: 12500">
+        <input type="text" name="geracao_media_mensal" class="form-control" value="{{ form.get('geracao_media_mensal', '') }}" inputmode="decimal" placeholder="ex: 12500">
       </div>
       <div class="mb-3">
         <label class="form-label">Data de assinatura do contrato</label>
-        <input type="date" name="data_assinatura" class="form-control">
+        <input type="date" name="data_assinatura" class="form-control" value="{{ form.get('data_assinatura', '') }}">
       </div>
       <div class="mb-3">
         <label class="form-label">Pendência inicial</label>
-        <textarea name="pendencia" class="form-control" rows="2" placeholder="Se preencher, a usina entra em &quot;Assinado c/ Pendência&quot;. Se deixar em branco, entra direto em &quot;TT Usina&quot;."></textarea>
+        <textarea name="pendencia" class="form-control" rows="2" placeholder="Se preencher, a usina entra em &quot;Assinado c/ Pendência&quot;. Se deixar em branco, entra direto em &quot;TT Usina&quot;.">{{ form.get('pendencia', '') }}</textarea>
       </div>
       <div class="mb-3">
         <label class="form-label">Responsável por essa pendência</label>
         <select name="responsavel" class="form-select">
           <option value="">—</option>
           {% for u in usuarios %}
-            <option value="{{ u.nome }}">{{ u.nome }}</option>
+            <option value="{{ u.nome }}"{% if form.get('responsavel') == u.nome %} selected{% endif %}>{{ u.nome }}</option>
           {% endfor %}
         </select>
       </div>

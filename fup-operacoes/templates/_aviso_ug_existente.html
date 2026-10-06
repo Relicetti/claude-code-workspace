@@ -1,0 +1,10 @@
+{% if usina_existente %}
+  {% set rotulo_status = {'ativa': 'no pipeline', 'operacao': 'em operação', 'rescindida': 'rescindida'}.get(usina_existente.status, usina_existente.status) %}
+  <div class="alert alert-warning">
+    <strong>Essa UG já está cadastrada.</strong>
+    A UG <strong>{{ usina_existente.ug_raw }}</strong> pertence à usina
+    <a href="{{ url_for('ver_usina', usina_id=usina_existente.id) }}" class="alert-link">{{ usina_existente.nome_ufv }}</a>
+    ({{ rotulo_status }}, etapa {{ usina_existente.etapa_atual }}).
+    Confira se não é a mesma usina ou corrija a UG.
+  </div>
+{% endif %}
