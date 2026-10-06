@@ -8,7 +8,7 @@
     <div class="text-muted small">{{ total_ativas }} no pipeline · {{ qtd_operacao }} em operação{% if qtd_rescindidas %} · {{ qtd_rescindidas }} rescindidas{% endif %}</div>
   </div>
   <form method="get" class="d-flex gap-2">
-    <input type="text" name="pessoa" class="form-control form-control-sm" placeholder="Buscar por pessoa (carteira, executivo, responsável) ou nome da usina" value="{{ pessoa }}" style="min-width: 280px;">
+    <input type="text" name="pessoa" class="form-control form-control-sm" placeholder="Buscar por pessoa (carteira, executivo, responsável), nome da usina ou UG" value="{{ pessoa }}" style="min-width: 280px;">
     <select name="etapa_filtro" class="form-select form-select-sm" style="max-width: 220px;">
       <option value="">Todas as etapas</option>
       {% for e in etapas_filtro %}
@@ -33,12 +33,13 @@
     <div class="table-responsive">
       <table class="table table-sm table-hover mb-0 align-middle table-sortable">
         <thead>
-          <tr><th>Usina</th><th>Etapa</th><th>Carteira</th><th>Executivo</th><th>Dias na etapa</th></tr>
+          <tr><th>Usina</th><th>UG</th><th>Etapa</th><th>Carteira</th><th>Executivo</th><th>Dias na etapa</th></tr>
         </thead>
         <tbody>
           {% for u in usinas_pessoa %}
           <tr>
             <td><a href="{{ url_for('ver_usina', usina_id=u.id) }}">{{ u.nome_ufv }}</a></td>
+            <td>{{ u.ug_raw }}</td>
             <td>
               {% if u.status == 'operacao' %}<span class="badge bg-success">Operação</span>
               {% elif u.status == 'rescindida' %}<span class="badge bg-danger">Rescindida</span>
@@ -49,7 +50,7 @@
             <td>{{ u.dias_na_etapa if (u.dias_na_etapa is not none and u.status == 'ativa') else '—' }}</td>
           </tr>
           {% else %}
-          <tr><td colspan="5" class="text-center text-muted py-3">Nenhuma usina encontrada.</td></tr>
+          <tr><td colspan="6" class="text-center text-muted py-3">Nenhuma usina encontrada.</td></tr>
           {% endfor %}
         </tbody>
       </table>
