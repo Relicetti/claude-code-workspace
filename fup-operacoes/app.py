@@ -26,6 +26,25 @@ db.bootstrap_admin(generate_password_hash)
 
 ROTAS_PUBLICAS = {"login", "static"}
 
+PAGINA_ERRO_SIMPLES = """<!doctype html><meta charset="utf-8"><title>Erro</title>
+<div style="font-family:sans-serif;max-width:560px;margin:60px auto">
+<h3>Não foi possível concluir essa ação</h3>
+<p>Aconteceu um erro inesperado, mas o sistema continua no ar.</p>
+<p><a href="javascript:history.back()">&larr; Voltar</a> e tente de novo.
+Se continuar, avise um administrador (horário: {hora}).</p></div>"""
+
+
+@app.errorhandler(500)
+def erro_interno(e):
+    # o traceback já vai pro log do Railway antes de chegar aqui; pro usuário
+    # mostra uma página amigável em vez do "Internal Server Error" cru
+    hora = agora().strftime("%d/%m/%Y %H:%M")
+    try:
+        return render_template("erro.html", hora=hora), 500
+    except Exception:
+        # se nem a página com o layout renderiza (ex.: banco indisponível)
+        return PAGINA_ERRO_SIMPLES.format(hora=hora), 500
+
 HORA_SNAPSHOT = dtime(8, 0)  # toda segunda a partir desse horário
 HORA_BACKUP_DIARIO = dtime(23, 0)  # todo dia a partir desse horário
 PASTA_BACKUPS = os.path.join(os.path.dirname(db.DB_PATH), "backups")
