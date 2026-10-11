@@ -1,0 +1,5 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: #f4f3ed; color: #2c2c2a; }
+input:focus, select:focus, button:focus { outline: 2px solid #2a78d6; outline-offset: 2px; }
+@media (max-width: 800px) { .layout { grid-template-columns: 1fr !important; padding: 16px !important; } }
+@media print { .no-print { display: none !important; } body { background: #fff; } }
