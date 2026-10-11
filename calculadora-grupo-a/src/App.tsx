@@ -238,6 +238,14 @@ export default function App() {
     if (g === grupo) return;
     setEntrada((e) => ({ ...e, subgrupo: g === 'A' ? 'A4' : 'B3', modalidadeTarifaria: modalidadesDoGrupo(g)[0] }));
   };
+  // Ao trocar para "valor do dono do crédito", começa do valor que o deságio atual dá — assim
+  // o resultado não pula na hora da troca.
+  const trocarModoRemuneracao = (modo: 'desagio' | 'preco') => {
+    if (modo === 'desagio') { set('precoGeradorKWh', undefined); return; }
+    if (entrada.precoGeradorKWh !== undefined) return;
+    const atual = calculo && 'r' in calculo ? calculo.r.tarifaMediaGerador : 0;
+    set('precoGeradorKWh', Number(atual.toFixed(4)));
+  };
   const trocarDistribuidora = (d: string) => {
     setEntrada((e) => ({ ...e, distribuidora: d, ...(DISTRIBUIDORAS.includes(d) ? { descontoPct: descontoPadrao(d) } : {}) }));
   };
@@ -329,10 +337,30 @@ export default function App() {
           </Section>
 
           <Section title="5. Regras comerciais" color={C.amber}>
-            <Duas>
-              <Field label="Desconto ao cliente (%)"><PercentField value={entrada.descontoPct} onChange={(v) => set('descontoPct', v)} /></Field>
-              <Field label="Deságio Alexandria (%)"><PercentField value={entrada.desagioPct} onChange={(v) => set('desagioPct', v)} /></Field>
-            </Duas>
+            <Field label="Desconto ao cliente (%)"><PercentField value={entrada.descontoPct} onChange={(v) => set('descontoPct', v)} /></Field>
+            <Field label="Definir a remuneração por">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                {([['desagio', 'Deságio Kora (%)'], ['preco', 'Valor do dono do crédito']] as const).map(([modo, rotulo]) => {
+                  const ativo = (modo === 'preco') === (entrada.precoGeradorKWh !== undefined);
+                  return (
+                    <button key={modo} onClick={() => trocarModoRemuneracao(modo)} style={{
+                      padding: '7px 6px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                      border: `1px solid ${ativo ? C.amber : C.bord}`, background: ativo ? C.amberC : '#fff', color: ativo ? C.esc : C.med,
+                    }}>{rotulo}</button>
+                  );
+                })}
+              </div>
+            </Field>
+            {entrada.precoGeradorKWh === undefined ? (
+              <Field label="Deságio Kora (%)" help="% da fatura de geração que fica com a Kora.">
+                <PercentField value={entrada.desagioPct} onChange={(v) => set('desagioPct', v)} />
+              </Field>
+            ) : (
+              <Field label="Valor pago ao dono do crédito (R$/kWh)" help="A Kora fica com o que sobrar da fatura de geração.">
+                <input type="number" step="0.0001" min="0" style={inputStyle} value={entrada.precoGeradorKWh}
+                  onChange={(e) => set('precoGeradorKWh', Number(e.target.value))} />
+              </Field>
+            )}
           </Section>
         </aside>
 
@@ -355,14 +383,19 @@ function Resultados({ r, entrada }: { r: Resultado; entrada: Entrada }) {
   const sim = (b: boolean) => (b ? 'SIM' : 'NÃO');
   return (
     <>
+      {r.valorKora < 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <Aviso>O valor pago ao dono do crédito ({RKWH(r.tarifaMediaGerador)}) é maior que a fatura de geração ({RKWH(r.tarifaMediaGeracao)}): a Kora teria prejuízo de {RS(-r.valorKora)}/mês.</Aviso>
+        </div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 12 }}>
         <KPICard destaque color={C.verde} label="Pago ao dono do crédito" value={RKWH(r.tarifaMediaGerador)} sub={`${RS(r.valorGerador)} / mês`} />
         <KPICard destaque color={C.azul} label="Fatura de geração (cliente)" value={RKWH(r.tarifaMediaGeracao)} sub={`${RS(r.faturaGeracao)} / mês`} />
-        <KPICard destaque color={C.amber} label="Margem Alexandria" value={RS(r.valorAlexandria)} sub={`${PCT(entrada.desagioPct)} da fatura de geração`} />
+        <KPICard destaque color={r.valorKora < 0 ? C.verm : C.amber} label="Margem Kora" value={RS(r.valorKora)} sub={`${PCT(r.desagioEfetivoPct)} da fatura de geração`} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 20 }}>
         <KPICard label="Fatura atual do cliente" value={RS(r.valorAtual)} sub={RKWH(r.tarifaMediaCliente)} />
-        <KPICard label="Total com Alexandria" value={RS(r.valorTotalComAlexandria)} sub="distribuidora + geração" />
+        <KPICard label="Total com Kora" value={RS(r.valorTotalComKora)} sub="distribuidora + geração" />
         <KPICard label="Economia do cliente" value={RS(r.desconto)} sub={PCT(r.economiaClientePct)} color={C.verde} bg={C.verdeC} />
         <KPICard label="Residual à distribuidora" value={RS(r.valorCss)} sub="não compensável (CSS)" color={C.med} bg={C.clar} />
       </div>
@@ -419,7 +452,7 @@ function Resultados({ r, entrada }: { r: Resultado; entrada: Entrada }) {
             <Linha label="Créditos injetados (valor)" value={RS(r.valorInjetado)} />
             <Linha label="Residual à distribuidora (CSS)" value={RS(r.valorCss)} />
             <Linha label="Fatura de geração" value={RS(r.faturaGeracao)} forte />
-            <Linha label={`Alexandria (${PCT(entrada.desagioPct)})`} value={RS(r.valorAlexandria)} />
+            <Linha label={`Kora (${PCT(r.desagioEfetivoPct)})`} value={RS(r.valorKora)} />
             <Linha label="Dono do crédito" value={RS(r.valorGerador)} forte />
           </Section>
         </div>

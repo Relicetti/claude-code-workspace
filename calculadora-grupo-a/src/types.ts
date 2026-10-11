@@ -50,8 +50,11 @@ export interface Entrada {
   fonte: Fonte;
   /** % de desconto contratado sobre a fatura atual do cliente. */
   descontoPct: number;
-  /** % da fatura de geração que fica com a Alexandria. */
+  /** % da fatura de geração que fica com a Kora. */
   desagioPct: number;
+  /** Valor pago ao dono do crédito, R$/kWh. Se informado, substitui o deságio: a Kora fica
+   * com o que sobrar da fatura de geração. */
+  precoGeradorKWh?: number;
 }
 
 export interface IsencoesGD {
@@ -98,12 +101,14 @@ export interface Resultado {
   valorInjetado: number;
   tarifaMediaInjetada: number;     // R$/kWh
 
-  /** Resultado final — operação Alexandria. */
+  /** Resultado final — operação Kora. */
   valorCss: number;                // o que o cliente ainda paga à distribuidora
   faturaGeracao: number;           // o que o cliente paga pelos créditos
-  valorTotalComAlexandria: number;
+  valorTotalComKora: number;
   tarifaMediaGeracao: number;      // R$/kWh
-  valorAlexandria: number;
+  valorKora: number;
+  /** Deságio de fato: o informado, ou o resultante quando o valor do dono do crédito é fixado. */
+  desagioEfetivoPct: number;
   valorGerador: number;            // o que vai para o dono do crédito
   tarifaMediaGerador: number;      // R$/kWh
   economiaClientePct: number;

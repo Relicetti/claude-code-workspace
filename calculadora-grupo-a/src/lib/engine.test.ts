@@ -62,11 +62,26 @@ describe('cenário da planilha (Copel A4 Verde, GD1)', () => {
   it('resultado final (L4:L12)', () => {
     expect(r.valorCss).toBeCloseTo(219.30151000569433, 9);
     expect(r.faturaGeracao).toBeCloseTo(532.8185989994305, 9);
-    expect(r.valorTotalComAlexandria).toBeCloseTo(752.1201090051248, 9);
+    expect(r.valorTotalComKora).toBeCloseTo(752.1201090051248, 9);
     expect(r.tarifaMediaGeracao).toBeCloseTo(0.3482474503264252, 12);
-    expect(r.valorAlexandria).toBeCloseTo(53.28185989994305, 9);
+    expect(r.valorKora).toBeCloseTo(53.28185989994305, 9);
     expect(r.valorGerador).toBeCloseTo(479.5367390994874, 9);
     expect(r.tarifaMediaGerador).toBeCloseTo(0.31342270529378263, 12);
+  });
+});
+
+describe('valor do dono do crédito informado direto', () => {
+  it('fixa o R$/kWh do gerador e a Kora fica com o resto', () => {
+    const r = calcular({ ...cenarioPlanilha, precoGeradorKWh: 0.30 }, dadosPlanilha);
+    expect(r.valorGerador).toBeCloseTo(0.30 * 1530, 9);
+    expect(r.tarifaMediaGerador).toBeCloseTo(0.30, 12);
+    expect(r.valorKora).toBeCloseTo(532.8185989994305 - 459, 9);
+    expect(r.desagioEfetivoPct).toBeCloseTo((532.8185989994305 - 459) / 532.8185989994305, 12);
+    expect(r.faturaGeracao).toBeCloseTo(532.8185989994305, 9); // o cliente não muda
+  });
+
+  it('sem valor informado, o deságio efetivo é o digitado', () => {
+    expect(calcular(cenarioPlanilha, dadosPlanilha).desagioEfetivoPct).toBeCloseTo(0.1, 12);
   });
 });
 

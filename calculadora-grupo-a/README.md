@@ -2,7 +2,7 @@
 
 Calcula a operação de **compra de crédito de GD travado em saldo e venda para clientes Grupo A
 (e Grupo B)**: quanto o cliente paga hoje, quanto passa a pagar com os créditos, quanto fica com a
-Alexandria e quanto vai para o dono do crédito. Porte da aba "Simulação" de
+Kora e quanto vai para o dono do crédito. Porte da aba "Simulação" de
 `Calculos_GD_GrupoA.xlsx`, generalizado para o Grupo B (tarifa monômia, posto único).
 
 ## Como rodar
@@ -34,7 +34,7 @@ até 31/12 do ano de referência:
   da Lei 14.300
 - **Residual (CSS)** = fatura atual − valor injetado
 - **Fatura de geração** = fatura atual − desconto − CSS
-- **Alexandria** = fatura de geração × deságio; **dono do crédito** = o resto
+- **Kora** = fatura de geração × deságio; **dono do crédito** = o resto
 
 ## Diferenças conhecidas em relação à planilha
 
