@@ -3,6 +3,7 @@ import {
   calcular, descontoPadrao, DISTRIBUIDORAS, grupoDoSubgrupo, IMPOSTOS_PADRAO, modalidadesDoGrupo,
   postosDoGrupo, SUBGRUPOS,
 } from './lib/engine';
+import { prazoPeloConsumo, simularOperacao, type ParametrosOperacao, type ResultadoOperacao } from './lib/operacao';
 import type {
   DadosTarifarios, Enquadramento, Entrada, Fonte, Grupo, ModalidadeGD, ModalidadeTarifaria, Posto, Resultado,
 } from './types';
@@ -31,7 +32,7 @@ const DEFAULT_ENTRADA: Entrada = {
   ano: new Date().getFullYear(),
   subgrupo: 'A4',
   modalidadeTarifaria: 'Verde',
-  consumo: { Ponta: 30, 'Fora ponta': 1500, 'Não se aplica': 1000 },
+  consumo: { Ponta: 2000, 'Fora ponta': 18000, 'Não se aplica': 20000 },
   ...IMPOSTOS_PADRAO,
   enquadramento: 'GD1',
   modalidadeGD: 'Geração Compartilhada',
@@ -39,6 +40,17 @@ const DEFAULT_ENTRADA: Entrada = {
   descontoPct: descontoPadrao(DEFAULT_DISTRIBUIDORA),
   desagioPct: 0.1,
 };
+
+const proximoMes = () => {
+  const d = new Date();
+  d.setMonth(d.getMonth() + 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
+const DEFAULT_OPERACAO: ParametrosOperacao = {
+  creditoTotalKWh: 480000, prazoMeses: 24, mesInicio: proximoMes(), reajusteAnualPct: 0,
+};
+const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const MES = (ym: string) => `${MESES[Number(ym.slice(5, 7)) - 1]}/${ym.slice(0, 4)}`;
 
 // ── COMPONENTES ──────────────────────────────────────────────────────────────
 function KPICard({ label, value, sub, color = C.azul, bg = C.azulC, destaque = false }: {
@@ -224,7 +236,11 @@ function BotaoAtualizarAneel({ onConcluido }: { onConcluido: () => void }) {
 export default function App() {
   const [dados, setDados] = useState<DadosTarifarios | null>(null);
   const [erroDados, setErroDados] = useState<string | null>(null);
-  const [entrada, setEntrada] = useState<Entrada>(DEFAULT_ENTRADA);
+  const [entradaBase, setEntrada] = useState<Entrada>(DEFAULT_ENTRADA);
+  const [operacao, setOperacao] = useState<ParametrosOperacao>(DEFAULT_OPERACAO);
+  // O ano das tarifas sai do mês de início da operação.
+  const entrada = useMemo(() => ({ ...entradaBase, ano: Number(operacao.mesInicio.slice(0, 4)) }), [entradaBase, operacao.mesInicio]);
+  const setOp = <K extends keyof ParametrosOperacao>(k: K, v: ParametrosOperacao[K]) => setOperacao((o) => ({ ...o, [k]: v }));
 
   const carregarDados = useMemo(() => () => {
     fetch('/api/dados').then((r) => r.json()).then(setDados).catch((e) => setErroDados(String(e)));
@@ -255,6 +271,12 @@ export default function App() {
     if (!DISTRIBUIDORAS.includes(entrada.distribuidora)) return { erro: 'Selecione uma distribuidora da lista.' };
     try { return { r: calcular(entrada, dados) }; } catch (e) { return { erro: (e as Error).message }; }
   }, [entrada, dados]);
+
+  const simulacao = useMemo((): { op: ResultadoOperacao } | { erro: string } | null => {
+    if (!dados || !calculo || 'erro' in calculo) return null;
+    try { return { op: simularOperacao(entrada, dados, operacao) }; } catch (e) { return { erro: (e as Error).message }; }
+  }, [entrada, dados, operacao, calculo]);
+  const consumoMensal = postosDoGrupo(grupo).reduce((s, p) => s + (entrada.consumo[p] ?? 0), 0);
 
   return (
     <div style={{ minHeight: '100vh' }}>
@@ -298,9 +320,6 @@ export default function App() {
                 <Select value={entrada.modalidadeTarifaria} onChange={(v) => set('modalidadeTarifaria', v as ModalidadeTarifaria)} options={modalidadesDoGrupo(grupo)} />
               </Field>
             </Duas>
-            <Field label="Ano de referência" help="Usa a tarifa vigente mais recente até 31/12 do ano.">
-              <Select value={entrada.ano} onChange={(v) => set('ano', v)} options={[2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030]} />
-            </Field>
           </Section>
 
           <Section title="2. Consumo mensal (kWh)">
@@ -313,7 +332,36 @@ export default function App() {
             </Duas>
           </Section>
 
-          <Section title="3. Crédito GD (origem)" color={C.verde}>
+          <Section title="3. Crédito comprado" color={C.verde}>
+            <Field label="Total de crédito (kWh)">
+              <KWhField value={operacao.creditoTotalKWh} onChange={(v) => setOp('creditoTotalKWh', v)} />
+            </Field>
+            <Duas>
+              <Field label="Prazo de consumo (meses)">
+                <input type="number" min="1" step="1" style={inputStyle} value={operacao.prazoMeses || ''}
+                  onChange={(e) => setOp('prazoMeses', Number(e.target.value))} />
+              </Field>
+              <Field label="Início do abatimento">
+                <input type="month" style={inputStyle} value={operacao.mesInicio}
+                  onChange={(e) => e.target.value && setOp('mesInicio', e.target.value)} />
+              </Field>
+            </Duas>
+            <div style={{ fontSize: 11, color: C.med, marginTop: -4, marginBottom: 12, lineHeight: 1.5 }}>
+              Abatimento: <b>{R(operacao.prazoMeses > 0 ? operacao.creditoTotalKWh / operacao.prazoMeses : 0)} kWh/mês</b>
+              {' '}· cliente consome {R(consumoMensal)} kWh/mês.{' '}
+              {consumoMensal > 0 && (
+                <button className="no-print" onClick={() => setOp('prazoMeses', prazoPeloConsumo(operacao.creditoTotalKWh, consumoMensal))}
+                  style={{ border: 'none', background: 'none', color: C.azul, cursor: 'pointer', fontSize: 11, padding: 0, textDecoration: 'underline' }}>
+                  Usar prazo pelo consumo ({prazoPeloConsumo(operacao.creditoTotalKWh, consumoMensal)} meses)
+                </button>
+              )}
+            </div>
+            <Field label="Reajuste tarifário anual projetado (%)" help="Aplicado a partir do 2º ano. A tarifa ANEEL atual já entra no 1º ano.">
+              <PercentField value={operacao.reajusteAnualPct} onChange={(v) => setOp('reajusteAnualPct', v)} />
+            </Field>
+          </Section>
+
+          <Section title="4. Crédito GD (origem)" color={C.verde}>
             <Duas>
               <Field label="Enquadramento">
                 <Select value={entrada.enquadramento} onChange={(v) => set('enquadramento', v as Enquadramento)} options={['GD1', 'GD2', 'GD3']} />
@@ -327,7 +375,7 @@ export default function App() {
             </Field>
           </Section>
 
-          <Section title="4. Impostos" color={C.med}>
+          <Section title="5. Impostos" color={C.med}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
               <Field label="ICMS (%)"><PercentField value={entrada.icms} onChange={(v) => set('icms', v)} /></Field>
               <Field label="PIS (%)"><PercentField value={entrada.pis} onChange={(v) => set('pis', v)} /></Field>
@@ -336,7 +384,7 @@ export default function App() {
             <div style={{ fontSize: 10, color: C.med, marginTop: -6 }}>Confira na fatura do cliente — variam por estado e por mês.</div>
           </Section>
 
-          <Section title="5. Regras comerciais" color={C.amber}>
+          <Section title="6. Regras comerciais" color={C.amber}>
             <Field label="Desconto ao cliente (%)"><PercentField value={entrada.descontoPct} onChange={(v) => set('descontoPct', v)} /></Field>
             <Field label="Definir a remuneração por">
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
@@ -368,6 +416,8 @@ export default function App() {
           {erroDados && <Aviso>Não foi possível carregar as tarifas: {erroDados}</Aviso>}
           {!dados && !erroDados && <div style={{ color: C.med }}>Carregando tarifas…</div>}
           {calculo && 'erro' in calculo && <Aviso>{calculo.erro}</Aviso>}
+          {simulacao && 'erro' in simulacao && <div style={{ marginBottom: 16 }}><Aviso>{simulacao.erro}</Aviso></div>}
+          {simulacao && 'op' in simulacao && <OperacaoView op={simulacao.op} p={operacao} />}
           {calculo && 'r' in calculo && <Resultados r={calculo.r} entrada={entrada} />}
         </section>
       </main>
@@ -388,6 +438,8 @@ function Resultados({ r, entrada }: { r: Resultado; entrada: Entrada }) {
           <Aviso>O valor pago ao dono do crédito ({RKWH(r.tarifaMediaGerador)}) é maior que a fatura de geração ({RKWH(r.tarifaMediaGeracao)}): a Kora teria prejuízo de {RS(-r.valorKora)}/mês.</Aviso>
         </div>
       )}
+      <h2 style={{ fontSize: 14, fontWeight: 700, margin: '8px 0 4px' }}>Cálculo base — mês com o consumo todo compensado</h2>
+      <div style={{ fontSize: 11, color: C.med, marginBottom: 12 }}>Valores por kWh que a operação acima aplica mês a mês (tarifa de {entrada.ano}).</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 12 }}>
         <KPICard destaque color={C.verde} label="Pago ao dono do crédito" value={RKWH(r.tarifaMediaGerador)} sub={`${RS(r.valorGerador)} / mês`} />
         <KPICard destaque color={C.azul} label="Fatura de geração (cliente)" value={RKWH(r.tarifaMediaGeracao)} sub={`${RS(r.faturaGeracao)} / mês`} />
@@ -469,5 +521,81 @@ function Resultados({ r, entrada }: { r: Resultado; entrada: Entrada }) {
         </div>
       </div>
     </>
+  );
+}
+
+const thL: React.CSSProperties = { ...thStyle, textAlign: 'left' };
+const tdL: React.CSSProperties = { ...tdStyle, textAlign: 'left' };
+
+function OperacaoView({ op, p }: { op: ResultadoOperacao; p: ParametrosOperacao }) {
+  const primeiro = op.meses[0];
+  const primeiroAno = op.anos[0];
+  const linhaTotal: React.CSSProperties = { ...tdStyle, fontWeight: 700, borderTop: `2px solid ${C.bord}` };
+  return (
+    <div style={{ marginBottom: 28 }}>
+      {op.total.valorKora < 0 && (
+        <div style={{ marginBottom: 12 }}><Aviso>Com esses parâmetros a Kora tem prejuízo de {RS(-op.total.valorKora)} na operação.</Aviso></div>
+      )}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 12 }}>
+        <KPICard destaque color={C.verde} label="Desconto mensal ao cliente" value={RS(primeiro.desconto)} sub={`${RS(primeiroAno.desconto)} em ${primeiroAno.ano} · ${RS(op.total.desconto)} no total`} />
+        <KPICard destaque color={C.azul} label="Renda mensal do gerador" value={RS(primeiro.valorGerador)} sub={`${RS(primeiroAno.valorGerador)} em ${primeiroAno.ano} · ${RS(op.total.valorGerador)} no total`} />
+        <KPICard destaque color={op.total.valorKora < 0 ? C.verm : C.amber} label="Renda mensal Kora" value={RS(primeiro.valorKora)} sub={`${RS(primeiroAno.valorKora)} em ${primeiroAno.ano} · ${RS(op.total.valorKora)} no total`} />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
+        <KPICard label="Crédito total" value={`${R(p.creditoTotalKWh)} kWh`} sub={`${R(op.abatimentoMensalKWh)} kWh/mês`} color={C.esc} bg="#fff" />
+        <KPICard label="Prazo" value={`${op.meses.length} meses`} sub={`${MES(op.meses[0].mes)} a ${MES(op.meses[op.meses.length - 1].mes)}`} color={C.esc} bg="#fff" />
+        <KPICard label="Faturamento total (cliente → Kora)" value={RS(op.total.faturaGeracao)} sub="fatura de geração somada" color={C.esc} bg="#fff" />
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 10, padding: 18, marginBottom: 16 }}>
+        <Section title="Valores anuais" color={C.verde}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr>
+                <th style={thL}>Ano</th><th style={thStyle}>Meses</th><th style={thStyle}>kWh abatido</th>
+                <th style={thStyle}>Desconto cliente</th><th style={thStyle}>Fatura de geração</th>
+                <th style={thStyle}>Gerador</th><th style={thStyle}>Kora</th>
+              </tr></thead>
+              <tbody>
+                {op.anos.map((a) => (
+                  <tr key={a.ano}>
+                    <td style={{ ...tdL, fontWeight: 600 }}>{a.ano}</td><td style={tdStyle}>{a.meses}</td><td style={tdStyle}>{R(a.kWh)}</td>
+                    <td style={tdStyle}>{RS(a.desconto)}</td><td style={tdStyle}>{RS(a.faturaGeracao)}</td>
+                    <td style={tdStyle}>{RS(a.valorGerador)}</td><td style={tdStyle}>{RS(a.valorKora)}</td>
+                  </tr>
+                ))}
+                <tr>
+                  <td style={{ ...linhaTotal, textAlign: 'left' }}>Total</td><td style={linhaTotal}>{op.total.meses}</td><td style={linhaTotal}>{R(op.total.kWh)}</td>
+                  <td style={linhaTotal}>{RS(op.total.desconto)}</td><td style={linhaTotal}>{RS(op.total.faturaGeracao)}</td>
+                  <td style={linhaTotal}>{RS(op.total.valorGerador)}</td><td style={linhaTotal}>{RS(op.total.valorKora)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </Section>
+
+        <details>
+          <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: C.azul }}>Ver mês a mês ({op.meses.length} meses)</summary>
+          <div style={{ overflowX: 'auto', marginTop: 10 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr>
+                <th style={thL}>Mês</th><th style={thStyle}>kWh abatido</th><th style={thStyle}>Saldo de crédito</th>
+                <th style={thStyle}>Desconto cliente</th><th style={thStyle}>Fatura de geração</th>
+                <th style={thStyle}>Gerador</th><th style={thStyle}>Kora</th>
+              </tr></thead>
+              <tbody>
+                {op.meses.map((m) => (
+                  <tr key={m.mes}>
+                    <td style={tdL}>{MES(m.mes)}</td><td style={tdStyle}>{R(m.kWh)}</td><td style={tdStyle}>{R(m.saldoFinalKWh)}</td>
+                    <td style={tdStyle}>{RS(m.desconto)}</td><td style={tdStyle}>{RS(m.faturaGeracao)}</td>
+                    <td style={tdStyle}>{RS(m.valorGerador)}</td><td style={tdStyle}>{RS(m.valorKora)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </div>
+    </div>
   );
 }
