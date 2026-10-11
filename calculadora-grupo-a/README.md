@@ -36,6 +36,20 @@ até 31/12 do ano de referência:
 - **Fatura de geração** = fatura atual − desconto − CSS
 - **Kora** = fatura de geração × deságio; **dono do crédito** = o resto
 
+## Operação de crédito (`src/lib/operacao.ts`)
+
+A Kora compra um lote grande de crédito (kWh) de uma vez, e ele é abatido mês a mês na conta do
+cliente. Entradas: total de crédito, prazo de consumo (meses), mês de início e reajuste tarifário
+anual projetado.
+
+- Abatimento mensal = total ÷ prazo (o último mês fecha o saldo). Não pode passar do consumo do
+  cliente — o app avisa e mostra o prazo mínimo (botão "usar prazo pelo consumo").
+- Cada mês aplica os valores por kWh do cálculo acima (desconto, fatura de geração, gerador, Kora)
+  ao kWh abatido, com a tarifa e a rampa do Fio B do ano daquele mês.
+- O reajuste projetado é composto a partir do 2º ano. Se o valor do dono do crédito foi fixado em
+  R$/kWh, ele não é reajustado — a Kora absorve a diferença.
+- Saída: valores do 1º mês, tabela anual (por ano civil), mês a mês e totais da operação.
+
 ## Diferenças conhecidas em relação à planilha
 
 - **Rampa do Fio B (GD2)**: usa a Lei 14.300 (2025 45%, 2026 60%, 2027 75%, 2028 90%, 2029+ 100%),
