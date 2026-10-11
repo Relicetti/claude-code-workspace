@@ -34,7 +34,7 @@ Em produção usam Railway (`Procfile`). No Windows, `iniciar.vbs`/`iniciar_agen
 o servidor sem terminal visível — é o fluxo normal de uso do dono do repo, não algo a
 "corrigir".
 
-### Projetos Node/Vite (`ufv-bess-calculator/`, `calculadora-parceria/`, `simulador-grupo-a/`, `controle-calorico/`, `reta-log/`)
+### Projetos Node/Vite (`ufv-bess-calculator/`, `calculadora-parceria/`, `calculadora-grupo-a/`, `simulador-grupo-a/`, `controle-calorico/`, `reta-log/`)
 
 ```bash
 cd <pasta-do-projeto>
@@ -89,6 +89,11 @@ transação embutidos (`TAKER_FEE` em `backtest.py`). Não é para execução re
   (não o `SigAgente` bruto da ANEEL) como valor compartilhado — cada tela resolve o código
   internamente via `resolverAgenteAneel` só na hora de consultar tarifa/Fio B. `npm run seed`
   regenera os seeds em `src/data/` a partir da ANEEL ao vivo.
+- **`calculadora-grupo-a/`** — compra de crédito de GD travado em saldo e venda para clientes
+  Grupo A e B (porte de `Calculos_GD_GrupoA.xlsx`, aba "Simulação"). Sem banco: tarifas ANEEL ficam
+  em `src/data/tarifas.json` (seed) e o botão "Atualizar tarifas (ANEEL)" grava uma versão nova em
+  `server/data/` / volume do Railway. `npm run seed` regenera o seed. Diferenças conhecidas em
+  relação à planilha estão no README.
 - **`controle-calorico/`** — app de controle calórico com backend Express + Postgres (`pg`)
   e uso da API da Anthropic (`@anthropic-ai/sdk`) no server.
 - **`kora-whatsapp/`** — bot/bridge de WhatsApp com fluxos n8n, mais de um jeito de subir
