@@ -131,16 +131,20 @@ export function calcular(e: Entrada, dados: DadosTarifarios): Resultado {
   const desconto = e.descontoPct * valorAtual;              // F23
   const valorCss = valorAtual - valorInjetado;              // L4 = (F21 − I26) × C18
   const faturaGeracao = valorAtual - desconto - valorCss;   // L5
-  const valorAlexandria = faturaGeracao * e.desagioPct;     // L10
-  const valorGerador = faturaGeracao - valorAlexandria;     // L11
+  // Planilha: Kora = fatura de geração × deságio (L10) e gerador = o resto (L11). Com o valor do
+  // dono do crédito fixado, a conta inverte: gerador = R$/kWh × consumo e a Kora fica com o resto.
+  const valorGerador = e.precoGeradorKWh !== undefined
+    ? e.precoGeradorKWh * consumoTotalKWh
+    : faturaGeracao * (1 - e.desagioPct);
+  const valorKora = faturaGeracao - valorGerador;
 
   return {
     estado, agenteAneel: agente, isencoes, fioBRampaPct: rampa, postos, consumoTotalKWh,
     valorAtual, tarifaMediaCliente: porKWh(valorAtual), desconto,
     valorInjetado, tarifaMediaInjetada: porKWh(valorInjetado),
-    valorCss, faturaGeracao, valorTotalComAlexandria: valorCss + faturaGeracao,
+    valorCss, faturaGeracao, valorTotalComKora: valorCss + faturaGeracao,
     tarifaMediaGeracao: porKWh(faturaGeracao),
-    valorAlexandria, valorGerador, tarifaMediaGerador: porKWh(valorGerador),
+    valorKora, desagioEfetivoPct: faturaGeracao !== 0 ? valorKora / faturaGeracao : 0, valorGerador, tarifaMediaGerador: porKWh(valorGerador),
     economiaClientePct: valorAtual > 0 ? desconto / valorAtual : 0,
   };
 }
