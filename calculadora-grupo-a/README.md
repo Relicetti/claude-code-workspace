@@ -60,3 +60,14 @@ anual projetado.
 - **Impostos** vêm com os valores da planilha (ICMS 24%, PIS 0,53%, COFINS 2,42%) e são editáveis;
   conferir na fatura do cliente.
 - **Demanda contratada** não entra no cálculo (só energia), igual à planilha.
+
+## Deploy (Railway)
+
+Projeto Railway `calculadora-grupo-a`, ambiente `production`:
+https://calculadora-grupo-a-production.up.railway.app
+
+- Deploy é manual, a partir desta pasta: `railway up` (push no GitHub **não** publica).
+- Acesso por senha única (HTTP Basic): variável `APP_SENHA` no Railway — usuário pode ser
+  qualquer um. Para trocar: `railway variables --set "APP_SENHA=nova-senha"` (o serviço reinicia).
+- Volume em `/data` (`RAILWAY_VOLUME_MOUNT_PATH`): guarda as tarifas da última atualização ANEEL e
+  os CSVs temporários durante o download (~1,2 GB, apagados no fim).
