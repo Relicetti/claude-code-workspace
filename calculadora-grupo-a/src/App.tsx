@@ -409,6 +409,10 @@ export default function App() {
                   onChange={(e) => set('precoGeradorKWh', Number(e.target.value))} />
               </Field>
             )}
+            <Field label="Comissão do vendedor (R$/kWh)" help="Valor fixo por kWh, tirado da parte da Kora.">
+              <input type="number" step="0.0001" min="0" style={inputStyle} value={entrada.vendedorKWh ?? 0}
+                onChange={(e) => set('vendedorKWh', Number(e.target.value))} />
+            </Field>
           </Section>
         </aside>
 
@@ -417,6 +421,7 @@ export default function App() {
           {!dados && !erroDados && <div style={{ color: C.med }}>Carregando tarifas…</div>}
           {calculo && 'erro' in calculo && <Aviso>{calculo.erro}</Aviso>}
           {simulacao && 'erro' in simulacao && <div style={{ marginBottom: 16 }}><Aviso>{simulacao.erro}</Aviso></div>}
+          {calculo && 'r' in calculo && <ComposicaoKWh r={calculo.r} />}
           {simulacao && 'op' in simulacao && <OperacaoView op={simulacao.op} p={operacao} />}
           {calculo && 'r' in calculo && <Resultados r={calculo.r} entrada={entrada} />}
         </section>
@@ -427,6 +432,65 @@ export default function App() {
 
 function Aviso({ children }: { children: React.ReactNode }) {
   return <div style={{ background: C.vermC, color: C.verm, borderRadius: 8, padding: '12px 16px', fontSize: 13 }}>{children}</div>;
+}
+
+// As quatro partes do kWh que o cliente paga, lado a lado — o quadro que a equipe usa para explicar a operação.
+function ComposicaoKWh({ r }: { r: Resultado }) {
+  const partes = [
+    { rotulo: 'Gerador (dono do crédito)', valor: r.tarifaMediaGerador, mes: r.valorGerador, cor: C.verde },
+    { rotulo: 'Distribuidora — TUSD Fio B / não compensado', valor: r.tarifaMediaCss, mes: r.valorCss, cor: C.med },
+    { rotulo: 'Kora — nosso', valor: r.tarifaMediaKora, mes: r.valorKora, cor: C.amber },
+    { rotulo: 'Kora — vendedor', valor: r.tarifaMediaVendedor, mes: r.valorVendedor, cor: '#b07a00' },
+  ];
+  const total = r.tarifaMediaFinal;
+  const receitaKora = r.tarifaMediaKora + r.tarifaMediaVendedor;
+  const celula: React.CSSProperties = { padding: '9px 8px', borderBottom: `1px solid ${C.clar}`, fontSize: 13, textAlign: 'right', whiteSpace: 'nowrap' };
+  const linha = (rotulo: React.ReactNode, valor: number, mes: number, cor?: string, recuo = false, forte = false) => (
+    <tr>
+      <td style={{ ...celula, textAlign: 'left', paddingLeft: recuo ? 26 : 8, fontWeight: forte ? 700 : 500, whiteSpace: 'normal' }}>
+        {cor && <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: cor, marginRight: 8 }} />}
+        {rotulo}
+      </td>
+      <td style={{ ...celula, fontWeight: forte ? 700 : 600, color: valor < 0 ? C.verm : C.esc }}>{RKWH(valor)}</td>
+      <td style={{ ...celula, color: C.med }}>{total > 0 ? PCT(valor / total) : '—'}</td>
+      <td style={{ ...celula, color: C.med }}>{RS(mes)}</td>
+    </tr>
+  );
+  return (
+    <div style={{ background: '#fff', borderRadius: 10, padding: 18, marginBottom: 20, border: `2px solid ${C.azul}` }}>
+      <Section title="Composição do kWh — quanto custa cada parte">
+        <div style={{ display: 'flex', height: 18, borderRadius: 4, overflow: 'hidden', marginBottom: 14 }}>
+          {partes.filter((p) => p.valor > 0).map((p) => (
+            <div key={p.rotulo} title={`${p.rotulo}: ${RKWH(p.valor)}`} style={{ width: `${(p.valor / total) * 100}%`, background: p.cor }} />
+          ))}
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead><tr>
+              <th style={thL}>Parte</th><th style={thStyle}>R$/kWh</th><th style={thStyle}>% do kWh</th><th style={thStyle}>R$/mês</th>
+            </tr></thead>
+            <tbody>
+              {linha('1. Gerador (dono do crédito)', r.tarifaMediaGerador, r.valorGerador, C.verde)}
+              {linha('2. Distribuidora — TUSD Fio B / parcela não compensada', r.tarifaMediaCss, r.valorCss, C.med)}
+              {linha('3. Kora — receita', receitaKora, r.valorKora + r.valorVendedor, undefined, false, true)}
+              {linha('Nosso', r.tarifaMediaKora, r.valorKora, C.amber, true)}
+              {linha('Vendedor', r.tarifaMediaVendedor, r.valorVendedor, '#b07a00', true)}
+              <tr>
+                <td style={{ ...celula, textAlign: 'left', fontWeight: 700, fontSize: 14, borderTop: `2px solid ${C.bord}`, borderBottom: 'none' }}>4. Custo final do kWh para o cliente</td>
+                <td style={{ ...celula, fontWeight: 700, fontSize: 15, color: C.azul, borderTop: `2px solid ${C.bord}`, borderBottom: 'none' }}>{RKWH(total)}</td>
+                <td style={{ ...celula, borderTop: `2px solid ${C.bord}`, borderBottom: 'none' }}>100%</td>
+                <td style={{ ...celula, fontWeight: 700, borderTop: `2px solid ${C.bord}`, borderBottom: 'none' }}>{RS(r.valorTotalComKora)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div style={{ fontSize: 11, color: C.med, marginTop: 10 }}>
+          Sem a Kora o cliente paga {RKWH(r.tarifaMediaCliente)} à distribuidora — economia de {RKWH(r.tarifaMediaCliente - total)} ({PCT(r.economiaClientePct)}).
+          Valores médios do perfil de consumo do cliente.
+        </div>
+      </Section>
+    </div>
+  );
 }
 
 function Resultados({ r, entrada }: { r: Resultado; entrada: Entrada }) {
@@ -443,7 +507,7 @@ function Resultados({ r, entrada }: { r: Resultado; entrada: Entrada }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 12 }}>
         <KPICard destaque color={C.verde} label="Pago ao dono do crédito" value={RKWH(r.tarifaMediaGerador)} sub={`${RS(r.valorGerador)} / mês`} />
         <KPICard destaque color={C.azul} label="Fatura de geração (cliente)" value={RKWH(r.tarifaMediaGeracao)} sub={`${RS(r.faturaGeracao)} / mês`} />
-        <KPICard destaque color={r.valorKora < 0 ? C.verm : C.amber} label="Margem Kora" value={RS(r.valorKora)} sub={`${PCT(r.desagioEfetivoPct)} da fatura de geração`} />
+        <KPICard destaque color={r.valorKora < 0 ? C.verm : C.amber} label="Margem Kora (nosso)" value={RS(r.valorKora)} sub={`${RKWH(r.tarifaMediaKora)} · vendedor ${RKWH(r.tarifaMediaVendedor)}`} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 20 }}>
         <KPICard label="Fatura atual do cliente" value={RS(r.valorAtual)} sub={RKWH(r.tarifaMediaCliente)} />
@@ -504,7 +568,9 @@ function Resultados({ r, entrada }: { r: Resultado; entrada: Entrada }) {
             <Linha label="Créditos injetados (valor)" value={RS(r.valorInjetado)} />
             <Linha label="Residual à distribuidora (CSS)" value={RS(r.valorCss)} />
             <Linha label="Fatura de geração" value={RS(r.faturaGeracao)} forte />
-            <Linha label={`Kora (${PCT(r.desagioEfetivoPct)})`} value={RS(r.valorKora)} />
+            <Linha label={`Kora + vendedor (${PCT(r.desagioEfetivoPct)})`} value={RS(r.valorKora + r.valorVendedor)} />
+            <Linha label="Vendedor" value={RS(r.valorVendedor)} />
+            <Linha label="Kora (nosso)" value={RS(r.valorKora)} />
             <Linha label="Dono do crédito" value={RS(r.valorGerador)} forte />
           </Section>
         </div>
@@ -539,7 +605,7 @@ function OperacaoView({ op, p }: { op: ResultadoOperacao; p: ParametrosOperacao 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 12 }}>
         <KPICard destaque color={C.verde} label="Desconto mensal ao cliente" value={RS(primeiro.desconto)} sub={`${RS(primeiroAno.desconto)} em ${primeiroAno.ano} · ${RS(op.total.desconto)} no total`} />
         <KPICard destaque color={C.azul} label="Renda mensal do gerador" value={RS(primeiro.valorGerador)} sub={`${RS(primeiroAno.valorGerador)} em ${primeiroAno.ano} · ${RS(op.total.valorGerador)} no total`} />
-        <KPICard destaque color={op.total.valorKora < 0 ? C.verm : C.amber} label="Renda mensal Kora" value={RS(primeiro.valorKora)} sub={`${RS(primeiroAno.valorKora)} em ${primeiroAno.ano} · ${RS(op.total.valorKora)} no total`} />
+        <KPICard destaque color={op.total.valorKora < 0 ? C.verm : C.amber} label="Renda mensal Kora (nosso)" value={RS(primeiro.valorKora)} sub={`${RS(primeiroAno.valorKora)} em ${primeiroAno.ano} · ${RS(op.total.valorKora)} no total`} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
         <KPICard label="Crédito total" value={`${R(p.creditoTotalKWh)} kWh`} sub={`${R(op.abatimentoMensalKWh)} kWh/mês`} color={C.esc} bg="#fff" />
@@ -554,20 +620,20 @@ function OperacaoView({ op, p }: { op: ResultadoOperacao; p: ParametrosOperacao 
               <thead><tr>
                 <th style={thL}>Ano</th><th style={thStyle}>Meses</th><th style={thStyle}>kWh abatido</th>
                 <th style={thStyle}>Desconto cliente</th><th style={thStyle}>Fatura de geração</th>
-                <th style={thStyle}>Gerador</th><th style={thStyle}>Kora</th>
+                <th style={thStyle}>Gerador</th><th style={thStyle}>Vendedor</th><th style={thStyle}>Kora (nosso)</th>
               </tr></thead>
               <tbody>
                 {op.anos.map((a) => (
                   <tr key={a.ano}>
                     <td style={{ ...tdL, fontWeight: 600 }}>{a.ano}</td><td style={tdStyle}>{a.meses}</td><td style={tdStyle}>{R(a.kWh)}</td>
                     <td style={tdStyle}>{RS(a.desconto)}</td><td style={tdStyle}>{RS(a.faturaGeracao)}</td>
-                    <td style={tdStyle}>{RS(a.valorGerador)}</td><td style={tdStyle}>{RS(a.valorKora)}</td>
+                    <td style={tdStyle}>{RS(a.valorGerador)}</td><td style={tdStyle}>{RS(a.valorVendedor)}</td><td style={tdStyle}>{RS(a.valorKora)}</td>
                   </tr>
                 ))}
                 <tr>
                   <td style={{ ...linhaTotal, textAlign: 'left' }}>Total</td><td style={linhaTotal}>{op.total.meses}</td><td style={linhaTotal}>{R(op.total.kWh)}</td>
                   <td style={linhaTotal}>{RS(op.total.desconto)}</td><td style={linhaTotal}>{RS(op.total.faturaGeracao)}</td>
-                  <td style={linhaTotal}>{RS(op.total.valorGerador)}</td><td style={linhaTotal}>{RS(op.total.valorKora)}</td>
+                  <td style={linhaTotal}>{RS(op.total.valorGerador)}</td><td style={linhaTotal}>{RS(op.total.valorVendedor)}</td><td style={linhaTotal}>{RS(op.total.valorKora)}</td>
                 </tr>
               </tbody>
             </table>
@@ -581,14 +647,14 @@ function OperacaoView({ op, p }: { op: ResultadoOperacao; p: ParametrosOperacao 
               <thead><tr>
                 <th style={thL}>Mês</th><th style={thStyle}>kWh abatido</th><th style={thStyle}>Saldo de crédito</th>
                 <th style={thStyle}>Desconto cliente</th><th style={thStyle}>Fatura de geração</th>
-                <th style={thStyle}>Gerador</th><th style={thStyle}>Kora</th>
+                <th style={thStyle}>Gerador</th><th style={thStyle}>Vendedor</th><th style={thStyle}>Kora (nosso)</th>
               </tr></thead>
               <tbody>
                 {op.meses.map((m) => (
                   <tr key={m.mes}>
                     <td style={tdL}>{MES(m.mes)}</td><td style={tdStyle}>{R(m.kWh)}</td><td style={tdStyle}>{R(m.saldoFinalKWh)}</td>
                     <td style={tdStyle}>{RS(m.desconto)}</td><td style={tdStyle}>{RS(m.faturaGeracao)}</td>
-                    <td style={tdStyle}>{RS(m.valorGerador)}</td><td style={tdStyle}>{RS(m.valorKora)}</td>
+                    <td style={tdStyle}>{RS(m.valorGerador)}</td><td style={tdStyle}>{RS(m.valorVendedor)}</td><td style={tdStyle}>{RS(m.valorKora)}</td>
                   </tr>
                 ))}
               </tbody>

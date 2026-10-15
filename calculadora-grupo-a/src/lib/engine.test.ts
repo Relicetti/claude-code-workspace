@@ -85,6 +85,25 @@ describe('valor do dono do crédito informado direto', () => {
   });
 });
 
+describe('composição do kWh com comissão do vendedor', () => {
+  const r = calcular({ ...cenarioPlanilha, vendedorKWh: 0.02 }, dadosPlanilha);
+
+  it('vendedor leva R$/kWh fixo da parte da Kora', () => {
+    expect(r.tarifaMediaVendedor).toBeCloseTo(0.02, 12);
+    expect(r.valorVendedor).toBeCloseTo(0.02 * 1530, 9);
+    expect(r.valorKora).toBeCloseTo(53.28185989994305 - 0.02 * 1530, 9);
+    expect(r.valorGerador).toBeCloseTo(479.5367390994874, 9); // gerador não muda
+    expect(r.desagioEfetivoPct).toBeCloseTo(0.1, 12);          // Kora + vendedor
+  });
+
+  it('distribuidora + gerador + Kora + vendedor = custo final do kWh', () => {
+    const soma = r.tarifaMediaCss + r.tarifaMediaGerador + r.tarifaMediaKora + r.tarifaMediaVendedor;
+    expect(soma).toBeCloseTo(r.tarifaMediaFinal, 12);
+    expect(r.tarifaMediaFinal).toBeCloseTo(752.1201090051248 / 1530, 12);
+    expect(r.tarifaMediaFinal).toBeCloseTo(r.tarifaMediaCliente * (1 - cenarioPlanilha.descontoPct), 12);
+  });
+});
+
 describe('GD2 desconta Fio B da rampa (Simulação!I19:I20)', () => {
   it('60% do Fio B em 2026 sai da TUSD Ponta injetada', () => {
     const r = calcular({ ...cenarioPlanilha, enquadramento: 'GD2' }, dadosPlanilha);
