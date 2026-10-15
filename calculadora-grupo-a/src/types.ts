@@ -55,6 +55,8 @@ export interface Entrada {
   /** Valor pago ao dono do crédito, R$/kWh. Se informado, substitui o deságio: a Kora fica
    * com o que sobrar da fatura de geração. */
   precoGeradorKWh?: number;
+  /** Comissão do vendedor, R$/kWh fixo, tirada da parte da Kora. */
+  vendedorKWh?: number;
 }
 
 export interface IsencoesGD {
@@ -103,11 +105,19 @@ export interface Resultado {
 
   /** Resultado final — operação Kora. */
   valorCss: number;                // o que o cliente ainda paga à distribuidora
+  tarifaMediaCss: number;          // R$/kWh (Fio B / parcela não compensada)
   faturaGeracao: number;           // o que o cliente paga pelos créditos
   valorTotalComKora: number;
   tarifaMediaGeracao: number;      // R$/kWh
+  /** Parte da Kora já descontada a comissão do vendedor ("nosso"). */
   valorKora: number;
-  /** Deságio de fato: o informado, ou o resultante quando o valor do dono do crédito é fixado. */
+  tarifaMediaKora: number;         // R$/kWh
+  valorVendedor: number;
+  tarifaMediaVendedor: number;     // R$/kWh
+  /** Custo final do kWh para o cliente: distribuidora + gerador + Kora + vendedor. */
+  tarifaMediaFinal: number;        // R$/kWh
+  /** Deságio de fato (Kora + vendedor sobre a fatura de geração): o informado, ou o resultante
+   * quando o valor do dono do crédito é fixado. */
   desagioEfetivoPct: number;
   valorGerador: number;            // o que vai para o dono do crédito
   tarifaMediaGerador: number;      // R$/kWh

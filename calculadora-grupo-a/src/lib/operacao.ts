@@ -20,7 +20,8 @@ export interface MesOperacao {
   desconto: number;       // economia do cliente
   faturaGeracao: number;  // o que o cliente paga pelos créditos (receita da operação)
   valorGerador: number;   // pago ao dono do crédito
-  valorKora: number;
+  valorVendedor: number;  // comissão do vendedor
+  valorKora: number;      // o que fica com a Kora, já sem a comissão
 }
 
 export interface AnoOperacao extends Omit<MesOperacao, 'mes' | 'saldoFinalKWh'> {
@@ -85,16 +86,20 @@ export function simularOperacao(e: Entrada, dados: DadosTarifarios, p: Parametro
     const faturaGeracao = porKWh(r.faturaGeracao);
     // Valor do dono do crédito fixado em contrato não é reajustado — a Kora absorve a diferença.
     const valorGerador = e.precoGeradorKWh !== undefined ? e.precoGeradorKWh * kWh : porKWh(r.valorGerador);
+    // Comissão do vendedor é R$/kWh fixo, também sem reajuste.
+    const valorVendedor = (e.vendedorKWh ?? 0) * kWh;
     meses.push({
       mes, kWh, saldoFinalKWh: Math.max(saldo, 0),
-      desconto: porKWh(r.desconto), faturaGeracao, valorGerador, valorKora: faturaGeracao - valorGerador,
+      desconto: porKWh(r.desconto), faturaGeracao, valorGerador, valorVendedor,
+      valorKora: faturaGeracao - valorGerador - valorVendedor,
     });
   }
 
-  const zerado = () => ({ meses: 0, kWh: 0, desconto: 0, faturaGeracao: 0, valorGerador: 0, valorKora: 0 });
+  const zerado = () => ({ meses: 0, kWh: 0, desconto: 0, faturaGeracao: 0, valorGerador: 0, valorVendedor: 0, valorKora: 0 });
   const acumular = (acc: ReturnType<typeof zerado>, m: MesOperacao) => {
     acc.meses += 1; acc.kWh += m.kWh; acc.desconto += m.desconto;
-    acc.faturaGeracao += m.faturaGeracao; acc.valorGerador += m.valorGerador; acc.valorKora += m.valorKora;
+    acc.faturaGeracao += m.faturaGeracao; acc.valorGerador += m.valorGerador;
+    acc.valorVendedor += m.valorVendedor; acc.valorKora += m.valorKora;
   };
   const anosMap = new Map<number, AnoOperacao>();
   const total = zerado();

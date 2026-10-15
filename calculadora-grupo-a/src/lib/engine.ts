@@ -136,15 +136,20 @@ export function calcular(e: Entrada, dados: DadosTarifarios): Resultado {
   const valorGerador = e.precoGeradorKWh !== undefined
     ? e.precoGeradorKWh * consumoTotalKWh
     : faturaGeracao * (1 - e.desagioPct);
-  const valorKora = faturaGeracao - valorGerador;
+  const margem = faturaGeracao - valorGerador;
+  // Comissão do vendedor: R$/kWh fixo que sai da parte da Kora.
+  const valorVendedor = (e.vendedorKWh ?? 0) * consumoTotalKWh;
+  const valorKora = margem - valorVendedor;
 
   return {
     estado, agenteAneel: agente, isencoes, fioBRampaPct: rampa, postos, consumoTotalKWh,
     valorAtual, tarifaMediaCliente: porKWh(valorAtual), desconto,
     valorInjetado, tarifaMediaInjetada: porKWh(valorInjetado),
-    valorCss, faturaGeracao, valorTotalComKora: valorCss + faturaGeracao,
+    valorCss, tarifaMediaCss: porKWh(valorCss), faturaGeracao, valorTotalComKora: valorCss + faturaGeracao,
     tarifaMediaGeracao: porKWh(faturaGeracao),
-    valorKora, desagioEfetivoPct: faturaGeracao !== 0 ? valorKora / faturaGeracao : 0, valorGerador, tarifaMediaGerador: porKWh(valorGerador),
+    valorKora, tarifaMediaKora: porKWh(valorKora), valorVendedor, tarifaMediaVendedor: porKWh(valorVendedor),
+    tarifaMediaFinal: porKWh(valorCss + faturaGeracao),
+    desagioEfetivoPct: faturaGeracao !== 0 ? margem / faturaGeracao : 0, valorGerador, tarifaMediaGerador: porKWh(valorGerador),
     economiaClientePct: valorAtual > 0 ? desconto / valorAtual : 0,
   };
 }
