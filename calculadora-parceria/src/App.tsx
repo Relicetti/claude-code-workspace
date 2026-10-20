@@ -575,6 +575,7 @@ function AppAutenticado({ usuario, onLogout, onUsuarioAtualizado }: {
             <p style={{ fontSize: 12, color: C.med, marginBottom: 10 }}>
               Cole ou importe um CSV com o cabeçalho:{' '}
               <code style={{ fontSize: 11 }}>Concessionária,Ano,Deságio,Pot CA,Pot CC,Geração Mensal,Pescoço,Enquadramento,Fonte,Modalidade</code>
+              {' '}— também aceita o CSV do Excel (separado por <code>;</code>, decimal com vírgula), com as colunas em qualquer ordem.
             </p>
             <textarea
               value={loteInputs} onChange={(e) => setLoteInputs(e.target.value)}
