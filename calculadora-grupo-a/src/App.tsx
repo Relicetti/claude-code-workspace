@@ -262,6 +262,17 @@ export default function App() {
     const atual = calculo && 'r' in calculo ? calculo.r.tarifaMediaGerador : 0;
     set('precoGeradorKWh', Number(atual.toFixed(4)));
   };
+  // Mesma ideia para a comissão: a troca de unidade converte o valor atual, sem mudar o resultado.
+  const trocarModoComissao = (modo: 'kwh' | 'pct') => {
+    if ((modo === 'pct') === (entrada.vendedorPct !== undefined)) return;
+    const r = calculo && 'r' in calculo ? calculo.r : undefined;
+    if (modo === 'kwh') {
+      setEntrada((e) => ({ ...e, vendedorPct: undefined, vendedorKWh: Number((r?.tarifaMediaVendedor ?? 0).toFixed(4)) }));
+    } else {
+      const pct = r && r.faturaGeracao !== 0 ? r.valorVendedor / r.faturaGeracao : 0;
+      set('vendedorPct', Number(pct.toFixed(4)));
+    }
+  };
   const trocarDistribuidora = (d: string) => {
     setEntrada((e) => ({ ...e, distribuidora: d, ...(DISTRIBUIDORAS.includes(d) ? { descontoPct: descontoPadrao(d) } : {}) }));
   };
@@ -409,10 +420,29 @@ export default function App() {
                   onChange={(e) => set('precoGeradorKWh', Number(e.target.value))} />
               </Field>
             )}
-            <Field label="Comissão do vendedor (R$/kWh)" help="Valor fixo por kWh, tirado da parte da Kora.">
-              <input type="number" step="0.0001" min="0" style={inputStyle} value={entrada.vendedorKWh ?? 0}
-                onChange={(e) => set('vendedorKWh', Number(e.target.value))} />
+            <Field label="Comissão do vendedor em">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                {([['kwh', 'R$/kWh'], ['pct', '% da fatura de geração']] as const).map(([modo, rotulo]) => {
+                  const ativo = (modo === 'pct') === (entrada.vendedorPct !== undefined);
+                  return (
+                    <button key={modo} onClick={() => trocarModoComissao(modo)} style={{
+                      padding: '7px 6px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                      border: `1px solid ${ativo ? C.amber : C.bord}`, background: ativo ? C.amberC : '#fff', color: ativo ? C.esc : C.med,
+                    }}>{rotulo}</button>
+                  );
+                })}
+              </div>
             </Field>
+            {entrada.vendedorPct === undefined ? (
+              <Field label="Comissão do vendedor (R$/kWh)" help="Valor fixo por kWh, tirado da parte da Kora.">
+                <input type="number" step="0.0001" min="0" style={inputStyle} value={entrada.vendedorKWh ?? 0}
+                  onChange={(e) => set('vendedorKWh', Number(e.target.value))} />
+              </Field>
+            ) : (
+              <Field label="Comissão do vendedor (%)" help="% da fatura de geração (o que o cliente paga pelos créditos), tirado da parte da Kora.">
+                <PercentField value={entrada.vendedorPct} onChange={(v) => set('vendedorPct', v)} />
+              </Field>
+            )}
           </Section>
         </aside>
 

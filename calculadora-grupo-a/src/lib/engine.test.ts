@@ -85,6 +85,16 @@ describe('valor do dono do crédito informado direto', () => {
   });
 });
 
+describe('comissão do vendedor em % da fatura de geração', () => {
+  const r = calcular({ ...cenarioPlanilha, vendedorKWh: 0.02, vendedorPct: 0.03 }, dadosPlanilha);
+
+  it('% substitui o R$/kWh e sai da parte da Kora', () => {
+    expect(r.valorVendedor).toBeCloseTo(0.03 * 532.8185989994305, 9);
+    expect(r.valorKora).toBeCloseTo(53.28185989994305 - 0.03 * 532.8185989994305, 9);
+    expect(r.valorGerador).toBeCloseTo(479.5367390994874, 9);
+  });
+});
+
 describe('composição do kWh com comissão do vendedor', () => {
   const r = calcular({ ...cenarioPlanilha, vendedorKWh: 0.02 }, dadosPlanilha);
 
