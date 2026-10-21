@@ -86,8 +86,8 @@ export function simularOperacao(e: Entrada, dados: DadosTarifarios, p: Parametro
     const faturaGeracao = porKWh(r.faturaGeracao);
     // Valor do dono do crédito fixado em contrato não é reajustado — a Kora absorve a diferença.
     const valorGerador = e.precoGeradorKWh !== undefined ? e.precoGeradorKWh * kWh : porKWh(r.valorGerador);
-    // Comissão do vendedor é R$/kWh fixo, também sem reajuste.
-    const valorVendedor = (e.vendedorKWh ?? 0) * kWh;
+    // Comissão em R$/kWh é fixa, sem reajuste; em % acompanha a fatura de geração reajustada.
+    const valorVendedor = e.vendedorPct !== undefined ? e.vendedorPct * faturaGeracao : (e.vendedorKWh ?? 0) * kWh;
     meses.push({
       mes, kWh, saldoFinalKWh: Math.max(saldo, 0),
       desconto: porKWh(r.desconto), faturaGeracao, valorGerador, valorVendedor,

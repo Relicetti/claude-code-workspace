@@ -57,6 +57,9 @@ export interface Entrada {
   precoGeradorKWh?: number;
   /** Comissão do vendedor, R$/kWh fixo, tirada da parte da Kora. */
   vendedorKWh?: number;
+  /** Comissão do vendedor em % da fatura de geração, tirada da parte da Kora. Se informada,
+   * substitui o R$/kWh. */
+  vendedorPct?: number;
 }
 
 export interface IsencoesGD {

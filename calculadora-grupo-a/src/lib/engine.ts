@@ -137,8 +137,10 @@ export function calcular(e: Entrada, dados: DadosTarifarios): Resultado {
     ? e.precoGeradorKWh * consumoTotalKWh
     : faturaGeracao * (1 - e.desagioPct);
   const margem = faturaGeracao - valorGerador;
-  // Comissão do vendedor: R$/kWh fixo que sai da parte da Kora.
-  const valorVendedor = (e.vendedorKWh ?? 0) * consumoTotalKWh;
+  // Comissão do vendedor: R$/kWh fixo ou % da fatura de geração, sempre saindo da parte da Kora.
+  const valorVendedor = e.vendedorPct !== undefined
+    ? e.vendedorPct * faturaGeracao
+    : (e.vendedorKWh ?? 0) * consumoTotalKWh;
   const valorKora = margem - valorVendedor;
 
   return {

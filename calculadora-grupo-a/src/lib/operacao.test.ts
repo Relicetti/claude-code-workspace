@@ -66,6 +66,14 @@ describe('operação de crédito abatido mês a mês', () => {
     expect(op.meses[12].valorKora).toBeCloseTo(op.meses[12].faturaGeracao - 459, 9);
   });
 
+  it('comissão em % acompanha a fatura de geração reajustada', () => {
+    const op = simularOperacao({ ...entrada, vendedorPct: 0.03 }, dados,
+      { creditoTotalKWh: 1530 * 24, prazoMeses: 24, mesInicio: '2026-01', reajusteAnualPct: 0.1 });
+    expect(op.meses[0].valorVendedor).toBeCloseTo(op.meses[0].faturaGeracao * 0.03, 9);
+    expect(op.meses[12].valorVendedor).toBeCloseTo(op.meses[0].valorVendedor * 1.1, 9);
+    expect(op.meses[12].valorKora).toBeCloseTo(op.meses[12].faturaGeracao - op.meses[12].valorGerador - op.meses[12].valorVendedor, 9);
+  });
+
   it('não deixa abater mais do que o cliente consome', () => {
     expect(() => simularOperacao(entrada, dados, { creditoTotalKWh: 100000, prazoMeses: 12, mesInicio: '2026-01', reajusteAnualPct: 0 }))
       .toThrow(/Prazo mínimo: 66 meses/);
