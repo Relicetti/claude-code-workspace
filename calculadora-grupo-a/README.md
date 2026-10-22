@@ -64,6 +64,13 @@ impostos, da tarifa do ano). Ex.: Energisa MT A3a Verde 2025 = 479,66 ÷ 284,62 
 - Valor do dono do crédito e comissão em R$/kWh são **por kWh de crédito debitado**.
 - Testes reproduzem o caso Out/25 do memorial (saldo FP 902.712 → 806.962, Δ 0,65 kWh).
 
+## Proposta comercial
+
+Botão **"Proposta ao cliente"** no topo: abre a versão para o cliente final (nome, UC e validade
+editáveis), pronta para imprimir/PDF. Mostra consumo e tarifa por posto, fatura sem Kora × com Kora
+(distribuidora + Kora) no 1º mês, economia, crédito contratado, tempo de contrato, valor estimado
+do contrato, projeção por ano e premissas. **Não** mostra margem da Kora, gerador nem vendedor.
+
 ## Diferenças conhecidas em relação à planilha
 
 - **Rampa do Fio B (GD2)**: usa a Lei 14.300 (2025 45%, 2026 60%, 2027 75%, 2028 90%, 2029+ 100%),

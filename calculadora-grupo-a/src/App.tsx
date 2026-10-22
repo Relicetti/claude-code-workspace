@@ -21,7 +21,7 @@ const C = {
 const R = (n: number, d = 0) => (Number.isFinite(n) ? n.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—');
 const RS = (n: number) => `R$ ${R(n, 2)}`;
 const RKWH = (n: number) => `R$ ${R(n, 4)}/kWh`;
-const PCT = (n: number) => (Number.isFinite(n) ? `${(n * 100).toFixed(1)}%` : '—');
+const PCT = (n: number) => (Number.isFinite(n) ? `${R(n * 100, 1)}%` : '—');
 const DATA = (iso: string) => iso.slice(0, 10).split('-').reverse().join('/');
 
 const ROTULO_POSTO: Record<Posto, string> = { Ponta: 'Ponta', 'Fora ponta': 'Fora Ponta', 'Não se aplica': 'Consumo' };
@@ -239,6 +239,8 @@ export default function App() {
   const [erroDados, setErroDados] = useState<string | null>(null);
   const [entradaBase, setEntrada] = useState<Entrada>(DEFAULT_ENTRADA);
   const [operacao, setOperacao] = useState<ParametrosOperacao>(DEFAULT_OPERACAO);
+  const [proposta, setProposta] = useState<DadosProposta>({ cliente: '', uc: '', validadeDias: 15 });
+  const [verProposta, setVerProposta] = useState(false);
   // O ano das tarifas sai do mês de início da operação.
   const entrada = useMemo(() => ({ ...entradaBase, ano: Number(operacao.mesInicio.slice(0, 4)) }), [entradaBase, operacao.mesInicio]);
   const setOp = <K extends keyof ParametrosOperacao>(k: K, v: ParametrosOperacao[K]) => setOperacao((o) => ({ ...o, [k]: v }));
@@ -296,6 +298,13 @@ export default function App() {
   const rCalc = calculo && 'r' in calculo ? calculo.r : undefined;
   const creditoMensal = rCalc?.saldoDebitadoKWh ?? consumoMensal;
 
+  if (verProposta && calculo && 'r' in calculo && simulacao && 'op' in simulacao) {
+    return (
+      <PropostaView r={calculo.r} op={simulacao.op} p={operacao} entrada={entrada}
+        dados={proposta} onDados={setProposta} onVoltar={() => setVerProposta(false)} />
+    );
+  }
+
   return (
     <div style={{ minHeight: '100vh' }}>
       <header style={{ background: '#fff', borderBottom: `1px solid ${C.bord}`, padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
@@ -307,6 +316,11 @@ export default function App() {
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <BotaoAtualizarAneel onConcluido={carregarDados} />
+          <button onClick={() => { setVerProposta(true); window.scrollTo(0, 0); }} className="no-print"
+            disabled={!(simulacao && 'op' in simulacao)} title={simulacao && 'op' in simulacao ? '' : 'Corrija a simulação para gerar a proposta'}
+            style={{ padding: '8px 14px', borderRadius: 6, border: 'none', background: C.verde, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: simulacao && 'op' in simulacao ? 1 : 0.5 }}>
+            Proposta ao cliente
+          </button>
           <button onClick={() => window.print()} className="no-print"
             style={{ padding: '8px 14px', borderRadius: 6, border: `1px solid ${C.bord}`, background: '#fff', fontSize: 12, cursor: 'pointer' }}>
             Imprimir / PDF
@@ -722,6 +736,167 @@ function OperacaoView({ op, p }: { op: ResultadoOperacao; p: ParametrosOperacao 
             </table>
           </div>
         </details>
+      </div>
+    </div>
+  );
+}
+
+// ── PROPOSTA COMERCIAL ───────────────────────────────────────────────────────
+// Versão para o cliente final: só o que é dele (consumo, fatura sem/com Kora, economia, prazo,
+// crédito e valor contratados). Margem da Kora, gerador e vendedor não aparecem.
+
+interface DadosProposta { cliente: string; uc: string; validadeDias: number }
+
+function PropostaView({ r, op, p, entrada, dados, onDados, onVoltar }: {
+  r: Resultado; op: ResultadoOperacao; p: ParametrosOperacao; entrada: Entrada;
+  dados: DadosProposta; onDados: (d: DadosProposta) => void; onVoltar: () => void;
+}) {
+  const hoje = new Date();
+  const validade = new Date(hoje.getTime() + dados.validadeDias * 86400000);
+  const dataBR = (d: Date) => d.toLocaleDateString('pt-BR');
+  const grupoA = r.postos.length > 1;
+  const converte = grupoA && entrada.converterPostos !== false;
+
+  // 1º mês da operação: tarifa do ano de início, sem reajuste projetado.
+  const m1 = op.meses[0];
+  const semKora = r.valorAtual;
+  const kora = m1.faturaGeracao;
+  const distribuidora = semKora - m1.desconto - kora;
+  const comKora = distribuidora + kora;
+  const ultimo = op.meses[op.meses.length - 1];
+
+  const box: React.CSSProperties = { border: `1px solid ${C.bord}`, borderRadius: 8, padding: 16, marginBottom: 18, breakInside: 'avoid' };
+  const h2: React.CSSProperties = { fontSize: 13, fontWeight: 700, color: C.verde, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 };
+  const th: React.CSSProperties = { ...thStyle, background: C.clar };
+  const thE: React.CSSProperties = { ...th, textAlign: 'left' };
+  const campo: React.CSSProperties = { ...inputStyle, width: 'auto' };
+
+  return (
+    <div style={{ background: '#fff', minHeight: '100vh' }}>
+      <div className="no-print" style={{ background: C.clar, borderBottom: `1px solid ${C.bord}`, padding: '12px 24px', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button onClick={onVoltar} style={{ padding: '8px 14px', borderRadius: 6, border: `1px solid ${C.bord}`, background: '#fff', fontSize: 12, cursor: 'pointer' }}>← Voltar à simulação</button>
+        <input placeholder="Nome do cliente" style={{ ...campo, minWidth: 220 }} value={dados.cliente} onChange={(e) => onDados({ ...dados, cliente: e.target.value })} />
+        <input placeholder="Unidade consumidora (UC)" style={{ ...campo, minWidth: 180 }} value={dados.uc} onChange={(e) => onDados({ ...dados, uc: e.target.value })} />
+        <label style={{ fontSize: 12, color: C.med, display: 'flex', gap: 6, alignItems: 'center' }}>
+          Validade (dias)
+          <input type="number" min="1" style={{ ...campo, width: 70 }} value={dados.validadeDias}
+            onChange={(e) => onDados({ ...dados, validadeDias: Math.max(1, Number(e.target.value) || 1) })} />
+        </label>
+        <button onClick={() => window.print()} style={{ marginLeft: 'auto', padding: '8px 14px', borderRadius: 6, border: 'none', background: C.verde, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+          Imprimir / PDF
+        </button>
+      </div>
+
+      <div className="proposta" style={{ maxWidth: 820, margin: '0 auto', padding: '32px 28px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: `3px solid ${C.verde}`, paddingBottom: 12, marginBottom: 22 }}>
+          <div>
+            <div style={{ fontSize: 26, fontWeight: 800, color: C.verde, letterSpacing: '-0.02em' }}>Kora</div>
+            <div style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}>Proposta comercial — créditos de energia</div>
+            <div style={{ fontSize: 12, color: C.med, marginTop: 2 }}>Geração distribuída (REN ANEEL 1.000/2021 · Lei 14.300/2022)</div>
+          </div>
+          <div style={{ textAlign: 'right', fontSize: 12, color: C.med, lineHeight: 1.6 }}>
+            Emitida em {dataBR(hoje)}<br />Válida até {dataBR(validade)}
+          </div>
+        </div>
+
+        <div style={box}>
+          <div style={h2}>Cliente</div>
+          <Linha label="Cliente" value={dados.cliente || '—'} />
+          <Linha label="Unidade consumidora" value={dados.uc || '—'} />
+          <Linha label="Distribuidora" value={`${entrada.distribuidora} (${r.estado})`} />
+          <Linha label="Grupo / subgrupo / modalidade" value={`Grupo ${grupoA ? 'A' : 'B'} · ${entrada.subgrupo} · ${entrada.modalidadeTarifaria}`} />
+        </div>
+
+        <div style={box}>
+          <div style={h2}>Consumo e fatura atual (mensal)</div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead><tr>
+              <th style={thE}>Posto</th><th style={th}>Consumo (kWh/mês)</th><th style={th}>Tarifa c/ impostos (R$/kWh)</th><th style={th}>Valor (R$/mês)</th>
+            </tr></thead>
+            <tbody>
+              {r.postos.map((l) => (
+                <tr key={l.posto}>
+                  <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 600 }}>{ROTULO_POSTO[l.posto]}</td>
+                  <td style={tdStyle}>{R(l.kWh)}</td>
+                  <td style={tdStyle}>{R((l.teCheia + l.tusdCheia) / 1000, 4)}</td>
+                  <td style={tdStyle}>{RS(l.valorAtual)}</td>
+                </tr>
+              ))}
+              <tr>
+                <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 700, borderTop: `2px solid ${C.bord}` }}>Total</td>
+                <td style={{ ...tdStyle, fontWeight: 700, borderTop: `2px solid ${C.bord}` }}>{R(r.consumoTotalKWh)}</td>
+                <td style={{ ...tdStyle, fontWeight: 700, borderTop: `2px solid ${C.bord}` }}>{R(r.tarifaMediaCliente, 4)}</td>
+                <td style={{ ...tdStyle, fontWeight: 700, borderTop: `2px solid ${C.bord}` }}>{RS(r.valorAtual)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div style={box}>
+          <div style={h2}>Sua fatura sem e com a Kora (1º mês)</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 14 }}>
+            <KPICard label="Fatura sem Kora" value={RS(semKora)} sub="só distribuidora" color={C.esc} bg={C.clar} />
+            <KPICard label="Fatura com Kora" value={RS(comKora)} sub={`${RS(distribuidora)} distribuidora + ${RS(kora)} Kora`} color={C.azul} bg={C.azulC} />
+            <KPICard label="Economia mensal" value={RS(m1.desconto)} sub={`${PCT(semKora > 0 ? m1.desconto / semKora : 0)} da fatura atual`} color={C.verde} bg={C.verdeC} />
+          </div>
+          <Linha label="Fatura da distribuidora (com créditos compensados)" value={RS(distribuidora)} />
+          <Linha label="Fatura Kora (créditos de energia)" value={RS(kora)} />
+          <Linha label="Total com Kora" value={RS(comKora)} forte />
+          <Linha label="Consumo compensado pelos créditos" value={`${R(m1.compensadoKWh)} de ${R(r.consumoTotalKWh)} kWh/mês`} />
+          <Linha label="Desconto contratado sobre a energia compensada" value={PCT(entrada.descontoPct)} />
+        </div>
+
+        <div style={box}>
+          <div style={h2}>Condições do contrato</div>
+          <Linha label="Crédito de energia contratado" value={`${R(p.creditoTotalKWh)} kWh`} />
+          <Linha label="Tempo de contrato" value={`${op.meses.length} meses (${MES(m1.mes)} a ${MES(ultimo.mes)})`} />
+          <Linha label="Valor estimado do contrato (pago à Kora)" value={RS(op.total.faturaGeracao)} forte />
+          <Linha label="Valor médio mensal" value={RS(op.total.faturaGeracao / op.meses.length)} />
+          <Linha label="Economia estimada no contrato" value={RS(op.total.desconto)} forte />
+          <Linha label="Reajuste tarifário anual considerado" value={PCT(p.reajusteAnualPct)} />
+        </div>
+
+        <div style={box}>
+          <div style={h2}>Projeção por ano</div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead><tr>
+              <th style={thE}>Ano</th><th style={th}>Meses</th><th style={th}>Consumo compensado (kWh)</th><th style={th}>Pago à Kora</th><th style={th}>Economia</th>
+            </tr></thead>
+            <tbody>
+              {op.anos.map((a) => (
+                <tr key={a.ano}>
+                  <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 600 }}>{a.ano}</td><td style={tdStyle}>{a.meses}</td>
+                  <td style={tdStyle}>{R(a.compensadoKWh)}</td><td style={tdStyle}>{RS(a.faturaGeracao)}</td><td style={tdStyle}>{RS(a.desconto)}</td>
+                </tr>
+              ))}
+              <tr>
+                <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 700, borderTop: `2px solid ${C.bord}` }}>Total</td>
+                <td style={{ ...tdStyle, fontWeight: 700, borderTop: `2px solid ${C.bord}` }}>{op.total.meses}</td>
+                <td style={{ ...tdStyle, fontWeight: 700, borderTop: `2px solid ${C.bord}` }}>{R(op.total.compensadoKWh)}</td>
+                <td style={{ ...tdStyle, fontWeight: 700, borderTop: `2px solid ${C.bord}` }}>{RS(op.total.faturaGeracao)}</td>
+                <td style={{ ...tdStyle, fontWeight: 700, borderTop: `2px solid ${C.bord}` }}>{RS(op.total.desconto)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div style={{ ...box, fontSize: 11, color: C.med, lineHeight: 1.6 }}>
+          <div style={h2}>Premissas</div>
+          <ul style={{ paddingLeft: 18 }}>
+            <li>Tarifas homologadas pela ANEEL para {entrada.distribuidora} ({r.postos[0].resolucao.toLowerCase()}, vigência desde {DATA(r.postos[0].inicioVigencia)}), com ICMS {PCT(entrada.icms)} e PIS/COFINS {PCT(entrada.pis + entrada.cofins)}.</li>
+            <li>Valores estimados de energia (TE + TUSD). Não incluem demanda contratada, bandeiras tarifárias, iluminação pública, multas e outros itens da fatura.</li>
+            {converte && (
+              <li>Os créditos compensam primeiro o consumo Fora Ponta. Na Ponta, conforme a REN ANEEL 1.000/2021, cada kWh consome {R(r.fatorPonta, 4)} kWh de crédito (relação entre as tarifas de energia Ponta e Fora Ponta).</li>
+            )}
+            <li>Projeção com reajuste tarifário de {PCT(p.reajusteAnualPct)} ao ano a partir do 2º ano; os valores reais seguem os reajustes homologados pela ANEEL.</li>
+            <li>A distribuidora continua responsável pelo fornecimento; a fatura da distribuidora segue com a parcela não compensável.</li>
+          </ul>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, marginTop: 56, fontSize: 12, textAlign: 'center', breakInside: 'avoid' }}>
+          <div style={{ borderTop: `1px solid ${C.esc}`, paddingTop: 6 }}>Kora</div>
+          <div style={{ borderTop: `1px solid ${C.esc}`, paddingTop: 6 }}>{dados.cliente || 'Cliente'}</div>
+        </div>
       </div>
     </div>
   );
