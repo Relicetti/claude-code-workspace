@@ -12,13 +12,14 @@ const dadosPlanilha: DadosTarifarios = {
   fioB: dadosAtuais.fioB.filter((f) => f.inicio < '2026-06-24'),
 };
 
-// Cenário exato da aba "Simulação" de Calculos_GD_GrupoA.xlsx.
+// Cenário exato da aba "Simulação" de Calculos_GD_GrupoA.xlsx. A planilha não converte o crédito
+// entre postos (1 kWh de crédito = 1 kWh em qualquer posto).
 const cenarioPlanilha: Entrada = {
   distribuidora: 'Copel-DIS', ano: 2026, subgrupo: 'A4', modalidadeTarifaria: 'Verde',
   consumo: { Ponta: 30, 'Fora ponta': 1500 },
   ...IMPOSTOS_PADRAO,
   enquadramento: 'GD1', modalidadeGD: 'Geração Compartilhada', fonte: 'Solar',
-  descontoPct: 0.1, desagioPct: 0.1,
+  descontoPct: 0.1, desagioPct: 0.1, converterPostos: false,
 };
 
 describe('cenário da planilha (Copel A4 Verde, GD1)', () => {

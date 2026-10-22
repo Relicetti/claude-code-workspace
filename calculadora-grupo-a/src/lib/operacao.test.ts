@@ -18,7 +18,7 @@ const entrada: Entrada = {
   consumo: { Ponta: 30, 'Fora ponta': 1500 },
   ...IMPOSTOS_PADRAO,
   enquadramento: 'GD1', modalidadeGD: 'Geração Compartilhada', fonte: 'Solar',
-  descontoPct: 0.1, desagioPct: 0.1,
+  descontoPct: 0.1, desagioPct: 0.1, converterPostos: false,
 };
 
 describe('operação de crédito abatido mês a mês', () => {
@@ -36,10 +36,28 @@ describe('operação de crédito abatido mês a mês', () => {
     expect(op.total.valorGerador).toBeCloseTo(479.5367390994874 * 10, 6);
   });
 
-  it('abatimento menor que o consumo: valores proporcionais ao kWh abatido', () => {
+  it('abatimento menor que o consumo: compensa primeiro o fora ponta', () => {
     const op = simularOperacao(entrada, dados, { creditoTotalKWh: 7650, prazoMeses: 10, mesInicio: '2026-01', reajusteAnualPct: 0 });
+    const fp = calcular({ ...entrada, ano: 2026 }, dados).postos.find((l) => l.posto === 'Fora ponta')!;
+    const k = 765 / 1500;
     expect(op.meses[0].kWh).toBe(765);
-    expect(op.meses[0].valorGerador).toBeCloseTo(479.5367390994874 / 2, 9);
+    expect(op.meses[0].compensadoKWh).toBe(765);
+    expect(op.meses[0].faturaGeracao).toBeCloseTo(k * (fp.valorInjetado - 0.1 * fp.valorAtual), 9);
+    expect(op.meses[0].valorGerador).toBeCloseTo(0.9 * k * (fp.valorInjetado - 0.1 * fp.valorAtual), 9);
+  });
+
+  it('com conversão: ponta gasta TE_P / TE_FP kWh de crédito por kWh', () => {
+    const conv = { ...entrada, converterPostos: true };
+    const r = calcular({ ...conv, ano: 2026 }, dados);
+    expect(r.fatorPonta).toBeCloseTo(413.69 / 257.51, 12);
+    expect(r.saldoDebitadoKWh).toBeCloseTo(1500 + 30 * r.fatorPonta, 9);
+    const op = simularOperacao(conv, dados, { creditoTotalKWh: r.saldoDebitadoKWh * 10, prazoMeses: 10, mesInicio: '2026-01', reajusteAnualPct: 0 });
+    expect(op.meses[0].compensadoKWh).toBeCloseTo(1530, 9);
+    expect(op.meses[0].faturaGeracao).toBeCloseTo(r.faturaGeracao, 9); // cliente igual: consumo todo coberto
+    expect(op.meses[9].saldoFinalKWh).toBeCloseTo(0, 6);
+    // 1530 kWh de crédito não cobrem o mês inteiro: falta ponta
+    const curto = simularOperacao(conv, dados, { creditoTotalKWh: 15300, prazoMeses: 10, mesInicio: '2026-01', reajusteAnualPct: 0 });
+    expect(curto.meses[0].compensadoKWh).toBeCloseTo(1500 + 30 / r.fatorPonta, 9);
   });
 
   it('quebra por ano civil e aplica rampa do Fio B do ano (GD2)', () => {

@@ -52,14 +52,17 @@ export interface Entrada {
   descontoPct: number;
   /** % da fatura de geração que fica com a Kora. */
   desagioPct: number;
-  /** Valor pago ao dono do crédito, R$/kWh. Se informado, substitui o deságio: a Kora fica
-   * com o que sobrar da fatura de geração. */
+  /** Valor pago ao dono do crédito, R$ por kWh de crédito (saldo debitado). Se informado,
+   * substitui o deságio: a Kora fica com o que sobrar da fatura de geração. */
   precoGeradorKWh?: number;
-  /** Comissão do vendedor, R$/kWh fixo, tirada da parte da Kora. */
+  /** Comissão do vendedor, R$ fixo por kWh de crédito, tirada da parte da Kora. */
   vendedorKWh?: number;
   /** Comissão do vendedor em % da fatura de geração, tirada da parte da Kora. Se informada,
    * substitui o R$/kWh. */
   vendedorPct?: number;
+  /** Converte o crédito fora ponta usado na ponta pelo fator TE_P / TE_FP (REN 1.000). Desligado
+   * (false), 1 kWh de crédito cobre 1 kWh em qualquer posto. Padrão: ligado. */
+  converterPostos?: boolean;
 }
 
 export interface IsencoesGD {
@@ -96,6 +99,11 @@ export interface Resultado {
   fioBRampaPct: number;
   postos: LinhaPosto[];
   consumoTotalKWh: number;
+  /** TE_Ponta / TE_Fora ponta: kWh de saldo fora ponta gastos para cobrir 1 kWh na ponta
+   * (1 no Grupo B convencional). */
+  fatorPonta: number;
+  /** kWh de crédito (saldo fora ponta) debitados para compensar o consumo do mês inteiro. */
+  saldoDebitadoKWh: number;
 
   /** Faturamento atual (sem GD). */
   valorAtual: number;

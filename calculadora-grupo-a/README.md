@@ -50,6 +50,20 @@ anual projetado.
   R$/kWh, ele não é reajustado — a Kora absorve a diferença.
 - Saída: valores do 1º mês, tabela anual (por ano civil), mês a mês e totais da operação.
 
+## Conversão de crédito entre postos (`src/lib/compensacao.ts`)
+
+Segue o memorial "Conversão de créditos GD entre postos tarifários" (REN 1.000/2021). O crédito
+comprado entra no saldo **fora ponta**; cada mês compensa primeiro o fora ponta (1:1) e o que
+sobra cobre a ponta debitando **TE_P ÷ TE_FP** kWh de crédito por kWh (TE de aplicação ANEEL, sem
+impostos, da tarifa do ano). Ex.: Energisa MT A3a Verde 2025 = 479,66 ÷ 284,62 = 1,68526.
+
+- Opção "Converter crédito Fora Ponta → Ponta" (seção 3, ligada por padrão). Desligada, o fator
+  é 1 — igual à planilha.
+- O fator aparece na seção 3 e nas Premissas; as tabelas mostram crédito debitado e consumo
+  compensado.
+- Valor do dono do crédito e comissão em R$/kWh são **por kWh de crédito debitado**.
+- Testes reproduzem o caso Out/25 do memorial (saldo FP 902.712 → 806.962, Δ 0,65 kWh).
+
 ## Diferenças conhecidas em relação à planilha
 
 - **Rampa do Fio B (GD2)**: usa a Lei 14.300 (2025 45%, 2026 60%, 2027 75%, 2028 90%, 2029+ 100%),
