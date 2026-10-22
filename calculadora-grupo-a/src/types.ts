@@ -52,10 +52,10 @@ export interface Entrada {
   descontoPct: number;
   /** % da fatura de geração que fica com a Kora. */
   desagioPct: number;
-  /** Valor pago ao dono do crédito, R$ por kWh de crédito (saldo debitado). Se informado,
-   * substitui o deságio: a Kora fica com o que sobrar da fatura de geração. */
+  /** Valor pago ao dono do crédito, R$ por kWh compensado (não por kWh de crédito gasto). Se
+   * informado, substitui o deságio: a Kora fica com o que sobrar da fatura de geração. */
   precoGeradorKWh?: number;
-  /** Comissão do vendedor, R$ fixo por kWh de crédito, tirada da parte da Kora. */
+  /** Comissão do vendedor, R$/kWh compensado fixo, tirada da parte da Kora. */
   vendedorKWh?: number;
   /** Comissão do vendedor em % da fatura de geração, tirada da parte da Kora. Se informada,
    * substitui o R$/kWh. */

@@ -46,18 +46,27 @@ describe('operação de crédito abatido mês a mês', () => {
     expect(op.meses[0].valorGerador).toBeCloseTo(0.9 * k * (fp.valorInjetado - 0.1 * fp.valorAtual), 9);
   });
 
-  it('com conversão: ponta gasta TE_P / TE_FP kWh de crédito por kWh', () => {
-    const conv = { ...entrada, converterPostos: true };
+  it('com conversão: mesmos valores por mês, o crédito só acaba antes', () => {
+    const conv = { ...entrada, converterPostos: true, precoGeradorKWh: 0.3, vendedorKWh: 0.01 };
+    const sem = { ...conv, converterPostos: false };
+    const p = { creditoTotalKWh: 153000, prazoMeses: 100, mesInicio: '2026-01', reajusteAnualPct: 0 };
     const r = calcular({ ...conv, ano: 2026 }, dados);
     expect(r.fatorPonta).toBeCloseTo(413.69 / 257.51, 12);
     expect(r.saldoDebitadoKWh).toBeCloseTo(1500 + 30 * r.fatorPonta, 9);
-    const op = simularOperacao(conv, dados, { creditoTotalKWh: r.saldoDebitadoKWh * 10, prazoMeses: 10, mesInicio: '2026-01', reajusteAnualPct: 0 });
-    expect(op.meses[0].compensadoKWh).toBeCloseTo(1530, 9);
-    expect(op.meses[0].faturaGeracao).toBeCloseTo(r.faturaGeracao, 9); // cliente igual: consumo todo coberto
-    expect(op.meses[9].saldoFinalKWh).toBeCloseTo(0, 6);
-    // 1530 kWh de crédito não cobrem o mês inteiro: falta ponta
-    const curto = simularOperacao(conv, dados, { creditoTotalKWh: 15300, prazoMeses: 10, mesInicio: '2026-01', reajusteAnualPct: 0 });
-    expect(curto.meses[0].compensadoKWh).toBeCloseTo(1500 + 30 / r.fatorPonta, 9);
+    expect(r.valorGerador).toBeCloseTo(calcular({ ...sem, ano: 2026 }, dados).valorGerador, 9); // gerador não sobe
+
+    const a = simularOperacao(conv, dados, p);
+    const b = simularOperacao(sem, dados, p);
+    expect(b.meses).toHaveLength(100);
+    expect(a.meses.length).toBe(99);                             // 153.000 ÷ 1.548,2 = 98,8 meses
+    expect(a.meses.length).toBe(Math.ceil(153000 / r.saldoDebitadoKWh));
+    expect(a.meses[0].kWh).toBeCloseTo(r.saldoDebitadoKWh, 9);    // gasta mais crédito…
+    expect(a.meses[0].compensadoKWh).toBeCloseTo(1530, 9);        // …para o mesmo consumo
+    expect(a.meses[0].valorGerador).toBeCloseTo(b.meses[0].valorGerador, 9);
+    expect(a.meses[0].valorVendedor).toBeCloseTo(b.meses[0].valorVendedor, 9);
+    expect(a.meses[0].faturaGeracao).toBeCloseTo(b.meses[0].faturaGeracao, 9);
+    expect(a.meses[a.meses.length - 1].saldoFinalKWh).toBeCloseTo(0, 6);
+    expect(a.total.kWh).toBeCloseTo(153000, 6);
   });
 
   it('quebra por ano civil e aplica rampa do Fio B do ano (GD2)', () => {
