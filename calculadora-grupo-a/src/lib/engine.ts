@@ -145,16 +145,16 @@ export function calcular(e: Entrada, dados: DadosTarifarios): Resultado {
   const valorCss = valorAtual - valorInjetado;              // L4 = (F21 − I26) × C18
   const faturaGeracao = valorAtual - desconto - valorCss;   // L5
   // Planilha: Kora = fatura de geração × deságio (L10) e gerador = o resto (L11). Com o valor do
-  // dono do crédito fixado, a conta inverte: gerador = R$/kWh × kWh de crédito debitado e a Kora
-  // fica com o resto.
+  // dono do crédito fixado, a conta inverte: gerador = R$/kWh × consumo compensado e a Kora fica
+  // com o resto. A conversão da ponta gasta mais crédito, mas não aumenta o valor do gerador.
   const valorGerador = e.precoGeradorKWh !== undefined
-    ? e.precoGeradorKWh * saldoDebitadoKWh
+    ? e.precoGeradorKWh * consumoTotalKWh
     : faturaGeracao * (1 - e.desagioPct);
   const margem = faturaGeracao - valorGerador;
-  // Comissão do vendedor: R$/kWh de crédito ou % da fatura de geração, sempre saindo da parte da Kora.
+  // Comissão do vendedor: R$/kWh fixo ou % da fatura de geração, sempre saindo da parte da Kora.
   const valorVendedor = e.vendedorPct !== undefined
     ? e.vendedorPct * faturaGeracao
-    : (e.vendedorKWh ?? 0) * saldoDebitadoKWh;
+    : (e.vendedorKWh ?? 0) * consumoTotalKWh;
   const valorKora = margem - valorVendedor;
 
   return {

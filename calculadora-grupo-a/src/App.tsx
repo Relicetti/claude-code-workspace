@@ -262,9 +262,7 @@ export default function App() {
   const trocarModoRemuneracao = (modo: 'desagio' | 'preco') => {
     if (modo === 'desagio') { set('precoGeradorKWh', undefined); return; }
     if (entrada.precoGeradorKWh !== undefined) return;
-    // R$ por kWh de crédito (saldo debitado), não por kWh consumido.
-    const r = calculo && 'r' in calculo ? calculo.r : undefined;
-    const atual = r && r.saldoDebitadoKWh > 0 ? r.valorGerador / r.saldoDebitadoKWh : 0;
+    const atual = calculo && 'r' in calculo ? calculo.r.tarifaMediaGerador : 0;
     set('precoGeradorKWh', Number(atual.toFixed(4)));
   };
   // Mesma ideia para a comissão: a troca de unidade converte o valor atual, sem mudar o resultado.
@@ -272,8 +270,7 @@ export default function App() {
     if ((modo === 'pct') === (entrada.vendedorPct !== undefined)) return;
     const r = calculo && 'r' in calculo ? calculo.r : undefined;
     if (modo === 'kwh') {
-      const porCredito = r && r.saldoDebitadoKWh > 0 ? r.valorVendedor / r.saldoDebitadoKWh : 0;
-      setEntrada((e) => ({ ...e, vendedorPct: undefined, vendedorKWh: Number(porCredito.toFixed(4)) }));
+      setEntrada((e) => ({ ...e, vendedorPct: undefined, vendedorKWh: Number((r?.tarifaMediaVendedor ?? 0).toFixed(4)) }));
     } else {
       const pct = r && r.faturaGeracao !== 0 ? r.valorVendedor / r.faturaGeracao : 0;
       set('vendedorPct', Number(pct.toFixed(4)));
@@ -294,9 +291,9 @@ export default function App() {
     try { return { op: simularOperacao(entrada, dados, operacao) }; } catch (e) { return { erro: (e as Error).message }; }
   }, [entrada, dados, operacao, calculo]);
   const consumoMensal = postosDoGrupo(grupo).reduce((s, p) => s + (entrada.consumo[p] ?? 0), 0);
-  // Crédito que o consumo do mês inteiro gasta, já com o fator da ponta.
   const rCalc = calculo && 'r' in calculo ? calculo.r : undefined;
-  const creditoMensal = rCalc?.saldoDebitadoKWh ?? consumoMensal;
+  const opCalc = simulacao && 'op' in simulacao ? simulacao.op : undefined;
+  const converte = grupo === 'A' && entrada.converterPostos !== false;
 
   if (verProposta && calculo && 'r' in calculo && simulacao && 'op' in simulacao) {
     return (
@@ -379,13 +376,15 @@ export default function App() {
               </Field>
             </Duas>
             <div style={{ fontSize: 11, color: C.med, marginTop: -4, marginBottom: 12, lineHeight: 1.5 }}>
-              Abatimento: <b>{R(operacao.prazoMeses > 0 ? operacao.creditoTotalKWh / operacao.prazoMeses : 0)} kWh/mês</b>
-              {' '}· cliente consome {R(consumoMensal)} kWh/mês
-              {grupo === 'A' && rCalc && entrada.converterPostos !== false ? <> = <b>{R(creditoMensal)} kWh de crédito</b></> : null}.{' '}
-              {creditoMensal > 0 && (
-                <button className="no-print" onClick={() => setOp('prazoMeses', prazoPeloConsumo(operacao.creditoTotalKWh, creditoMensal))}
+              Abatimento: <b>{R(operacao.prazoMeses > 0 ? operacao.creditoTotalKWh / operacao.prazoMeses : 0)} kWh/mês</b> de consumo
+              {' '}· cliente consome {R(consumoMensal)} kWh/mês.{' '}
+              {converte && opCalc && opCalc.meses.length < Math.round(operacao.prazoMeses) && (
+                <>Com a conversão da ponta o crédito acaba em <b>{opCalc.meses.length} meses</b>.{' '}</>
+              )}
+              {consumoMensal > 0 && (
+                <button className="no-print" onClick={() => setOp('prazoMeses', prazoPeloConsumo(operacao.creditoTotalKWh, consumoMensal))}
                   style={{ border: 'none', background: 'none', color: C.azul, cursor: 'pointer', fontSize: 11, padding: 0, textDecoration: 'underline' }}>
-                  Usar prazo pelo consumo ({prazoPeloConsumo(operacao.creditoTotalKWh, creditoMensal)} meses)
+                  Usar prazo pelo consumo ({prazoPeloConsumo(operacao.creditoTotalKWh, consumoMensal)} meses)
                 </button>
               )}
             </div>
@@ -402,7 +401,7 @@ export default function App() {
                     <b style={{ color: C.esc }}>{R(rCalc.postos.find((l) => l.posto === 'Ponta')!.te / rCalc.postos.find((l) => l.posto === 'Fora ponta')!.te, 5)}</b>
                     {' '}({R(rCalc.postos.find((l) => l.posto === 'Ponta')!.te, 2)} ÷ {R(rCalc.postos.find((l) => l.posto === 'Fora ponta')!.te, 2)} R$/MWh)
                     {entrada.converterPostos !== false
-                      ? <> — cada kWh na ponta gasta {R(rCalc.fatorPonta, 5)} kWh de crédito.</>
+                      ? <> — cada kWh na ponta gasta {R(rCalc.fatorPonta, 5)} kWh de crédito (o consumo todo gasta {R(rCalc.saldoDebitadoKWh)} kWh/mês). O valor do dono do crédito não muda; o crédito só acaba antes.</>
                       : <> — desligado: 1 kWh de crédito cobre 1 kWh na ponta.</>}
                   </div>
                 )}
@@ -456,7 +455,7 @@ export default function App() {
                 <PercentField value={entrada.desagioPct} onChange={(v) => set('desagioPct', v)} />
               </Field>
             ) : (
-              <Field label="Valor pago ao dono do crédito (R$/kWh)" help="Por kWh de crédito debitado. A Kora fica com o que sobrar da fatura de geração.">
+              <Field label="Valor pago ao dono do crédito (R$/kWh)" help="Por kWh compensado. A Kora fica com o que sobrar da fatura de geração.">
                 <input type="number" step="0.0001" min="0" style={inputStyle} value={entrada.precoGeradorKWh}
                   onChange={(e) => set('precoGeradorKWh', Number(e.target.value))} />
               </Field>
@@ -475,14 +474,20 @@ export default function App() {
               </div>
             </Field>
             {entrada.vendedorPct === undefined ? (
-              <Field label="Comissão do vendedor (R$/kWh)" help="Valor fixo por kWh de crédito, tirado da parte da Kora.">
+              <Field label="Comissão do vendedor (R$/kWh)" help="Valor fixo por kWh compensado, tirado da parte da Kora.">
                 <input type="number" step="0.0001" min="0" style={inputStyle} value={entrada.vendedorKWh ?? 0}
                   onChange={(e) => set('vendedorKWh', Number(e.target.value))} />
               </Field>
             ) : (
-              <Field label="Comissão do vendedor (%)" help="% da fatura de geração (o que o cliente paga pelos créditos), tirado da parte da Kora.">
+              <Field label="Comissão do vendedor (%)" help="% sobre o valor total da fatura de geração (o que o cliente paga pelos créditos), tirado da parte da Kora.">
                 <PercentField value={entrada.vendedorPct} onChange={(v) => set('vendedorPct', v)} />
               </Field>
+            )}
+            {rCalc && rCalc.valorVendedor > 0 && (
+              <div style={{ fontSize: 11, color: C.med, marginTop: -4, lineHeight: 1.5 }}>
+                Vendedor: <b>{RS(rCalc.valorVendedor)}/mês</b> = {RKWH(rCalc.tarifaMediaVendedor)} ={' '}
+                {PCT(rCalc.faturaGeracao !== 0 ? rCalc.valorVendedor / rCalc.faturaGeracao : 0)} da fatura de geração ({RS(rCalc.faturaGeracao)}/mês)
+              </div>
             )}
           </Section>
         </aside>

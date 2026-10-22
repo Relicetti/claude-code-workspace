@@ -61,7 +61,11 @@ impostos, da tarifa do ano). Ex.: Energisa MT A3a Verde 2025 = 479,66 ÷ 284,62 
   é 1 — igual à planilha.
 - O fator aparece na seção 3 e nas Premissas; as tabelas mostram crédito debitado e consumo
   compensado.
-- Valor do dono do crédito e comissão em R$/kWh são **por kWh de crédito debitado**.
+- Cada mês compensa o mesmo consumo (crédito ÷ prazo). Com a conversão ligada, a ponta gasta mais
+  crédito: os valores do mês (cliente, gerador, Kora, vendedor) **não mudam**, o crédito só acaba
+  antes do prazo. Valor do dono do crédito e comissão em R$/kWh são por kWh compensado.
+- Comissão do vendedor em % é sobre o valor total da fatura de geração e sai da parte da Kora; a
+  tela mostra o equivalente em R$/mês, R$/kWh e %.
 - Testes reproduzem o caso Out/25 do memorial (saldo FP 902.712 → 806.962, Δ 0,65 kWh).
 
 ## Proposta comercial
