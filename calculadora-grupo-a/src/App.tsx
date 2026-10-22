@@ -39,6 +39,7 @@ const DEFAULT_ENTRADA: Entrada = {
   fonte: 'Solar',
   descontoPct: descontoPadrao(DEFAULT_DISTRIBUIDORA),
   desagioPct: 0.1,
+  converterPostos: true,
 };
 
 const proximoMes = () => {
@@ -259,7 +260,9 @@ export default function App() {
   const trocarModoRemuneracao = (modo: 'desagio' | 'preco') => {
     if (modo === 'desagio') { set('precoGeradorKWh', undefined); return; }
     if (entrada.precoGeradorKWh !== undefined) return;
-    const atual = calculo && 'r' in calculo ? calculo.r.tarifaMediaGerador : 0;
+    // R$ por kWh de crédito (saldo debitado), não por kWh consumido.
+    const r = calculo && 'r' in calculo ? calculo.r : undefined;
+    const atual = r && r.saldoDebitadoKWh > 0 ? r.valorGerador / r.saldoDebitadoKWh : 0;
     set('precoGeradorKWh', Number(atual.toFixed(4)));
   };
   // Mesma ideia para a comissão: a troca de unidade converte o valor atual, sem mudar o resultado.
@@ -267,7 +270,8 @@ export default function App() {
     if ((modo === 'pct') === (entrada.vendedorPct !== undefined)) return;
     const r = calculo && 'r' in calculo ? calculo.r : undefined;
     if (modo === 'kwh') {
-      setEntrada((e) => ({ ...e, vendedorPct: undefined, vendedorKWh: Number((r?.tarifaMediaVendedor ?? 0).toFixed(4)) }));
+      const porCredito = r && r.saldoDebitadoKWh > 0 ? r.valorVendedor / r.saldoDebitadoKWh : 0;
+      setEntrada((e) => ({ ...e, vendedorPct: undefined, vendedorKWh: Number(porCredito.toFixed(4)) }));
     } else {
       const pct = r && r.faturaGeracao !== 0 ? r.valorVendedor / r.faturaGeracao : 0;
       set('vendedorPct', Number(pct.toFixed(4)));
@@ -288,6 +292,9 @@ export default function App() {
     try { return { op: simularOperacao(entrada, dados, operacao) }; } catch (e) { return { erro: (e as Error).message }; }
   }, [entrada, dados, operacao, calculo]);
   const consumoMensal = postosDoGrupo(grupo).reduce((s, p) => s + (entrada.consumo[p] ?? 0), 0);
+  // Crédito que o consumo do mês inteiro gasta, já com o fator da ponta.
+  const rCalc = calculo && 'r' in calculo ? calculo.r : undefined;
+  const creditoMensal = rCalc?.saldoDebitadoKWh ?? consumoMensal;
 
   return (
     <div style={{ minHeight: '100vh' }}>
@@ -359,14 +366,34 @@ export default function App() {
             </Duas>
             <div style={{ fontSize: 11, color: C.med, marginTop: -4, marginBottom: 12, lineHeight: 1.5 }}>
               Abatimento: <b>{R(operacao.prazoMeses > 0 ? operacao.creditoTotalKWh / operacao.prazoMeses : 0)} kWh/mês</b>
-              {' '}· cliente consome {R(consumoMensal)} kWh/mês.{' '}
-              {consumoMensal > 0 && (
-                <button className="no-print" onClick={() => setOp('prazoMeses', prazoPeloConsumo(operacao.creditoTotalKWh, consumoMensal))}
+              {' '}· cliente consome {R(consumoMensal)} kWh/mês
+              {grupo === 'A' && rCalc && entrada.converterPostos !== false ? <> = <b>{R(creditoMensal)} kWh de crédito</b></> : null}.{' '}
+              {creditoMensal > 0 && (
+                <button className="no-print" onClick={() => setOp('prazoMeses', prazoPeloConsumo(operacao.creditoTotalKWh, creditoMensal))}
                   style={{ border: 'none', background: 'none', color: C.azul, cursor: 'pointer', fontSize: 11, padding: 0, textDecoration: 'underline' }}>
-                  Usar prazo pelo consumo ({prazoPeloConsumo(operacao.creditoTotalKWh, consumoMensal)} meses)
+                  Usar prazo pelo consumo ({prazoPeloConsumo(operacao.creditoTotalKWh, creditoMensal)} meses)
                 </button>
               )}
             </div>
+            {grupo === 'A' && (
+              <div style={{ background: C.clar, borderRadius: 6, padding: '8px 10px', marginBottom: 12, fontSize: 11, lineHeight: 1.5 }}>
+                <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={entrada.converterPostos !== false}
+                    onChange={(e) => set('converterPostos', e.target.checked)} />
+                  Converter crédito Fora Ponta → Ponta
+                </label>
+                {rCalc && (
+                  <div style={{ color: C.med, marginTop: 4 }}>
+                    Fator TE Ponta ÷ TE Fora Ponta ({entrada.ano}):{' '}
+                    <b style={{ color: C.esc }}>{R(rCalc.postos.find((l) => l.posto === 'Ponta')!.te / rCalc.postos.find((l) => l.posto === 'Fora ponta')!.te, 5)}</b>
+                    {' '}({R(rCalc.postos.find((l) => l.posto === 'Ponta')!.te, 2)} ÷ {R(rCalc.postos.find((l) => l.posto === 'Fora ponta')!.te, 2)} R$/MWh)
+                    {entrada.converterPostos !== false
+                      ? <> — cada kWh na ponta gasta {R(rCalc.fatorPonta, 5)} kWh de crédito.</>
+                      : <> — desligado: 1 kWh de crédito cobre 1 kWh na ponta.</>}
+                  </div>
+                )}
+              </div>
+            )}
             <Field label="Reajuste tarifário anual projetado (%)" help="Aplicado a partir do 2º ano. A tarifa ANEEL atual já entra no 1º ano.">
               <PercentField value={operacao.reajusteAnualPct} onChange={(v) => setOp('reajusteAnualPct', v)} />
             </Field>
@@ -415,7 +442,7 @@ export default function App() {
                 <PercentField value={entrada.desagioPct} onChange={(v) => set('desagioPct', v)} />
               </Field>
             ) : (
-              <Field label="Valor pago ao dono do crédito (R$/kWh)" help="A Kora fica com o que sobrar da fatura de geração.">
+              <Field label="Valor pago ao dono do crédito (R$/kWh)" help="Por kWh de crédito debitado. A Kora fica com o que sobrar da fatura de geração.">
                 <input type="number" step="0.0001" min="0" style={inputStyle} value={entrada.precoGeradorKWh}
                   onChange={(e) => set('precoGeradorKWh', Number(e.target.value))} />
               </Field>
@@ -434,7 +461,7 @@ export default function App() {
               </div>
             </Field>
             {entrada.vendedorPct === undefined ? (
-              <Field label="Comissão do vendedor (R$/kWh)" help="Valor fixo por kWh, tirado da parte da Kora.">
+              <Field label="Comissão do vendedor (R$/kWh)" help="Valor fixo por kWh de crédito, tirado da parte da Kora.">
                 <input type="number" step="0.0001" min="0" style={inputStyle} value={entrada.vendedorKWh ?? 0}
                   onChange={(e) => set('vendedorKWh', Number(e.target.value))} />
               </Field>
@@ -613,6 +640,10 @@ function Resultados({ r, entrada }: { r: Resultado; entrada: Entrada }) {
             <Linha label="Isenção PIS/COFINS na TUSD" value={sim(r.isencoes.tusdPisCofins)} />
             <Linha label="Rampa Fio B (GD2)" value={entrada.enquadramento === 'GD2' ? PCT(r.fioBRampaPct) : 'não se aplica'} />
             <Linha label="Tarifa média injetada" value={RKWH(r.tarifaMediaInjetada)} />
+            {r.postos.length > 1 && (
+              <Linha label="Fator Fora Ponta → Ponta" value={entrada.converterPostos !== false ? R(r.fatorPonta, 5) : 'desligado (1)'} />
+            )}
+            <Linha label="Crédito gasto no mês" value={`${R(r.saldoDebitadoKWh)} kWh`} />
           </Section>
         </div>
       </div>
@@ -648,20 +679,20 @@ function OperacaoView({ op, p }: { op: ResultadoOperacao; p: ParametrosOperacao 
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead><tr>
-                <th style={thL}>Ano</th><th style={thStyle}>Meses</th><th style={thStyle}>kWh abatido</th>
+                <th style={thL}>Ano</th><th style={thStyle}>Meses</th><th style={thStyle}>Crédito debitado (kWh)</th><th style={thStyle}>Consumo compensado (kWh)</th>
                 <th style={thStyle}>Desconto cliente</th><th style={thStyle}>Fatura de geração</th>
                 <th style={thStyle}>Gerador</th><th style={thStyle}>Vendedor</th><th style={thStyle}>Kora (nosso)</th>
               </tr></thead>
               <tbody>
                 {op.anos.map((a) => (
                   <tr key={a.ano}>
-                    <td style={{ ...tdL, fontWeight: 600 }}>{a.ano}</td><td style={tdStyle}>{a.meses}</td><td style={tdStyle}>{R(a.kWh)}</td>
+                    <td style={{ ...tdL, fontWeight: 600 }}>{a.ano}</td><td style={tdStyle}>{a.meses}</td><td style={tdStyle}>{R(a.kWh)}</td><td style={tdStyle}>{R(a.compensadoKWh)}</td>
                     <td style={tdStyle}>{RS(a.desconto)}</td><td style={tdStyle}>{RS(a.faturaGeracao)}</td>
                     <td style={tdStyle}>{RS(a.valorGerador)}</td><td style={tdStyle}>{RS(a.valorVendedor)}</td><td style={tdStyle}>{RS(a.valorKora)}</td>
                   </tr>
                 ))}
                 <tr>
-                  <td style={{ ...linhaTotal, textAlign: 'left' }}>Total</td><td style={linhaTotal}>{op.total.meses}</td><td style={linhaTotal}>{R(op.total.kWh)}</td>
+                  <td style={{ ...linhaTotal, textAlign: 'left' }}>Total</td><td style={linhaTotal}>{op.total.meses}</td><td style={linhaTotal}>{R(op.total.kWh)}</td><td style={linhaTotal}>{R(op.total.compensadoKWh)}</td>
                   <td style={linhaTotal}>{RS(op.total.desconto)}</td><td style={linhaTotal}>{RS(op.total.faturaGeracao)}</td>
                   <td style={linhaTotal}>{RS(op.total.valorGerador)}</td><td style={linhaTotal}>{RS(op.total.valorVendedor)}</td><td style={linhaTotal}>{RS(op.total.valorKora)}</td>
                 </tr>
@@ -675,14 +706,14 @@ function OperacaoView({ op, p }: { op: ResultadoOperacao; p: ParametrosOperacao 
           <div style={{ overflowX: 'auto', marginTop: 10 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead><tr>
-                <th style={thL}>Mês</th><th style={thStyle}>kWh abatido</th><th style={thStyle}>Saldo de crédito</th>
+                <th style={thL}>Mês</th><th style={thStyle}>Crédito debitado (kWh)</th><th style={thStyle}>Consumo compensado (kWh)</th><th style={thStyle}>Saldo de crédito</th>
                 <th style={thStyle}>Desconto cliente</th><th style={thStyle}>Fatura de geração</th>
                 <th style={thStyle}>Gerador</th><th style={thStyle}>Vendedor</th><th style={thStyle}>Kora (nosso)</th>
               </tr></thead>
               <tbody>
                 {op.meses.map((m) => (
                   <tr key={m.mes}>
-                    <td style={tdL}>{MES(m.mes)}</td><td style={tdStyle}>{R(m.kWh)}</td><td style={tdStyle}>{R(m.saldoFinalKWh)}</td>
+                    <td style={tdL}>{MES(m.mes)}</td><td style={tdStyle}>{R(m.kWh)}</td><td style={tdStyle}>{R(m.compensadoKWh)}</td><td style={tdStyle}>{R(m.saldoFinalKWh)}</td>
                     <td style={tdStyle}>{RS(m.desconto)}</td><td style={tdStyle}>{RS(m.faturaGeracao)}</td>
                     <td style={tdStyle}>{RS(m.valorGerador)}</td><td style={tdStyle}>{RS(m.valorVendedor)}</td><td style={tdStyle}>{RS(m.valorKora)}</td>
                   </tr>

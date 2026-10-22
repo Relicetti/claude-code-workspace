@@ -3,6 +3,7 @@
 import type {
   DadosTarifarios, Entrada, Grupo, IsencoesGD, LinhaPosto, ModalidadeTarifaria, Posto, Resultado,
 } from '../types';
+import { compensar, fatorConversao, postoDoCredito } from './compensacao';
 import descontoData from '../data/desconto.json';
 import equivalenciaData from '../data/equivalencia.json';
 import isencoesData from '../data/isencoes.json';
@@ -84,6 +85,11 @@ function maisRecente<T extends { inicio: string }>(linhas: T[], ano: number): T 
   return melhor;
 }
 
+/** TE por posto usada no fator de conversão — tudo 1 (sem conversão) se o usuário desligou. */
+export function teConversao(postos: LinhaPosto[], converterPostos = true): Partial<Record<Posto, number>> {
+  return Object.fromEntries(postos.map((p) => [p.posto, converterPostos ? p.te : 1]));
+}
+
 export function calcular(e: Entrada, dados: DadosTarifarios): Resultado {
   const estado = resolverEstado(e.distribuidora);
   const agente = resolverAgenteAneel(e.distribuidora, dados);
@@ -124,6 +130,13 @@ export function calcular(e: Entrada, dados: DadosTarifarios): Resultado {
   });
 
   const consumoTotalKWh = postos.reduce((s, p) => s + p.kWh, 0);
+  // O crédito comprado entra no saldo fora ponta; cobrir a ponta custa TE_P / TE_FP kWh de saldo
+  // por kWh (memorial de conversão entre postos).
+  const te = teConversao(postos, e.converterPostos);
+  const origem = postoDoCredito(postos.map((p) => p.posto));
+  const fatorPonta = te.Ponta !== undefined ? fatorConversao(te, origem, 'Ponta') : 1;
+  const consumo = Object.fromEntries(postos.map((p) => [p.posto, p.kWh]));
+  const saldoDebitadoKWh = compensar(consumo, { [origem]: Infinity }, te).debitado[origem] ?? 0;
   const valorAtual = postos.reduce((s, p) => s + p.valorAtual, 0);
   const valorInjetado = postos.reduce((s, p) => s + p.valorInjetado, 0);
   const porKWh = (v: number) => (consumoTotalKWh > 0 ? v / consumoTotalKWh : 0);
@@ -132,19 +145,20 @@ export function calcular(e: Entrada, dados: DadosTarifarios): Resultado {
   const valorCss = valorAtual - valorInjetado;              // L4 = (F21 − I26) × C18
   const faturaGeracao = valorAtual - desconto - valorCss;   // L5
   // Planilha: Kora = fatura de geração × deságio (L10) e gerador = o resto (L11). Com o valor do
-  // dono do crédito fixado, a conta inverte: gerador = R$/kWh × consumo e a Kora fica com o resto.
+  // dono do crédito fixado, a conta inverte: gerador = R$/kWh × kWh de crédito debitado e a Kora
+  // fica com o resto.
   const valorGerador = e.precoGeradorKWh !== undefined
-    ? e.precoGeradorKWh * consumoTotalKWh
+    ? e.precoGeradorKWh * saldoDebitadoKWh
     : faturaGeracao * (1 - e.desagioPct);
   const margem = faturaGeracao - valorGerador;
-  // Comissão do vendedor: R$/kWh fixo ou % da fatura de geração, sempre saindo da parte da Kora.
+  // Comissão do vendedor: R$/kWh de crédito ou % da fatura de geração, sempre saindo da parte da Kora.
   const valorVendedor = e.vendedorPct !== undefined
     ? e.vendedorPct * faturaGeracao
-    : (e.vendedorKWh ?? 0) * consumoTotalKWh;
+    : (e.vendedorKWh ?? 0) * saldoDebitadoKWh;
   const valorKora = margem - valorVendedor;
 
   return {
-    estado, agenteAneel: agente, isencoes, fioBRampaPct: rampa, postos, consumoTotalKWh,
+    estado, agenteAneel: agente, isencoes, fioBRampaPct: rampa, postos, consumoTotalKWh, fatorPonta, saldoDebitadoKWh,
     valorAtual, tarifaMediaCliente: porKWh(valorAtual), desconto,
     valorInjetado, tarifaMediaInjetada: porKWh(valorInjetado),
     valorCss, tarifaMediaCss: porKWh(valorCss), faturaGeracao, valorTotalComKora: valorCss + faturaGeracao,
