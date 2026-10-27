@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { calcular, IMPOSTOS_PADRAO } from './engine';
-import { prazoPeloConsumo, simularOperacao } from './operacao';
+import { creditoNecessario, prazoPeloConsumo, simularOperacao } from './operacao';
 import tarifasData from '../data/tarifas.json';
 import type { DadosTarifarios, Entrada } from '../types';
 
@@ -46,27 +46,38 @@ describe('operação de crédito abatido mês a mês', () => {
     expect(op.meses[0].valorGerador).toBeCloseTo(0.9 * k * (fp.valorInjetado - 0.1 * fp.valorAtual), 9);
   });
 
-  it('com conversão: mesmos valores por mês, o crédito só acaba antes', () => {
+  it('com conversão: o crédito necessário cobre o consumo todo no prazo, sem pagar mais ao gerador', () => {
     const conv = { ...entrada, converterPostos: true, precoGeradorKWh: 0.3, vendedorKWh: 0.01 };
     const sem = { ...conv, converterPostos: false };
-    const p = { creditoTotalKWh: 153000, prazoMeses: 100, mesInicio: '2026-01', reajusteAnualPct: 0 };
     const r = calcular({ ...conv, ano: 2026 }, dados);
     expect(r.fatorPonta).toBeCloseTo(413.69 / 257.51, 12);
     expect(r.saldoDebitadoKWh).toBeCloseTo(1500 + 30 * r.fatorPonta, 9);
     expect(r.valorGerador).toBeCloseTo(calcular({ ...sem, ano: 2026 }, dados).valorGerador, 9); // gerador não sobe
 
+    const necessario = creditoNecessario(r.saldoDebitadoKWh, 12);
+    expect(necessario).toBe(Math.ceil(12 * (1500 + 30 * r.fatorPonta)));
+    const p = { creditoTotalKWh: necessario, prazoMeses: 12, mesInicio: '2026-01', reajusteAnualPct: 0 };
     const a = simularOperacao(conv, dados, p);
-    const b = simularOperacao(sem, dados, p);
-    expect(b.meses).toHaveLength(100);
-    expect(a.meses.length).toBe(99);                             // 153.000 ÷ 1.548,2 = 98,8 meses
-    expect(a.meses.length).toBe(Math.ceil(153000 / r.saldoDebitadoKWh));
-    expect(a.meses[0].kWh).toBeCloseTo(r.saldoDebitadoKWh, 9);    // gasta mais crédito…
-    expect(a.meses[0].compensadoKWh).toBeCloseTo(1530, 9);        // …para o mesmo consumo
+    const b = simularOperacao(sem, dados, { ...p, creditoTotalKWh: 1530 * 12 });
+    expect(a.meses).toHaveLength(12);
+    expect(a.meses[0].compensadoKWh).toBeCloseTo(1530, 9);
+    expect(a.meses[11].compensadoKWh).toBeCloseTo(1530, 9);
     expect(a.meses[0].valorGerador).toBeCloseTo(b.meses[0].valorGerador, 9);
     expect(a.meses[0].valorVendedor).toBeCloseTo(b.meses[0].valorVendedor, 9);
     expect(a.meses[0].faturaGeracao).toBeCloseTo(b.meses[0].faturaGeracao, 9);
-    expect(a.meses[a.meses.length - 1].saldoFinalKWh).toBeCloseTo(0, 6);
-    expect(a.total.kWh).toBeCloseTo(153000, 6);
+    expect(a.total.kWh).toBeCloseTo(12 * r.saldoDebitadoKWh, 6); // a fração do arredondamento sobra
+  });
+
+  it('com conversão e crédito = consumo × prazo: sobra ponta sem compensar todo mês', () => {
+    // Caso da proposta: crédito igual ao consumo (1.530/mês) não cobre a ponta convertida.
+    const conv = { ...entrada, converterPostos: true };
+    const r = calcular({ ...conv, ano: 2026 }, dados);
+    const op = simularOperacao(conv, dados, { creditoTotalKWh: 1530 * 12, prazoMeses: 12, mesInicio: '2026-01', reajusteAnualPct: 0 });
+    expect(op.meses).toHaveLength(12);
+    expect(op.meses[0].kWh).toBeCloseTo(1530, 9);                       // entra 1.530 de crédito…
+    expect(op.meses[0].compensadoKWh).toBeCloseTo(1500 + 30 / r.fatorPonta, 9); // …1.500 FP + 18,7 P
+    expect(op.meses[11].compensadoKWh).toBeCloseTo(op.meses[0].compensadoKWh, 9);
+    expect(op.meses[11].saldoFinalKWh).toBeCloseTo(0, 6);
   });
 
   it('quebra por ano civil e aplica rampa do Fio B do ano (GD2)', () => {
@@ -105,5 +116,8 @@ describe('operação de crédito abatido mês a mês', () => {
     expect(() => simularOperacao(entrada, dados, { creditoTotalKWh: 100000, prazoMeses: 12, mesInicio: '2026-01', reajusteAnualPct: 0 }))
       .toThrow(/Prazo mínimo: 66 meses/);
     expect(prazoPeloConsumo(100000, 1530)).toBe(66);
+    // com a ponta convertida o consumo gasta mais crédito por mês: prazo mínimo menor
+    expect(() => simularOperacao({ ...entrada, converterPostos: true }, dados, { creditoTotalKWh: 100000, prazoMeses: 12, mesInicio: '2026-01', reajusteAnualPct: 0 }))
+      .toThrow(/Prazo mínimo: 65 meses/);
   });
 });

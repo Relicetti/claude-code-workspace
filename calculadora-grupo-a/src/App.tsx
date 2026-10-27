@@ -7,7 +7,7 @@ import { DetalhamentoKora } from './DetalhamentoKora';
 import { FolhetoKora } from './FolhetoKora';
 import { DATA, MES, PCT, R, RKWH, ROTULO_POSTO, RS } from './formato';
 import { identificacao, rotuloRevisao, type DadosProposta, type NovaRevisao, type Proposta, type RevisaoProposta } from './lib/propostas';
-import { prazoPeloConsumo, simularOperacao, type ParametrosOperacao, type ResultadoOperacao } from './lib/operacao';
+import { creditoNecessario, prazoPeloConsumo, simularOperacao, type ParametrosOperacao, type ResultadoOperacao } from './lib/operacao';
 import type {
   DadosTarifarios, Enquadramento, Entrada, Fonte, Grupo, ModalidadeGD, ModalidadeTarifaria, Posto, Resultado,
 } from './types';
@@ -293,6 +293,7 @@ export default function App() {
   const rCalc = calculo && 'r' in calculo ? calculo.r : undefined;
   const opCalc = simulacao && 'op' in simulacao ? simulacao.op : undefined;
   const converte = grupo === 'A' && entrada.converterPostos !== false;
+  const necessario = rCalc ? creditoNecessario(rCalc.saldoDebitadoKWh, operacao.prazoMeses) : 0;
 
   const gerarProposta = async (): Promise<RefRevisao> => {
     if (!rCalc || !opCalc) throw new Error('Simulação inválida.');
@@ -430,15 +431,32 @@ export default function App() {
               </Field>
             </Duas>
             <div style={{ fontSize: 11, color: C.med, marginTop: -4, marginBottom: 12, lineHeight: 1.5 }}>
-              Abatimento: <b>{R(operacao.prazoMeses > 0 ? operacao.creditoTotalKWh / operacao.prazoMeses : 0)} kWh/mês</b> de consumo
-              {' '}· cliente consome {R(consumoMensal)} kWh/mês.{' '}
-              {converte && opCalc && opCalc.meses.length < Math.round(operacao.prazoMeses) && (
-                <>Com a conversão da ponta o crédito acaba em <b>{opCalc.meses.length} meses</b>.{' '}</>
+              Entram <b>{R(operacao.prazoMeses > 0 ? operacao.creditoTotalKWh / operacao.prazoMeses : 0)} kWh/mês</b> de crédito
+              {' '}· cliente consome {R(consumoMensal)} kWh/mês
+              {rCalc && converte && <> e gasta <b>{R(rCalc.saldoDebitadoKWh)} kWh/mês</b> de crédito com a ponta convertida</>}.{' '}
+              {rCalc && operacao.prazoMeses > 0 && (
+                <div style={{ background: '#fff', border: `1px solid ${C.bord}`, borderRadius: 6, padding: '6px 8px', margin: '6px 0', color: C.esc }}>
+                  Crédito necessário: <b>{R(necessario)} kWh</b>
+                  {' '}= ({R(entrada.consumo['Fora ponta'] ?? consumoMensal)} FP
+                  {grupo === 'A' && <> + {R(entrada.consumo.Ponta ?? 0)} P × {R(rCalc.fatorPonta, 4)}</>}) × {Math.round(operacao.prazoMeses)} meses
+                  {' '}({R(rCalc.saldoDebitadoKWh)} kWh/mês)
+                </div>
               )}
-              {consumoMensal > 0 && (
-                <button className="no-print" onClick={() => setOp('prazoMeses', prazoPeloConsumo(operacao.creditoTotalKWh, consumoMensal))}
+              {rCalc && operacao.prazoMeses > 0 && operacao.creditoTotalKWh < necessario && (
+                <span style={{ color: C.verm }}>
+                  Crédito insuficiente: compensa {R(opCalc?.meses[0].compensadoKWh ?? 0)} de {R(consumoMensal)} kWh/mês — o resto fica na fatura da distribuidora.{' '}
+                </span>
+              )}
+              {rCalc && operacao.prazoMeses > 0 && operacao.creditoTotalKWh !== necessario && (
+                <button className="no-print" onClick={() => setOp('creditoTotalKWh', necessario)}
+                  style={{ border: 'none', background: 'none', color: C.azul, cursor: 'pointer', fontSize: 11, padding: 0, textDecoration: 'underline', marginRight: 8 }}>
+                  Usar crédito necessário ({R(necessario)} kWh em {Math.round(operacao.prazoMeses)} meses)
+                </button>
+              )}
+              {rCalc && rCalc.saldoDebitadoKWh > 0 && (
+                <button className="no-print" onClick={() => setOp('prazoMeses', prazoPeloConsumo(operacao.creditoTotalKWh, rCalc.saldoDebitadoKWh))}
                   style={{ border: 'none', background: 'none', color: C.azul, cursor: 'pointer', fontSize: 11, padding: 0, textDecoration: 'underline' }}>
-                  Usar prazo pelo consumo ({prazoPeloConsumo(operacao.creditoTotalKWh, consumoMensal)} meses)
+                  Usar prazo pelo consumo ({prazoPeloConsumo(operacao.creditoTotalKWh, rCalc.saldoDebitadoKWh)} meses)
                 </button>
               )}
             </div>
@@ -455,7 +473,7 @@ export default function App() {
                     <b style={{ color: C.esc }}>{R(rCalc.postos.find((l) => l.posto === 'Ponta')!.te / rCalc.postos.find((l) => l.posto === 'Fora ponta')!.te, 5)}</b>
                     {' '}({R(rCalc.postos.find((l) => l.posto === 'Ponta')!.te, 2)} ÷ {R(rCalc.postos.find((l) => l.posto === 'Fora ponta')!.te, 2)} R$/MWh)
                     {entrada.converterPostos !== false
-                      ? <> — cada kWh na ponta gasta {R(rCalc.fatorPonta, 5)} kWh de crédito (o consumo todo gasta {R(rCalc.saldoDebitadoKWh)} kWh/mês). O valor do dono do crédito não muda; o crédito só acaba antes.</>
+                      ? <> — cada kWh na ponta gasta {R(rCalc.fatorPonta, 5)} kWh de crédito (o consumo todo gasta {R(rCalc.saldoDebitadoKWh)} kWh/mês). O valor do dono do crédito não muda (é por kWh compensado), mas para cobrir a ponta é preciso mais crédito.</>
                       : <> — desligado: 1 kWh de crédito cobre 1 kWh na ponta.</>}
                   </div>
                 )}
