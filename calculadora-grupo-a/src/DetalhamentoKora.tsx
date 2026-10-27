@@ -124,7 +124,7 @@ export function DetalhamentoKora({ r, op, p, entrada, dados, identificacao, emit
           <Linha label="Fatura Kora (créditos de energia)" value={RS(kora)} />
           <Linha label="Total com Kora" value={RS(comKora)} forte />
           <Linha label="Consumo compensado pelos créditos" value={`${R(m1.compensadoKWh)} de ${R(r.consumoTotalKWh)} kWh/mês`} />
-          <Linha label="Desconto contratado sobre a energia compensada" value={PCT(entrada.descontoPct)} />
+          <Linha label="Desconto contratado sobre a energia compensada" value={PCT(r.economiaClientePct)} />
         </Secao>
 
         <Secao titulo="Condições do" destaque="contrato">

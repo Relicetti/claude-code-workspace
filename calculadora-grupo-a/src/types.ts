@@ -50,6 +50,9 @@ export interface Entrada {
   fonte: Fonte;
   /** % de desconto contratado sobre a fatura atual do cliente. */
   descontoPct: number;
+  /** Tarifa final do cliente (distribuidora + Kora), R$/kWh. Se informada, substitui o desconto:
+   * o desconto passa a ser o que leva a fatura a esse valor. */
+  tarifaFinalKWh?: number;
   /** % da fatura de geração que fica com a Kora. */
   desagioPct: number;
   /** Valor pago ao dono do crédito, R$ por kWh compensado (não por kWh de crédito gasto). Se

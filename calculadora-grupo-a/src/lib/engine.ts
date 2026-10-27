@@ -141,7 +141,12 @@ export function calcular(e: Entrada, dados: DadosTarifarios): Resultado {
   const valorInjetado = postos.reduce((s, p) => s + p.valorInjetado, 0);
   const porKWh = (v: number) => (consumoTotalKWh > 0 ? v / consumoTotalKWh : 0);
 
-  const desconto = e.descontoPct * valorAtual;              // F23
+  // Com a tarifa final fixada, o desconto é o que falta para a fatura (CSS + geração = atual −
+  // desconto) chegar a ela.
+  const descontoPct = e.tarifaFinalKWh !== undefined && valorAtual > 0
+    ? 1 - (e.tarifaFinalKWh * consumoTotalKWh) / valorAtual
+    : e.descontoPct;
+  const desconto = descontoPct * valorAtual;                // F23
   const valorCss = valorAtual - valorInjetado;              // L4 = (F21 − I26) × C18
   const faturaGeracao = valorAtual - desconto - valorCss;   // L5
   // Planilha: Kora = fatura de geração × deságio (L10) e gerador = o resto (L11). Com o valor do

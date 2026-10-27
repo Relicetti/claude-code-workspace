@@ -264,6 +264,16 @@ export default function App() {
     const atual = calculo && 'r' in calculo ? calculo.r.tarifaMediaGerador : 0;
     set('precoGeradorKWh', Number(atual.toFixed(4)));
   };
+  // Desconto em % ou tarifa final fixada: a troca também parte do valor atual.
+  const trocarModoDesconto = (modo: 'pct' | 'tarifa') => {
+    if ((modo === 'tarifa') === (entrada.tarifaFinalKWh !== undefined)) return;
+    const r = calculo && 'r' in calculo ? calculo.r : undefined;
+    if (modo === 'pct') {
+      setEntrada((e) => ({ ...e, tarifaFinalKWh: undefined, descontoPct: Number((r?.economiaClientePct ?? e.descontoPct).toFixed(4)) }));
+    } else {
+      set('tarifaFinalKWh', Number((r?.tarifaMediaFinal ?? 0).toFixed(4)));
+    }
+  };
   // Mesma ideia para a comissão: a troca de unidade converte o valor atual, sem mudar o resultado.
   const trocarModoComissao = (modo: 'kwh' | 'pct') => {
     if ((modo === 'pct') === (entrada.vendedorPct !== undefined)) return;
@@ -508,7 +518,34 @@ export default function App() {
           </Section>
 
           <Section title="6. Regras comerciais" color={C.amber}>
-            <Field label="Desconto ao cliente (%)"><PercentField value={entrada.descontoPct} onChange={(v) => set('descontoPct', v)} /></Field>
+            <Field label="Definir o preço ao cliente por">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                {([['pct', 'Desconto (%)'], ['tarifa', 'Tarifa final (R$/kWh)']] as const).map(([modo, rotulo]) => {
+                  const ativo = (modo === 'tarifa') === (entrada.tarifaFinalKWh !== undefined);
+                  return (
+                    <button key={modo} onClick={() => trocarModoDesconto(modo)} style={{
+                      padding: '7px 6px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                      border: `1px solid ${ativo ? C.amber : C.bord}`, background: ativo ? C.amberC : '#fff', color: ativo ? C.esc : C.med,
+                    }}>{rotulo}</button>
+                  );
+                })}
+              </div>
+            </Field>
+            {entrada.tarifaFinalKWh === undefined ? (
+              <Field label="Desconto ao cliente (%)"><PercentField value={entrada.descontoPct} onChange={(v) => set('descontoPct', v)} /></Field>
+            ) : (
+              <Field label="Tarifa final do cliente (R$/kWh)" help="Distribuidora + Kora, por kWh consumido, na tarifa do 1º ano. O desconto sai dela e segue o reajuste nos anos seguintes.">
+                <input type="number" step="0.0001" min="0" style={inputStyle} value={entrada.tarifaFinalKWh}
+                  onChange={(e) => set('tarifaFinalKWh', Number(e.target.value))} />
+              </Field>
+            )}
+            {rCalc && entrada.tarifaFinalKWh !== undefined && (
+              <div style={{ fontSize: 11, color: rCalc.economiaClientePct < 0 || rCalc.faturaGeracao < 0 ? C.verm : C.med, marginTop: -4, lineHeight: 1.5 }}>
+                Desconto resultante: <b>{PCT(rCalc.economiaClientePct)}</b> ({RS(rCalc.desconto)}/mês) sobre a tarifa atual de {RKWH(rCalc.tarifaMediaCliente)}
+                {rCalc.economiaClientePct < 0 && ' — tarifa acima da atual: o cliente pagaria mais.'}
+                {rCalc.faturaGeracao < 0 && ` — abaixo do que fica com a distribuidora (${RKWH(rCalc.tarifaMediaCss)}).`}
+              </div>
+            )}
             <Field label="Definir a remuneração por">
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                 {([['desagio', 'Deságio Kora (%)'], ['preco', 'Valor do dono do crédito']] as const).map(([modo, rotulo]) => {
@@ -712,7 +749,7 @@ function Resultados({ r, entrada }: { r: Resultado; entrada: Entrada }) {
         <div style={{ background: '#fff', borderRadius: 10, padding: 18 }}>
           <Section title="Faturamento">
             <Linha label="Fatura atual (sem GD)" value={RS(r.valorAtual)} />
-            <Linha label={`Desconto contratado (${PCT(entrada.descontoPct)})`} value={`− ${RS(r.desconto)}`} />
+            <Linha label={`Desconto contratado (${PCT(r.economiaClientePct)})`} value={`− ${RS(r.desconto)}`} />
             <Linha label="Créditos injetados (valor)" value={RS(r.valorInjetado)} />
             <Linha label="Residual à distribuidora (CSS)" value={RS(r.valorCss)} />
             <Linha label="Fatura de geração" value={RS(r.faturaGeracao)} forte />

@@ -112,6 +112,21 @@ describe('operação de crédito abatido mês a mês', () => {
     expect(op.meses[12].valorKora).toBeCloseTo(op.meses[12].faturaGeracao - op.meses[12].valorGerador - op.meses[12].valorVendedor, 9);
   });
 
+  it('tarifa final fixada vira o desconto do 1º ano e reajusta junto com a tarifa', () => {
+    const base = calcular({ ...entrada, descontoPct: 0.15 }, dados);
+    const fixada = calcular({ ...entrada, tarifaFinalKWh: base.tarifaMediaFinal }, dados);
+    expect(fixada.economiaClientePct).toBeCloseTo(0.15, 12);
+    expect(fixada.tarifaMediaFinal).toBeCloseTo(base.tarifaMediaFinal, 12);
+    expect(fixada.faturaGeracao).toBeCloseTo(base.faturaGeracao, 9);
+
+    const op = simularOperacao({ ...entrada, tarifaFinalKWh: base.tarifaMediaFinal }, dados,
+      { creditoTotalKWh: 1530 * 24, prazoMeses: 24, mesInicio: '2026-01', reajusteAnualPct: 0.1 });
+    const ref = simularOperacao({ ...entrada, descontoPct: 0.15 }, dados,
+      { creditoTotalKWh: 1530 * 24, prazoMeses: 24, mesInicio: '2026-01', reajusteAnualPct: 0.1 });
+    expect(op.meses[12].desconto).toBeCloseTo(ref.meses[12].desconto, 9);
+    expect(op.total.faturaGeracao).toBeCloseTo(ref.total.faturaGeracao, 6);
+  });
+
   it('não deixa abater mais do que o cliente consome', () => {
     expect(() => simularOperacao(entrada, dados, { creditoTotalKWh: 100000, prazoMeses: 12, mesInicio: '2026-01', reajusteAnualPct: 0 }))
       .toThrow(/Prazo mínimo: 66 meses/);
