@@ -68,6 +68,12 @@ export function simularOperacao(e: Entrada, dados: DadosTarifarios, p: Parametro
   const abatimentoMensalKWh = p.creditoTotalKWh / prazo;
   const anoInicio = Number(p.mesInicio.slice(0, 4));
 
+  // Tarifa final fixada vale no 1º ano: vira o desconto em % daquele ano, que segue igual depois —
+  // assim a tarifa final acompanha o reajuste projetado.
+  if (e.tarifaFinalKWh !== undefined) {
+    e = { ...e, descontoPct: calcular({ ...e, ano: anoInicio }, dados).economiaClientePct, tarifaFinalKWh: undefined };
+  }
+
   // Um cálculo por ano: a tarifa vigente e a rampa do Fio B (GD2) mudam de ano para ano.
   const porAno = new Map<number, Resultado>();
   const resultadoDoAno = (ano: number) => {
