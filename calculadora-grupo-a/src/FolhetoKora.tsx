@@ -7,9 +7,9 @@ import topo from './assets/proposta/topo.jpg';
 import banner from './assets/proposta/banner.jpg';
 import logo from './assets/proposta/logo.png';
 
-const K = { ciano: '#00B0F0', marinho: '#141F3B', texto: '#15191A', cinza: '#E3E4E0' };
-const PRETO = "'Arial Black', 'Arial Bold', Arial, sans-serif";
-const CORPO = "Arial, 'Helvetica Neue', sans-serif";
+export const K = { ciano: '#00B0F0', marinho: '#141F3B', texto: '#15191A', cinza: '#E3E4E0' };
+export const PRETO = "'Arial Black', 'Arial Bold', Arial, sans-serif";
+export const CORPO = "Arial, 'Helvetica Neue', sans-serif";
 
 const n = (v: number, d = 0) => v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
 const kwh = (v: number) => `R$${n(v, 2)}/kWh`;
@@ -101,15 +101,20 @@ export function FolhetoKora({ r, op, creditoTotalKWh, enquadramento, dados }: {
         </div>
       </div>
 
-      {/* Rodapé */}
-      <div style={{ background: K.cinza, padding: '6mm 11mm 7mm' }}>
-        <div style={{ background: K.marinho, color: '#fff', borderRadius: '2.5mm', textAlign: 'center', fontFamily: PRETO, fontSize: '17pt', padding: '3.5mm 0' }}>
-          Kora, <span style={{ color: K.ciano }}>energia orientada por inteligência</span>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '7mm', marginTop: '4mm' }}>
-          <Contato icone={<Globo />} titulo="Acesse nosso site" texto={SITE} href={`https://${SITE}`} />
-          <Contato icone={<Whats />} titulo="Entre em contato" texto={TELEFONE} href={`https://wa.me/${TELEFONE.replace(/\D/g, '')}`} />
-        </div>
+      <RodapeKora />
+    </div>
+  );
+}
+
+export function RodapeKora() {
+  return (
+    <div style={{ background: K.cinza, padding: '6mm 11mm 7mm' }}>
+      <div style={{ background: K.marinho, color: '#fff', borderRadius: '2.5mm', textAlign: 'center', fontFamily: PRETO, fontSize: '17pt', padding: '3.5mm 0' }}>
+        Kora, <span style={{ color: K.ciano }}>energia orientada por inteligência</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '7mm', marginTop: '4mm' }}>
+        <Contato icone={<Globo />} titulo="Acesse nosso site" texto={SITE} href={`https://${SITE}`} />
+        <Contato icone={<Whats />} titulo="Entre em contato" texto={TELEFONE} href={`https://wa.me/${TELEFONE.replace(/\D/g, '')}`} />
       </div>
     </div>
   );
