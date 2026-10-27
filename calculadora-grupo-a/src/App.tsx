@@ -3,6 +3,7 @@ import {
   calcular, descontoPadrao, DISTRIBUIDORAS, grupoDoSubgrupo, IMPOSTOS_PADRAO, modalidadesDoGrupo,
   postosDoGrupo, SUBGRUPOS,
 } from './lib/engine';
+import { FolhetoKora } from './FolhetoKora';
 import { prazoPeloConsumo, simularOperacao, type ParametrosOperacao, type ResultadoOperacao } from './lib/operacao';
 import type {
   DadosTarifarios, Enquadramento, Entrada, Fonte, Grupo, ModalidadeGD, ModalidadeTarifaria, Posto, Resultado,
@@ -239,7 +240,7 @@ export default function App() {
   const [erroDados, setErroDados] = useState<string | null>(null);
   const [entradaBase, setEntrada] = useState<Entrada>(DEFAULT_ENTRADA);
   const [operacao, setOperacao] = useState<ParametrosOperacao>(DEFAULT_OPERACAO);
-  const [proposta, setProposta] = useState<DadosProposta>({ cliente: '', uc: '', validadeDias: 15 });
+  const [proposta, setProposta] = useState<DadosProposta>({ cliente: '', cnpj: '', uc: '', validadeDias: 15, observacao: OBS_PADRAO, detalhamento: false });
   const [verProposta, setVerProposta] = useState(false);
   // O ano das tarifas sai do mês de início da operação.
   const entrada = useMemo(() => ({ ...entradaBase, ano: Number(operacao.mesInicio.slice(0, 4)) }), [entradaBase, operacao.mesInicio]);
@@ -749,8 +750,13 @@ function OperacaoView({ op, p }: { op: ResultadoOperacao; p: ParametrosOperacao 
 // ── PROPOSTA COMERCIAL ───────────────────────────────────────────────────────
 // Versão para o cliente final: só o que é dele (consumo, fatura sem/com Kora, economia, prazo,
 // crédito e valor contratados). Margem da Kora, gerador e vendedor não aparecem.
+// Página 1 é o folheto no molde do PPTX da Kora; o detalhamento técnico vem depois, opcional.
 
-interface DadosProposta { cliente: string; uc: string; validadeDias: number }
+interface DadosProposta {
+  cliente: string; cnpj: string; uc: string; validadeDias: number; observacao: string; detalhamento: boolean;
+}
+
+const OBS_PADRAO = 'Crédito será injetado total nas UCs.\nNecessário troca de titularidade das UCs para a Usina.';
 
 function PropostaView({ r, op, p, entrada, dados, onDados, onVoltar }: {
   r: Resultado; op: ResultadoOperacao; p: ParametrosOperacao; entrada: Entrada;
@@ -781,18 +787,29 @@ function PropostaView({ r, op, p, entrada, dados, onDados, onVoltar }: {
       <div className="no-print" style={{ background: C.clar, borderBottom: `1px solid ${C.bord}`, padding: '12px 24px', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <button onClick={onVoltar} style={{ padding: '8px 14px', borderRadius: 6, border: `1px solid ${C.bord}`, background: '#fff', fontSize: 12, cursor: 'pointer' }}>← Voltar à simulação</button>
         <input placeholder="Nome do cliente" style={{ ...campo, minWidth: 220 }} value={dados.cliente} onChange={(e) => onDados({ ...dados, cliente: e.target.value })} />
+        <input placeholder="CNPJ" style={{ ...campo, minWidth: 160 }} value={dados.cnpj} onChange={(e) => onDados({ ...dados, cnpj: e.target.value })} />
         <input placeholder="Unidade consumidora (UC)" style={{ ...campo, minWidth: 180 }} value={dados.uc} onChange={(e) => onDados({ ...dados, uc: e.target.value })} />
+        <textarea placeholder="Observação abaixo do volume" rows={2} style={{ ...campo, minWidth: 300, fontSize: 11, resize: 'vertical' }} value={dados.observacao}
+          onChange={(e) => onDados({ ...dados, observacao: e.target.value })} />
         <label style={{ fontSize: 12, color: C.med, display: 'flex', gap: 6, alignItems: 'center' }}>
           Validade (dias)
           <input type="number" min="1" style={{ ...campo, width: 70 }} value={dados.validadeDias}
             onChange={(e) => onDados({ ...dados, validadeDias: Math.max(1, Number(e.target.value) || 1) })} />
+        </label>
+        <label style={{ fontSize: 12, color: C.med, display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input type="checkbox" checked={dados.detalhamento} onChange={(e) => onDados({ ...dados, detalhamento: e.target.checked })} />
+          Incluir detalhamento técnico
         </label>
         <button onClick={() => window.print()} style={{ marginLeft: 'auto', padding: '8px 14px', borderRadius: 6, border: 'none', background: C.verde, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
           Imprimir / PDF
         </button>
       </div>
 
-      <div className="proposta" style={{ maxWidth: 820, margin: '0 auto', padding: '32px 28px' }}>
+      <div style={{ background: '#d9d9d4', padding: '24px 0' }} className="folheto-fundo">
+        <FolhetoKora r={r} op={op} creditoTotalKWh={p.creditoTotalKWh} enquadramento={entrada.enquadramento} dados={dados} />
+      </div>
+
+      {dados.detalhamento && <div className="proposta" style={{ maxWidth: 820, margin: '0 auto', padding: '32px 28px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: `3px solid ${C.verde}`, paddingBottom: 12, marginBottom: 22 }}>
           <div>
             <div style={{ fontSize: 26, fontWeight: 800, color: C.verde, letterSpacing: '-0.02em' }}>Kora</div>
@@ -902,7 +919,7 @@ function PropostaView({ r, op, p, entrada, dados, onDados, onVoltar }: {
           <div style={{ borderTop: `1px solid ${C.esc}`, paddingTop: 6 }}>Kora</div>
           <div style={{ borderTop: `1px solid ${C.esc}`, paddingTop: 6 }}>{dados.cliente || 'Cliente'}</div>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }
