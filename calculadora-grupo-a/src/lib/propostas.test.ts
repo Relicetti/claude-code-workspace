@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { identificacao, proximoNumero, registrarRevisao, type NovaRevisao, type Proposta } from './propostas';
+import { apagar, identificacao, proximoNumero, registrarRevisao, type NovaRevisao, type Proposta } from './propostas';
 
 const nova = (cliente: string) => ({
   entrada: {}, operacao: { creditoTotalKWh: 1000 }, dados: { cliente },
@@ -24,6 +24,21 @@ describe('propostas', () => {
     expect(b.proposta.revisoes.map((r) => r.revisao)).toEqual([0, 1]);
     expect(b.proposta.cliente).toBe('Hotel Ltda');
     expect(identificacao(b.proposta.numero, 1)).toBe('KORA-2026-001 · Rev. 01');
+  });
+
+  it('apaga a proposta inteira ou só uma revisão', () => {
+    const a = registrarRevisao([], nova('A'), new Date('2026-10-26T12:00:00Z'));
+    const b = registrarRevisao(a.lista, nova('B'), new Date('2026-10-26T13:00:00Z'));
+    const c = registrarRevisao(b.lista, nova('A2'), new Date('2026-10-27T12:00:00Z'), 'KORA-2026-001');
+
+    expect(apagar(c.lista, 'KORA-2026-002').map((p) => p.numero)).toEqual(['KORA-2026-001']);
+    const semRev1 = apagar(c.lista, 'KORA-2026-001', 1);
+    expect(semRev1[0].revisoes.map((r) => r.revisao)).toEqual([0]);
+    expect(semRev1[0].cliente).toBe('A');
+    // A única revisão leva a proposta junto.
+    expect(apagar(semRev1, 'KORA-2026-001', 0).map((p) => p.numero)).toEqual(['KORA-2026-002']);
+    expect(() => apagar(c.lista, 'KORA-2026-009')).toThrow();
+    expect(() => apagar(c.lista, 'KORA-2026-001', 7)).toThrow();
   });
 
   it('recusa revisão de proposta inexistente', () => {

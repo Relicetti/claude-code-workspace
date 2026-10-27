@@ -83,3 +83,15 @@ export function registrarRevisao(lista: Proposta[], nova: NovaRevisao, agora: Da
   const proposta: Proposta = { ...atual, cliente: nova.dados.cliente, revisoes: [...atual.revisoes, { ...base, revisao }] };
   return { lista: lista.map((p) => (p.numero === numero ? proposta : p)), proposta };
 }
+
+/** Apaga a proposta inteira, ou só uma revisão; apagar a única revisão apaga a proposta. */
+export function apagar(lista: Proposta[], numero: string, revisao?: number): Proposta[] {
+  const atual = lista.find((p) => p.numero === numero);
+  if (!atual) throw new Error(`Proposta ${numero} não encontrada.`);
+  if (revisao === undefined) return lista.filter((p) => p.numero !== numero);
+  if (!atual.revisoes.some((r) => r.revisao === revisao)) throw new Error(`Revisão ${revisao} da ${numero} não encontrada.`);
+  const revisoes = atual.revisoes.filter((r) => r.revisao !== revisao);
+  if (revisoes.length === 0) return lista.filter((p) => p.numero !== numero);
+  const ult = revisoes[revisoes.length - 1];
+  return lista.map((p) => (p.numero === numero ? { ...p, cliente: ult.dados.cliente, revisoes } : p));
+}
