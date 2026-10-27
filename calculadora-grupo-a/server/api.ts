@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { getProgresso, sincronizarAneel } from './aneel.ts';
-import { registrarRevisao, type NovaRevisao, type Proposta } from '../src/lib/propostas.ts';
+import { apagar, registrarRevisao, type NovaRevisao, type Proposta } from '../src/lib/propostas.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Funciona tanto de server/ (dev) quanto de dist-server/ (produção): os dois ficam na raiz.
@@ -74,6 +74,19 @@ export function apiHandler(req: IncomingMessage, res: ServerResponse, next: () =
 
   if (req.method === 'GET' && url === '/propostas') {
     json(res, 200, lerPropostas());
+    return;
+  }
+
+  // DELETE /propostas/KORA-2026-001 apaga a proposta; .../revisoes/1 apaga só essa revisão.
+  const apagarUrl = url.match(/^\/propostas\/([A-Z0-9-]+)(?:\/revisoes\/(\d+))?$/);
+  if (req.method === 'DELETE' && apagarUrl) {
+    try {
+      const revisao = apagarUrl[2] === undefined ? undefined : Number(apagarUrl[2]);
+      gravarPropostas(apagar(lerPropostas(), apagarUrl[1], revisao));
+      json(res, 200, { ok: true });
+    } catch (e) {
+      json(res, 404, { erro: (e as Error).message });
+    }
     return;
   }
 

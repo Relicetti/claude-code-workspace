@@ -369,7 +369,8 @@ export default function App() {
         </div>
       </header>
 
-      {aba === 'propostas' && <PropostasView onVer={(p, rev) => { setVisualizando({ proposta: p, rev }); window.scrollTo(0, 0); }} onEditar={editarProposta} />}
+      {aba === 'propostas' && <PropostasView onVer={(p, rev) => { setVisualizando({ proposta: p, rev }); window.scrollTo(0, 0); }} onEditar={editarProposta}
+        onApagada={(numero) => { if (editando?.numero === numero) setEditando(null); }} />}
 
       {aba === 'simulacao' && editando && (
         <div className="no-print" style={{ margin: '16px 24px 0', padding: '10px 14px', borderRadius: 8, background: C.amberC, color: C.esc, fontSize: 13, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -911,19 +912,34 @@ function PropostaView({ r, op, p, entrada, dados, onDados, onVoltar, gerar, edit
 
 // ── CONTROLE DE PROPOSTAS ────────────────────────────────────────────────────
 
-function PropostasView({ onVer, onEditar }: {
+function PropostasView({ onVer, onEditar, onApagada }: {
   onVer: (p: Proposta, rev: RevisaoProposta) => void;
   onEditar: (p: Proposta) => void;
+  /** Avisa quando uma proposta some de vez (para sair da edição dela). */
+  onApagada: (numero: string) => void;
 }) {
   const [lista, setLista] = useState<Proposta[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
   const [aberta, setAberta] = useState<string | null>(null);
 
-  useEffect(() => {
+  const carregar = () => {
     fetch('/api/propostas').then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then(setLista).catch((e) => setErro(String(e)));
-  }, []);
+  };
+  useEffect(carregar, []);
+
+  const apagarProposta = async (p: Proposta, rev?: RevisaoProposta) => {
+    const unica = rev && p.revisoes.length === 1;
+    const alvo = rev && !unica
+      ? `a ${rotuloRevisao(rev.revisao)} da proposta ${p.numero}`
+      : `a proposta ${p.numero}${p.cliente ? ` (${p.cliente})` : ''} com ${p.revisoes.length === 1 ? 'sua revisão' : `todas as ${p.revisoes.length} revisões`}`;
+    if (!window.confirm(`Apagar ${alvo}? Não dá para desfazer.`)) return;
+    const res = await fetch(`/api/propostas/${p.numero}${rev && !unica ? `/revisoes/${rev.revisao}` : ''}`, { method: 'DELETE' });
+    if (!res.ok) { setErro(`Não foi possível apagar (HTTP ${res.status}).`); return; }
+    if (!rev || unica) onApagada(p.numero);
+    carregar();
+  };
 
   const termo = busca.trim().toLowerCase();
   const visiveis = (lista ?? [])
@@ -933,6 +949,7 @@ function PropostasView({ onVer, onEditar }: {
   const thE: React.CSSProperties = { ...th, textAlign: 'left' };
   const tdE: React.CSSProperties = { ...tdStyle, textAlign: 'left' };
   const link: React.CSSProperties = { ...botao(), padding: '4px 10px', fontSize: 11 };
+  const apagarBtn: React.CSSProperties = { ...link, color: C.verm, borderColor: C.vermC };
 
   return (
     <main style={{ padding: 24 }}>
@@ -981,7 +998,8 @@ function PropostasView({ onVer, onEditar }: {
                         <td style={tdStyle}>{RS(ult.resumo.valorContrato)}</td>
                         <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
                           <button style={link} onClick={() => onVer(p, ult)}>Ver / PDF</button>{' '}
-                          <button style={{ ...link, border: 'none', background: C.verde, color: '#fff', fontWeight: 600 }} onClick={() => onEditar(p)}>Editar</button>
+                          <button style={{ ...link, border: 'none', background: C.verde, color: '#fff', fontWeight: 600 }} onClick={() => onEditar(p)}>Editar</button>{' '}
+                          <button style={apagarBtn} onClick={() => apagarProposta(p)} title="Apagar a proposta com todas as revisões">Apagar</button>
                         </td>
                       </tr>
                       {aberta === p.numero && [...p.revisoes].reverse().map((rev) => (
@@ -994,7 +1012,10 @@ function PropostasView({ onVer, onEditar }: {
                           <td style={tdStyle}>{R(rev.resumo.creditoKWh)}</td>
                           <td style={tdStyle}>{rev.resumo.meses} meses</td>
                           <td style={tdStyle}>{RS(rev.resumo.valorContrato)}</td>
-                          <td style={tdStyle}><button style={link} onClick={() => onVer(p, rev)}>Ver / PDF</button></td>
+                          <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
+                            <button style={link} onClick={() => onVer(p, rev)}>Ver / PDF</button>{' '}
+                            <button style={apagarBtn} onClick={() => apagarProposta(p, rev)} title="Apagar só esta revisão">Apagar</button>
+                          </td>
                         </tr>
                       ))}
                     </React.Fragment>
