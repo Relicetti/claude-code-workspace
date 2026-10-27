@@ -46,11 +46,14 @@ function Destaque({ label, value, sub, fundo, cor = '#fff' }: { label: string; v
   );
 }
 
-export function DetalhamentoKora({ r, op, p, entrada, dados }: {
+export function DetalhamentoKora({ r, op, p, entrada, dados, identificacao, emitidaEm }: {
   r: Resultado; op: ResultadoOperacao; p: ParametrosOperacao; entrada: Entrada;
   dados: DadosFolheto & { validadeDias: number };
+  identificacao?: string;
+  /** Data da revisão salva; sem ela, hoje. */
+  emitidaEm?: Date;
 }) {
-  const hoje = new Date();
+  const hoje = emitidaEm ?? new Date();
   const validade = new Date(hoje.getTime() + dados.validadeDias * 86400000);
   const dataBR = (d: Date) => d.toLocaleDateString('pt-BR');
   const grupoA = r.postos.length > 1;
@@ -74,6 +77,7 @@ export function DetalhamentoKora({ r, op, p, entrada, dados }: {
             <div style={{ fontFamily: PRETO, fontSize: '17pt', lineHeight: 1.15 }}>Detalhamento <span style={{ color: K.ciano }}>técnico</span></div>
             <div style={{ fontSize: '9.5pt', marginTop: '1.5mm', lineHeight: 1.45 }}>
               <span style={{ color: K.ciano }}>Cliente:</span> <b>{dados.cliente || '—'}</b>{dados.cnpj && <> (CNPJ: {dados.cnpj})</>}<br />
+              {identificacao && <><span style={{ color: K.ciano }}>Proposta</span> {identificacao} · </>}
               <span style={{ color: K.ciano }}>Emitida em</span> {dataBR(hoje)} · <span style={{ color: K.ciano }}>válida até</span> {dataBR(validade)}
             </div>
           </div>

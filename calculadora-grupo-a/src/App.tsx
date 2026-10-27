@@ -6,6 +6,7 @@ import {
 import { DetalhamentoKora } from './DetalhamentoKora';
 import { FolhetoKora } from './FolhetoKora';
 import { DATA, MES, PCT, R, RKWH, ROTULO_POSTO, RS } from './formato';
+import { identificacao, rotuloRevisao, type DadosProposta, type NovaRevisao, type Proposta, type RevisaoProposta } from './lib/propostas';
 import { prazoPeloConsumo, simularOperacao, type ParametrosOperacao, type ResultadoOperacao } from './lib/operacao';
 import type {
   DadosTarifarios, Enquadramento, Entrada, Fonte, Grupo, ModalidadeGD, ModalidadeTarifaria, Posto, Resultado,
@@ -233,8 +234,12 @@ export default function App() {
   const [erroDados, setErroDados] = useState<string | null>(null);
   const [entradaBase, setEntrada] = useState<Entrada>(DEFAULT_ENTRADA);
   const [operacao, setOperacao] = useState<ParametrosOperacao>(DEFAULT_OPERACAO);
-  const [proposta, setProposta] = useState<DadosProposta>({ cliente: '', cnpj: '', uc: '', validadeDias: 15, observacao: OBS_PADRAO, detalhamento: false });
+  const [proposta, setProposta] = useState<DadosProposta>(DADOS_PROPOSTA_PADRAO);
   const [verProposta, setVerProposta] = useState(false);
+  const [aba, setAba] = useState<'simulacao' | 'propostas'>('simulacao');
+  // Proposta salva carregada para edição: o próximo "Gerar PDF" vira a revisão seguinte dela.
+  const [editando, setEditando] = useState<RefRevisao | null>(null);
+  const [visualizando, setVisualizando] = useState<{ proposta: Proposta; rev: RevisaoProposta } | null>(null);
   // O ano das tarifas sai do mês de início da operação.
   const entrada = useMemo(() => ({ ...entradaBase, ano: Number(operacao.mesInicio.slice(0, 4)) }), [entradaBase, operacao.mesInicio]);
   const setOp = <K extends keyof ParametrosOperacao>(k: K, v: ParametrosOperacao[K]) => setOperacao((o) => ({ ...o, [k]: v }));
@@ -289,12 +294,53 @@ export default function App() {
   const opCalc = simulacao && 'op' in simulacao ? simulacao.op : undefined;
   const converte = grupo === 'A' && entrada.converterPostos !== false;
 
-  if (verProposta && calculo && 'r' in calculo && simulacao && 'op' in simulacao) {
+  const gerarProposta = async (): Promise<RefRevisao> => {
+    if (!rCalc || !opCalc) throw new Error('Simulação inválida.');
+    const corpo: NovaRevisao = { entrada: entradaBase, operacao, dados: proposta, r: rCalc, op: opCalc };
+    const res = await fetch(editando ? `/api/propostas/${editando.numero}/revisoes` : '/api/propostas', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.erro ?? `Falha ao salvar (HTTP ${res.status}).`);
+    const salva = body as Proposta;
+    const ult = salva.revisoes[salva.revisoes.length - 1];
+    // Uma revisão nova continua em edição (a seguinte sobe de novo); uma proposta nova não prende a simulação.
+    if (editando) setEditando({ numero: salva.numero, revisao: ult.revisao });
+    return { numero: salva.numero, revisao: ult.revisao, criadaEm: ult.criadaEm };
+  };
+
+  const editarProposta = (p: Proposta) => {
+    const ult = p.revisoes[p.revisoes.length - 1];
+    setEntrada(ult.entrada);
+    setOperacao(ult.operacao);
+    setProposta({ ...DADOS_PROPOSTA_PADRAO, ...ult.dados });
+    setEditando({ numero: p.numero, revisao: ult.revisao });
+    setAba('simulacao');
+    window.scrollTo(0, 0);
+  };
+
+  const novaProposta = () => { setEditando(null); setProposta(DADOS_PROPOSTA_PADRAO); };
+
+  if (visualizando) {
+    const { proposta: pr, rev } = visualizando;
     return (
-      <PropostaView r={calculo.r} op={simulacao.op} p={operacao} entrada={entrada}
-        dados={proposta} onDados={setProposta} onVoltar={() => setVerProposta(false)} />
+      <PropostaView key={`${pr.numero}-${rev.revisao}`} r={rev.r} op={rev.op} p={rev.operacao} entrada={rev.entrada}
+        dados={{ ...DADOS_PROPOSTA_PADRAO, ...rev.dados }} onVoltar={() => setVisualizando(null)}
+        salva={{ numero: pr.numero, revisao: rev.revisao, criadaEm: rev.criadaEm }} />
     );
   }
+
+  if (verProposta && rCalc && opCalc) {
+    return (
+      <PropostaView r={rCalc} op={opCalc} p={operacao} entrada={entrada} dados={proposta} onDados={setProposta}
+        onVoltar={() => setVerProposta(false)} gerar={gerarProposta} editando={editando} />
+    );
+  }
+
+  const aba_: (a: typeof aba) => React.CSSProperties = (a) => ({
+    padding: '6px 14px', borderRadius: 6, border: 'none', fontSize: 13, cursor: 'pointer',
+    background: aba === a ? C.esc : 'transparent', color: aba === a ? '#fff' : C.med, fontWeight: aba === a ? 600 : 400,
+  });
 
   return (
     <div style={{ minHeight: '100vh' }}>
@@ -305,7 +351,11 @@ export default function App() {
             Venda de créditos de GD · tarifas ANEEL {dados?.atualizadoEm ? `atualizadas em ${DATA(dados.atualizadoEm)}` : ''}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <nav className="no-print" style={{ display: 'flex', gap: 4, background: C.clar, padding: 4, borderRadius: 8 }}>
+          <button style={aba_('simulacao')} onClick={() => setAba('simulacao')}>Simulação</button>
+          <button style={aba_('propostas')} onClick={() => setAba('propostas')}>Propostas</button>
+        </nav>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', visibility: aba === 'simulacao' ? 'visible' : 'hidden' }}>
           <BotaoAtualizarAneel onConcluido={carregarDados} />
           <button onClick={() => { setVerProposta(true); window.scrollTo(0, 0); }} className="no-print"
             disabled={!(simulacao && 'op' in simulacao)} title={simulacao && 'op' in simulacao ? '' : 'Corrija a simulação para gerar a proposta'}
@@ -319,7 +369,16 @@ export default function App() {
         </div>
       </header>
 
-      <main className="layout" style={{ padding: 24, display: 'grid', gridTemplateColumns: 'minmax(280px, 360px) 1fr', gap: 24, alignItems: 'start' }}>
+      {aba === 'propostas' && <PropostasView onVer={(p, rev) => { setVisualizando({ proposta: p, rev }); window.scrollTo(0, 0); }} onEditar={editarProposta} />}
+
+      {aba === 'simulacao' && editando && (
+        <div className="no-print" style={{ margin: '16px 24px 0', padding: '10px 14px', borderRadius: 8, background: C.amberC, color: C.esc, fontSize: 13, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span>Editando <b>{identificacao(editando.numero, editando.revisao)}</b>{proposta.cliente && <> · {proposta.cliente}</>} — o próximo PDF será a <b>{rotuloRevisao(editando.revisao + 1)}</b>.</span>
+          <button onClick={novaProposta} style={{ ...botao(), marginLeft: 'auto', padding: '4px 10px', fontSize: 11 }}>Sair da edição (nova proposta)</button>
+        </div>
+      )}
+
+      {aba === 'simulacao' && <main className="layout" style={{ padding: 24, display: 'grid', gridTemplateColumns: 'minmax(280px, 360px) 1fr', gap: 24, alignItems: 'start' }}>
         <aside style={{ background: '#fff', borderRadius: 10, padding: 18 }}>
           <Section title="1. Unidade consumidora">
             <Field label="Distribuidora">
@@ -495,7 +554,7 @@ export default function App() {
           {simulacao && 'op' in simulacao && <OperacaoView op={simulacao.op} p={operacao} />}
           {calculo && 'r' in calculo && <Resultados r={calculo.r} entrada={entrada} />}
         </section>
-      </main>
+      </main>}
     </div>
   );
 }
@@ -744,51 +803,208 @@ function OperacaoView({ op, p }: { op: ResultadoOperacao; p: ParametrosOperacao 
 // Versão para o cliente final: só o que é dele (consumo, fatura sem/com Kora, economia, prazo,
 // crédito e valor contratados). Margem da Kora, gerador e vendedor não aparecem.
 // Página 1 é o folheto no molde do PPTX da Kora; o detalhamento técnico vem depois, opcional.
-
-interface DadosProposta {
-  cliente: string; cnpj: string; uc: string; validadeDias: number; observacao: string; detalhamento: boolean;
-}
+// "Gerar PDF" grava a proposta (ou uma nova revisão, se estiver editando) e abre a impressão.
 
 const OBS_PADRAO = 'Crédito será injetado total nas UCs.\nNecessário troca de titularidade das UCs para a Usina.';
+const DADOS_PROPOSTA_PADRAO: DadosProposta = { cliente: '', cnpj: '', uc: '', validadeDias: 15, observacao: OBS_PADRAO, detalhamento: false };
 
-function PropostaView({ r, op, p, entrada, dados, onDados, onVoltar }: {
+interface RefRevisao { numero: string; revisao: number; criadaEm?: string }
+
+/** Abre a impressão com o nome do arquivo PDF já sugerido pelo título da página. */
+function imprimirComo(titulo: string) {
+  const anterior = document.title;
+  document.title = titulo;
+  window.addEventListener('afterprint', () => { document.title = anterior; }, { once: true });
+  window.print();
+}
+
+const nomeArquivo = (ref: RefRevisao, cliente: string) =>
+  `Proposta ${ref.numero} ${rotuloRevisao(ref.revisao)}${cliente ? ` - ${cliente}` : ''}`.replace(/[\\/:*?"<>|]/g, '-');
+
+const botao = (cor?: string): React.CSSProperties => ({
+  padding: '8px 14px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
+  ...(cor ? { border: 'none', background: cor, color: '#fff', fontWeight: 600 } : { border: `1px solid ${C.bord}`, background: '#fff' }),
+});
+
+/** Com `gerar`, é a proposta da simulação atual (editável); sem ele, uma revisão salva, só leitura. */
+function PropostaView({ r, op, p, entrada, dados, onDados, onVoltar, gerar, editando, salva }: {
   r: Resultado; op: ResultadoOperacao; p: ParametrosOperacao; entrada: Entrada;
-  dados: DadosProposta; onDados: (d: DadosProposta) => void; onVoltar: () => void;
+  dados: DadosProposta; onDados?: (d: DadosProposta) => void; onVoltar: () => void;
+  gerar?: () => Promise<RefRevisao>;
+  /** Proposta em edição: o próximo PDF vira a revisão seguinte dela. */
+  editando?: RefRevisao | null;
+  salva?: RefRevisao;
 }) {
   const campo: React.CSSProperties = { ...inputStyle, width: 'auto' };
+  // Revisão já gravada para o que está na tela; mudar algum campo pede uma revisão nova.
+  const [gerada, setGerada] = useState<RefRevisao | null>(salva ?? null);
+  const [gerando, setGerando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const [imprimir, setImprimir] = useState(false);
+  const mudar = (d: DadosProposta) => { onDados?.(d); setGerada(null); };
+
+  // Imprime depois que o número da revisão já está renderizado no folheto.
+  useEffect(() => {
+    if (!imprimir || !gerada) return;
+    setImprimir(false);
+    imprimirComo(nomeArquivo(gerada, dados.cliente));
+  }, [imprimir, gerada, dados.cliente]);
+
+  const clicarPdf = async () => {
+    if (gerada || !gerar) { setImprimir(true); return; }
+    setGerando(true); setErro(null);
+    try { setGerada(await gerar()); setImprimir(true); }
+    catch (e) { setErro((e as Error).message); }
+    finally { setGerando(false); }
+  };
+
+  const proximaRev = editando ? rotuloRevisao(editando.revisao + 1) : rotuloRevisao(0);
+  const rotuloBotao = gerando ? 'Gerando…' : gerada ? 'Imprimir / PDF' : `Gerar PDF (${editando ? `${editando.numero} ${proximaRev}` : 'nova proposta'})`;
+  const ident = gerada ? identificacao(gerada.numero, gerada.revisao) : undefined;
+  const emitidaEm = gerada?.criadaEm ? new Date(gerada.criadaEm) : undefined;
 
   return (
     <div style={{ background: '#fff', minHeight: '100vh' }}>
       <div className="no-print" style={{ background: C.clar, borderBottom: `1px solid ${C.bord}`, padding: '12px 24px', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <button onClick={onVoltar} style={{ padding: '8px 14px', borderRadius: 6, border: `1px solid ${C.bord}`, background: '#fff', fontSize: 12, cursor: 'pointer' }}>← Voltar à simulação</button>
-        <input placeholder="Nome do cliente" style={{ ...campo, minWidth: 220 }} value={dados.cliente} onChange={(e) => onDados({ ...dados, cliente: e.target.value })} />
-        <input placeholder="CNPJ" style={{ ...campo, minWidth: 160 }} value={dados.cnpj} onChange={(e) => onDados({ ...dados, cnpj: e.target.value })} />
-        <input placeholder="Unidade consumidora (UC)" style={{ ...campo, minWidth: 180 }} value={dados.uc} onChange={(e) => onDados({ ...dados, uc: e.target.value })} />
-        <textarea placeholder="Observação abaixo do volume" rows={2} style={{ ...campo, minWidth: 300, fontSize: 11, resize: 'vertical' }} value={dados.observacao}
-          onChange={(e) => onDados({ ...dados, observacao: e.target.value })} />
-        <label style={{ fontSize: 12, color: C.med, display: 'flex', gap: 6, alignItems: 'center' }}>
-          Validade (dias)
-          <input type="number" min="1" style={{ ...campo, width: 70 }} value={dados.validadeDias}
-            onChange={(e) => onDados({ ...dados, validadeDias: Math.max(1, Number(e.target.value) || 1) })} />
-        </label>
-        <label style={{ fontSize: 12, color: C.med, display: 'flex', gap: 6, alignItems: 'center' }}>
-          <input type="checkbox" checked={dados.detalhamento} onChange={(e) => onDados({ ...dados, detalhamento: e.target.checked })} />
-          Incluir detalhamento técnico
-        </label>
-        <button onClick={() => window.print()} style={{ marginLeft: 'auto', padding: '8px 14px', borderRadius: 6, border: 'none', background: C.verde, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-          Imprimir / PDF
-        </button>
+        <button onClick={onVoltar} style={botao()}>← {gerar ? 'Voltar à simulação' : 'Voltar às propostas'}</button>
+        {gerar ? (
+          <>
+            <input placeholder="Nome do cliente" style={{ ...campo, minWidth: 220 }} value={dados.cliente} onChange={(e) => mudar({ ...dados, cliente: e.target.value })} />
+            <input placeholder="CNPJ" style={{ ...campo, minWidth: 160 }} value={dados.cnpj} onChange={(e) => mudar({ ...dados, cnpj: e.target.value })} />
+            <input placeholder="Unidade consumidora (UC)" style={{ ...campo, minWidth: 180 }} value={dados.uc} onChange={(e) => mudar({ ...dados, uc: e.target.value })} />
+            <textarea placeholder="Observação abaixo do volume" rows={2} style={{ ...campo, minWidth: 300, fontSize: 11, resize: 'vertical' }} value={dados.observacao}
+              onChange={(e) => mudar({ ...dados, observacao: e.target.value })} />
+            <label style={{ fontSize: 12, color: C.med, display: 'flex', gap: 6, alignItems: 'center' }}>
+              Validade (dias)
+              <input type="number" min="1" style={{ ...campo, width: 70 }} value={dados.validadeDias}
+                onChange={(e) => mudar({ ...dados, validadeDias: Math.max(1, Number(e.target.value) || 1) })} />
+            </label>
+            <label style={{ fontSize: 12, color: C.med, display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input type="checkbox" checked={dados.detalhamento} onChange={(e) => mudar({ ...dados, detalhamento: e.target.checked })} />
+              Incluir detalhamento técnico
+            </label>
+          </>
+        ) : (
+          <span style={{ fontSize: 13, color: C.med }}>
+            <b style={{ color: C.esc }}>{ident}</b> · {dados.cliente || 'sem cliente'} · gerada em {emitidaEm?.toLocaleString('pt-BR')}
+          </span>
+        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center' }}>
+          {erro && <span style={{ fontSize: 12, color: C.verm }}>{erro}</span>}
+          {gerar && gerada && <span style={{ fontSize: 12, color: C.verde, fontWeight: 600 }}>Salva como {ident}</span>}
+          <button onClick={clicarPdf} disabled={gerando} style={botao(C.verde)}>{rotuloBotao}</button>
+        </div>
       </div>
 
       <div style={{ background: '#d9d9d4', padding: '24px 0' }} className="folheto-fundo">
-        <FolhetoKora r={r} op={op} creditoTotalKWh={p.creditoTotalKWh} enquadramento={entrada.enquadramento} dados={dados} />
+        <FolhetoKora r={r} op={op} creditoTotalKWh={p.creditoTotalKWh} enquadramento={entrada.enquadramento} dados={dados} identificacao={ident} />
       </div>
 
       {dados.detalhamento && (
         <div style={{ background: '#d9d9d4', padding: '0 0 24px' }} className="folheto-fundo">
-          <DetalhamentoKora r={r} op={op} p={p} entrada={entrada} dados={dados} />
+          <DetalhamentoKora r={r} op={op} p={p} entrada={entrada} dados={dados} identificacao={ident} emitidaEm={emitidaEm} />
         </div>
       )}
     </div>
+  );
+}
+
+// ── CONTROLE DE PROPOSTAS ────────────────────────────────────────────────────
+
+function PropostasView({ onVer, onEditar }: {
+  onVer: (p: Proposta, rev: RevisaoProposta) => void;
+  onEditar: (p: Proposta) => void;
+}) {
+  const [lista, setLista] = useState<Proposta[] | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [busca, setBusca] = useState('');
+  const [aberta, setAberta] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/propostas').then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then(setLista).catch((e) => setErro(String(e)));
+  }, []);
+
+  const termo = busca.trim().toLowerCase();
+  const visiveis = (lista ?? [])
+    .filter((p) => !termo || p.numero.toLowerCase().includes(termo) || p.cliente.toLowerCase().includes(termo))
+    .sort((a, b) => b.numero.localeCompare(a.numero));
+  const th: React.CSSProperties = { ...thStyle, background: C.clar };
+  const thE: React.CSSProperties = { ...th, textAlign: 'left' };
+  const tdE: React.CSSProperties = { ...tdStyle, textAlign: 'left' };
+  const link: React.CSSProperties = { ...botao(), padding: '4px 10px', fontSize: 11 };
+
+  return (
+    <main style={{ padding: 24 }}>
+      <div style={{ background: '#fff', borderRadius: 10, padding: 18 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700 }}>Propostas geradas</div>
+            <div style={{ fontSize: 11, color: C.med }}>Cada "Gerar PDF" grava uma revisão. "Editar" leva os dados para a simulação; o próximo PDF sobe a revisão.</div>
+          </div>
+          <input placeholder="Buscar por cliente ou número" style={{ ...inputStyle, width: 260 }} value={busca} onChange={(e) => setBusca(e.target.value)} />
+        </div>
+
+        {erro && <div style={{ color: C.verm, fontSize: 12 }}>Não foi possível carregar as propostas: {erro}</div>}
+        {!lista && !erro && <div style={{ color: C.med, fontSize: 12 }}>Carregando…</div>}
+        {lista && visiveis.length === 0 && (
+          <div style={{ color: C.med, fontSize: 12, padding: '24px 0', textAlign: 'center' }}>
+            {lista.length === 0 ? 'Nenhuma proposta gerada ainda. Faça uma simulação e use "Proposta ao cliente" → "Gerar PDF".' : 'Nenhuma proposta encontrada.'}
+          </div>
+        )}
+
+        {visiveis.length > 0 && (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr>
+                <th style={thE}>Número</th><th style={thE}>Cliente</th><th style={th}>Revisão</th><th style={th}>Última geração</th>
+                <th style={th}>Economia</th><th style={th}>Crédito (kWh)</th><th style={th}>Prazo</th><th style={th}>Valor do contrato</th><th style={th}></th>
+              </tr></thead>
+              <tbody>
+                {visiveis.map((p) => {
+                  const ult = p.revisoes[p.revisoes.length - 1];
+                  return (
+                    <React.Fragment key={p.numero}>
+                      <tr>
+                        <td style={{ ...tdE, fontWeight: 600 }}>{p.numero}</td>
+                        <td style={tdE}>{p.cliente || '—'}</td>
+                        <td style={tdStyle}>
+                          <button onClick={() => setAberta(aberta === p.numero ? null : p.numero)} title="Histórico de revisões"
+                            style={{ ...link, border: 'none', background: C.azulC, color: C.azul, fontWeight: 600 }}>
+                            {rotuloRevisao(ult.revisao)} {aberta === p.numero ? '▴' : '▾'}
+                          </button>
+                        </td>
+                        <td style={tdStyle}>{new Date(ult.criadaEm).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</td>
+                        <td style={tdStyle}>{PCT(ult.resumo.economiaPct)}</td>
+                        <td style={tdStyle}>{R(ult.resumo.creditoKWh)}</td>
+                        <td style={tdStyle}>{ult.resumo.meses} meses</td>
+                        <td style={tdStyle}>{RS(ult.resumo.valorContrato)}</td>
+                        <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
+                          <button style={link} onClick={() => onVer(p, ult)}>Ver / PDF</button>{' '}
+                          <button style={{ ...link, border: 'none', background: C.verde, color: '#fff', fontWeight: 600 }} onClick={() => onEditar(p)}>Editar</button>
+                        </td>
+                      </tr>
+                      {aberta === p.numero && [...p.revisoes].reverse().map((rev) => (
+                        <tr key={rev.revisao} style={{ background: C.clar }}>
+                          <td style={tdE}></td>
+                          <td style={{ ...tdE, color: C.med }}>{rev.dados.cliente || '—'}</td>
+                          <td style={tdStyle}>{rotuloRevisao(rev.revisao)}</td>
+                          <td style={tdStyle}>{new Date(rev.criadaEm).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</td>
+                          <td style={tdStyle}>{PCT(rev.resumo.economiaPct)}</td>
+                          <td style={tdStyle}>{R(rev.resumo.creditoKWh)}</td>
+                          <td style={tdStyle}>{rev.resumo.meses} meses</td>
+                          <td style={tdStyle}>{RS(rev.resumo.valorContrato)}</td>
+                          <td style={tdStyle}><button style={link} onClick={() => onVer(p, rev)}>Ver / PDF</button></td>
+                        </tr>
+                      ))}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </main>
   );
 }

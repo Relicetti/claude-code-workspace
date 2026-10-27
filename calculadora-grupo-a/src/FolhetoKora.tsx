@@ -25,8 +25,10 @@ export interface DadosFolheto {
 export const SITE = 'www.koraenergia.com.br';
 export const TELEFONE = '+55 41 99517-5300';
 
-export function FolhetoKora({ r, op, creditoTotalKWh, enquadramento, dados }: {
+export function FolhetoKora({ r, op, creditoTotalKWh, enquadramento, dados, identificacao }: {
   r: Resultado; op: ResultadoOperacao; creditoTotalKWh: number; enquadramento: Enquadramento; dados: DadosFolheto;
+  /** "KORA-2026-001 · Rev. 00" depois de gerada; antes disso o folheto sai sem número. */
+  identificacao?: string;
 }) {
   const economiaMes = op.meses[0].desconto;
   const titulo: React.CSSProperties = { fontFamily: PRETO, color: K.ciano, fontSize: '13pt', lineHeight: 1.2 };
@@ -36,6 +38,9 @@ export function FolhetoKora({ r, op, creditoTotalKWh, enquadramento, dados }: {
       {/* Topo: foto com cliente e logo */}
       <div style={{ height: '46mm', position: 'relative', background: `linear-gradient(90deg, rgba(7,20,40,.88) 0%, rgba(7,20,40,.65) 48%, rgba(7,20,40,0) 70%), url(${topo}) center 55% / cover` }}>
         <img src={logo} alt="Kora" style={{ position: 'absolute', right: '6mm', top: '5mm', width: '44mm' }} />
+        {identificacao && (
+          <div style={{ position: 'absolute', right: '7mm', bottom: '6mm', color: '#fff', fontSize: '8.5pt', textAlign: 'right' }}>Proposta {identificacao}</div>
+        )}
         <div style={{ position: 'absolute', left: '10mm', bottom: '6mm', right: '60mm', color: '#fff', fontSize: '10.5pt', lineHeight: 1.45 }}>
           <div style={{ color: K.ciano, fontWeight: 700, fontSize: '13pt', marginBottom: '1.5mm' }}>Energia por Assinatura – Geração Distribuída (GD)</div>
           <div><span style={{ color: K.ciano }}>Cliente:</span> <b>{dados.cliente || '—'}</b>{dados.cnpj && <> (CNPJ: {dados.cnpj})</>}</div>
