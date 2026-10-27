@@ -1,12 +1,13 @@
 // Operação de longo prazo: um lote grande de crédito comprado de uma vez e abatido mês a mês na
-// conta do cliente. Cada mês compensa a mesma quantidade de consumo (crédito ÷ prazo), fora ponta
-// primeiro. O lote é saldo fora ponta: com a conversão ligada, cobrir a ponta gasta TE_P / TE_FP kWh
-// de crédito (compensacao.ts) — os valores do mês não mudam, o crédito só acaba antes do prazo.
+// conta do cliente. Cada mês entra a mesma quantidade de crédito (crédito ÷ prazo) no saldo fora
+// ponta: compensa primeiro o fora ponta e o que sobra cobre a ponta gastando TE_P / TE_FP kWh por kWh
+// (compensacao.ts). Para cobrir o consumo todo o lote precisa ser o crédito necessário (crédito gasto
+// no mês com o consumo todo × prazo); com menos, parte da ponta fica para a distribuidora.
 // Os valores em R$ de cada posto vêm do cálculo da planilha (engine.calcular), proporcionais ao kWh
 // compensado.
 import { compensar, postoDoCredito } from './compensacao';
 import { calcular, teConversao } from './engine';
-import type { DadosTarifarios, Entrada, Posto, Resultado } from '../types';
+import type { DadosTarifarios, Entrada, Resultado } from '../types';
 
 export interface ParametrosOperacao {
   creditoTotalKWh: number;
@@ -35,16 +36,22 @@ export interface AnoOperacao extends Omit<MesOperacao, 'mes' | 'saldoFinalKWh'> 
 }
 
 export interface ResultadoOperacao {
-  /** Consumo compensado por mês (kWh) = crédito ÷ prazo. */
+  /** Crédito que entra por mês (kWh) = crédito ÷ prazo. */
   abatimentoMensalKWh: number;
   meses: MesOperacao[];
   anos: AnoOperacao[];
   total: Omit<AnoOperacao, 'ano'>;
 }
 
-/** Prazo mínimo (meses) para o cliente consumir o crédito todo com o consumo atual. */
-export function prazoPeloConsumo(creditoTotalKWh: number, consumoMensalKWh: number): number {
-  return consumoMensalKWh > 0 ? Math.ceil(creditoTotalKWh / consumoMensalKWh) : 0;
+/** Prazo mínimo (meses) para o cliente gastar o crédito todo; `gastoMensalKWh` é o crédito que o
+ * consumo todo gasta no mês (Resultado.saldoDebitadoKWh, já com a conversão da ponta). */
+export function prazoPeloConsumo(creditoTotalKWh: number, gastoMensalKWh: number): number {
+  return gastoMensalKWh > 0 ? Math.ceil(creditoTotalKWh / gastoMensalKWh) : 0;
+}
+
+/** Crédito para compensar o consumo todo durante o prazo (kWh, arredondado para cima). */
+export function creditoNecessario(gastoMensalKWh: number, prazoMeses: number): number {
+  return Math.ceil(gastoMensalKWh * Math.round(prazoMeses) - 1e-6);
 }
 
 function somarMes(mes: string, n: number): string {
@@ -68,36 +75,35 @@ export function simularOperacao(e: Entrada, dados: DadosTarifarios, p: Parametro
     return porAno.get(ano)!;
   };
 
-  const consumoCliente = resultadoDoAno(anoInicio).consumoTotalKWh;
-  if (abatimentoMensalKWh > consumoCliente + 1e-9) {
+  const gastoCliente = resultadoDoAno(anoInicio).saldoDebitadoKWh;
+  if (p.creditoTotalKWh > creditoNecessario(gastoCliente, prazo)) {
     throw new Error(
-      `O cliente consome ${consumoCliente.toLocaleString('pt-BR')} kWh/mês, mas o abatimento seria de `
+      `O consumo todo do cliente gasta ${Math.round(gastoCliente).toLocaleString('pt-BR')} kWh/mês de crédito, mas entrariam `
       + `${Math.round(abatimentoMensalKWh).toLocaleString('pt-BR')} kWh/mês — não dá para compensar mais do que `
-      + `ele consome. Prazo mínimo: ${prazoPeloConsumo(p.creditoTotalKWh, consumoCliente)} meses.`,
+      + `ele consome. Prazo mínimo: ${prazoPeloConsumo(p.creditoTotalKWh, gastoCliente)} meses.`,
     );
   }
 
   const meses: MesOperacao[] = [];
   let saldo = p.creditoTotalKWh;
-  // Sem conversão o saldo zera no prazo; com ela, antes (o limite só evita laço infinito).
-  for (let i = 0; saldo > 1e-6 && i < prazo * 10; i++) {
+  let liberado = 0; // crédito já entregue ao cliente (abatimento × meses), gasto ou não
+  // Termina no prazo; depois dele só segue se sobrou crédito de verdade (fator da ponta menor em ano
+  // seguinte), não a fração do arredondamento do crédito necessário. O limite evita laço infinito.
+  for (let i = 0; saldo > (i >= prazo ? 1 : 1e-6) && i < prazo * 10; i++) {
     const mes = somarMes(p.mesInicio, i);
     const ano = Number(mes.slice(0, 4));
     const r = resultadoDoAno(ano);
 
-    // Consumo a cobrir no mês: fora ponta primeiro, depois ponta, até o abatimento mensal. A ponta
-    // gasta crédito com o fator da tarifa do ano (o saldo em kWh não é reajustado); no último mês o
-    // saldo pode não cobrir tudo.
+    // Crédito do mês (mais a sobra de meses anteriores) contra o consumo todo: fora ponta primeiro,
+    // depois a ponta com o fator da tarifa do ano (o saldo em kWh não é reajustado).
     const origem = postoDoCredito(r.postos.map((l) => l.posto));
-    const alvo: Partial<Record<Posto, number>> = {};
-    let restante = abatimentoMensalKWh;
-    for (const l of [...r.postos].sort((a, b) => (a.posto === origem ? -1 : b.posto === origem ? 1 : 0))) {
-      alvo[l.posto] = Math.min(l.kWh, restante);
-      restante -= alvo[l.posto]!;
-    }
-    const c = compensar(alvo, { [origem]: saldo }, teConversao(r.postos, e.converterPostos));
+    liberado = Math.min(liberado + abatimentoMensalKWh, p.creditoTotalKWh);
+    const disponivel = Math.min(saldo, liberado - (p.creditoTotalKWh - saldo));
+    const consumo = Object.fromEntries(r.postos.map((l) => [l.posto, l.kWh]));
+    const c = compensar(consumo, { [origem]: disponivel }, teConversao(r.postos, e.converterPostos));
     const kWh = c.debitado[origem] ?? 0;
     saldo -= kWh;
+    if (i >= prazo && kWh <= 1e-6) break;
 
     // Valores em R$ de cada posto proporcionais ao kWh compensado nele, com o reajuste projetado.
     const reajuste = (1 + p.reajusteAnualPct) ** (ano - anoInicio);
