@@ -239,6 +239,8 @@ export default function App() {
   const [aba, setAba] = useState<'simulacao' | 'propostas'>('simulacao');
   // Proposta salva carregada para edição: o próximo "Gerar PDF" vira a revisão seguinte dela.
   const [editando, setEditando] = useState<RefRevisao | null>(null);
+  // Revisão usada como base de uma proposta duplicada (só para o aviso; o próximo PDF cria número novo).
+  const [duplicadaDe, setDuplicadaDe] = useState<RefRevisao | null>(null);
   const [visualizando, setVisualizando] = useState<{ proposta: Proposta; rev: RevisaoProposta } | null>(null);
   // O ano das tarifas sai do mês de início da operação.
   const entrada = useMemo(() => ({ ...entradaBase, ano: Number(operacao.mesInicio.slice(0, 4)) }), [entradaBase, operacao.mesInicio]);
@@ -317,6 +319,7 @@ export default function App() {
     const ult = salva.revisoes[salva.revisoes.length - 1];
     // Uma revisão nova continua em edição (a seguinte sobe de novo); uma proposta nova não prende a simulação.
     if (editando) setEditando({ numero: salva.numero, revisao: ult.revisao });
+    setDuplicadaDe(null);
     return { numero: salva.numero, revisao: ult.revisao, criadaEm: ult.criadaEm };
   };
 
@@ -326,11 +329,33 @@ export default function App() {
     setOperacao(ult.operacao);
     setProposta({ ...DADOS_PROPOSTA_PADRAO, ...ult.dados });
     setEditando({ numero: p.numero, revisao: ult.revisao });
+    setDuplicadaDe(null);
     setAba('simulacao');
     window.scrollTo(0, 0);
   };
 
-  const novaProposta = () => { setEditando(null); setProposta(DADOS_PROPOSTA_PADRAO); };
+  // Mesma base de cálculo da revisão, mas sem vínculo: o próximo PDF cria uma proposta com número novo.
+  // Os dados do cliente ficam em branco; validade, observação e detalhamento são mantidos.
+  const duplicarProposta = (p: Proposta, rev: RevisaoProposta) => {
+    setEntrada(rev.entrada);
+    setOperacao(rev.operacao);
+    setProposta({ ...DADOS_PROPOSTA_PADRAO, ...rev.dados, cliente: '', cnpj: '', uc: '' });
+    setEditando(null);
+    setDuplicadaDe({ numero: p.numero, revisao: rev.revisao, criadaEm: rev.criadaEm });
+    setAba('simulacao');
+    window.scrollTo(0, 0);
+  };
+
+  const novaProposta = () => { setEditando(null); setDuplicadaDe(null); setProposta(DADOS_PROPOSTA_PADRAO); };
+
+  // Começa do zero: simulação com os valores padrão.
+  const novaPropostaEmBranco = () => {
+    novaProposta();
+    setEntrada(DEFAULT_ENTRADA);
+    setOperacao(DEFAULT_OPERACAO);
+    setAba('simulacao');
+    window.scrollTo(0, 0);
+  };
 
   if (visualizando) {
     const { proposta: pr, rev } = visualizando;
@@ -381,7 +406,15 @@ export default function App() {
       </header>
 
       {aba === 'propostas' && <PropostasView onVer={(p, rev) => { setVisualizando({ proposta: p, rev }); window.scrollTo(0, 0); }} onEditar={editarProposta}
+        onDuplicar={duplicarProposta} onNova={novaPropostaEmBranco}
         onApagada={(numero) => { if (editando?.numero === numero) setEditando(null); }} />}
+
+      {aba === 'simulacao' && duplicadaDe && !editando && (
+        <div className="no-print" style={{ margin: '16px 24px 0', padding: '10px 14px', borderRadius: 8, background: C.azulC, color: C.esc, fontSize: 13, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span>Cópia de <b>{identificacao(duplicadaDe.numero, duplicadaDe.revisao)}</b> — o próximo PDF cria uma <b>proposta nova</b>. Preencha os dados do cliente em "Proposta ao cliente".</span>
+          <button onClick={() => setDuplicadaDe(null)} style={{ ...botao(), marginLeft: 'auto', padding: '4px 10px', fontSize: 11 }}>Fechar aviso</button>
+        </div>
+      )}
 
       {aba === 'simulacao' && editando && (
         <div className="no-print" style={{ margin: '16px 24px 0', padding: '10px 14px', borderRadius: 8, background: C.amberC, color: C.esc, fontSize: 13, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -967,9 +1000,13 @@ function PropostaView({ r, op, p, entrada, dados, onDados, onVoltar, gerar, edit
 
 // ── CONTROLE DE PROPOSTAS ────────────────────────────────────────────────────
 
-function PropostasView({ onVer, onEditar, onApagada }: {
+function PropostasView({ onVer, onEditar, onDuplicar, onNova, onApagada }: {
   onVer: (p: Proposta, rev: RevisaoProposta) => void;
   onEditar: (p: Proposta) => void;
+  /** Leva a base de cálculo da revisão para a simulação como proposta nova. */
+  onDuplicar: (p: Proposta, rev: RevisaoProposta) => void;
+  /** Abre a simulação em branco. */
+  onNova: () => void;
   /** Avisa quando uma proposta some de vez (para sair da edição dela). */
   onApagada: (numero: string) => void;
 }) {
@@ -1012,9 +1049,15 @@ function PropostasView({ onVer, onEditar, onApagada }: {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
           <div>
             <div style={{ fontSize: 15, fontWeight: 700 }}>Propostas geradas</div>
-            <div style={{ fontSize: 11, color: C.med }}>Cada "Gerar PDF" grava uma revisão. "Editar" leva os dados para a simulação; o próximo PDF sobe a revisão.</div>
+            <div style={{ fontSize: 11, color: C.med }}>Cada "Gerar PDF" grava uma revisão. "Editar" leva os dados para a simulação; o próximo PDF sobe a revisão. "Duplicar" usa a mesma base de cálculo numa proposta nova.</div>
           </div>
-          <input placeholder="Buscar por cliente ou número" style={{ ...inputStyle, width: 260 }} value={busca} onChange={(e) => setBusca(e.target.value)} />
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input placeholder="Buscar por cliente ou número" style={{ ...inputStyle, width: 260 }} value={busca} onChange={(e) => setBusca(e.target.value)} />
+            <button onClick={onNova}
+              style={{ padding: '8px 14px', borderRadius: 6, border: 'none', background: C.verde, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              + Nova proposta
+            </button>
+          </div>
         </div>
 
         {erro && <div style={{ color: C.verm, fontSize: 12 }}>Não foi possível carregar as propostas: {erro}</div>}
@@ -1054,6 +1097,7 @@ function PropostasView({ onVer, onEditar, onApagada }: {
                         <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
                           <button style={link} onClick={() => onVer(p, ult)}>Ver / PDF</button>{' '}
                           <button style={{ ...link, border: 'none', background: C.verde, color: '#fff', fontWeight: 600 }} onClick={() => onEditar(p)}>Editar</button>{' '}
+                          <button style={link} onClick={() => onDuplicar(p, ult)} title="Nova proposta com a mesma base de cálculo da última revisão">Duplicar</button>{' '}
                           <button style={apagarBtn} onClick={() => apagarProposta(p)} title="Apagar a proposta com todas as revisões">Apagar</button>
                         </td>
                       </tr>
@@ -1069,6 +1113,7 @@ function PropostasView({ onVer, onEditar, onApagada }: {
                           <td style={tdStyle}>{RS(rev.resumo.valorContrato)}</td>
                           <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
                             <button style={link} onClick={() => onVer(p, rev)}>Ver / PDF</button>{' '}
+                            <button style={link} onClick={() => onDuplicar(p, rev)} title="Nova proposta com a mesma base de cálculo desta revisão">Duplicar</button>{' '}
                             <button style={apagarBtn} onClick={() => apagarProposta(p, rev)} title="Apagar só esta revisão">Apagar</button>
                           </td>
                         </tr>
