@@ -382,7 +382,7 @@ export default function App() {
     <div style={{ minHeight: '100vh' }}>
       <header style={{ background: '#fff', borderBottom: `1px solid ${C.bord}`, padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <div style={{ fontSize: 18, fontWeight: 700 }}>Calculadora GD — Grupo A e B</div>
+          <div style={{ fontSize: 18, fontWeight: 700 }}>Calculadora Kora - Grupo A e B</div>
           <div style={{ fontSize: 11, color: C.med }}>
             Venda de créditos de GD · tarifas ANEEL {dados?.atualizadoEm ? `atualizadas em ${DATA(dados.atualizadoEm)}` : ''}
           </div>

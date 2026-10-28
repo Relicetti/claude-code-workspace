@@ -31,6 +31,7 @@ const MIME: Record<string, string> = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.ico': 'image/x-icon',
+  '.webmanifest': 'application/manifest+json',
   '.woff2': 'font/woff2',
 };
 
@@ -58,9 +59,18 @@ function servirEstatico(req: IncomingMessage, res: ServerResponse): void {
   });
 }
 
+// Ícones e manifesto ficam fora da senha: o iPhone busca o ícone da tela de início sem mandar o login.
+const PUBLICOS = new Set(['/apple-touch-icon.png', '/apple-touch-icon-precomposed.png', '/favicon.png', '/icon-192.png', '/icon-512.png', '/manifest.webmanifest']);
+
 const server = http.createServer((req, res) => {
+  const caminho = (req.url ?? '/').split('?')[0];
+  if (PUBLICOS.has(caminho)) {
+    const arquivo = caminho === '/apple-touch-icon-precomposed.png' ? '/apple-touch-icon.png' : caminho;
+    enviarArquivo(res, path.join(DIST_DIR, arquivo));
+    return;
+  }
   if (!autorizado(req)) {
-    res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Calculadora Grupo A", charset="UTF-8"', 'Content-Type': 'text/plain; charset=utf-8' });
+    res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Calculadora Kora", charset="UTF-8"', 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Acesso restrito. Usuário: qualquer um; senha: a da equipe.');
     return;
   }
@@ -77,5 +87,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`[prodServer] Calculadora Grupo A rodando na porta ${PORT}`);
+  console.log(`[prodServer] Calculadora Kora rodando na porta ${PORT}`);
 });
