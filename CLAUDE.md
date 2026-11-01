@@ -93,7 +93,11 @@ transação embutidos (`TAKER_FEE` em `backtest.py`). Não é para execução re
   Grupo A e B pela Kora (porte de `Calculos_GD_GrupoA.xlsx`, aba "Simulação"). Sem banco: tarifas ANEEL ficam
   em `src/data/tarifas.json` (seed) e o botão "Atualizar tarifas (ANEEL)" grava uma versão nova em
   `server/data/` / volume do Railway. `npm run seed` regenera o seed. No ar no Railway (projeto
-  `calculadora-grupo-a`, senha única `APP_SENHA`), deploy manual com `railway up`. Diferenças conhecidas em
+  `calculadora-grupo-a`, login por usuário — admin inicial via `KORA_ADMIN_EMAIL`/`KORA_ADMIN_SENHA`), deploy manual com
+  `railway up`. Depois da proposta: clientes, documentos, contrato/procuração gerados de modelos .docx enviados pelo app
+  (ficam no volume, **fora do git — o repo é público**) e
+  assinatura pela Autentique **da Kora** (`AUTENTIQUE_TOKEN`; a Kora não tem relação com a Alexandria — não reutilizar
+  contas/integrações dos outros projetos). Diferenças conhecidas em
   relação à planilha estão no README.
 - **`controle-calorico/`** — app de controle calórico com backend Express + Postgres (`pg`)
   e uso da API da Anthropic (`@anthropic-ai/sdk`) no server.

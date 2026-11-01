@@ -96,3 +96,29 @@ https://calculadora-grupo-a-production.up.railway.app
   qualquer um. Para trocar: `railway variables --set "APP_SENHA=nova-senha"` (o serviço reinicia).
 - Volume em `/data` (`RAILWAY_VOLUME_MOUNT_PATH`): guarda as tarifas da última atualização ANEEL e
   os CSVs temporários durante o download (~1,2 GB, apagados no fim).
+
+## Acesso (login por usuário)
+
+Cada pessoa entra com e-mail e senha (`server/auth.ts`: scrypt, sessão em cookie HttpOnly guardada no volume).
+O primeiro administrador sai das variáveis `KORA_ADMIN_EMAIL` / `KORA_ADMIN_SENHA` (só quando ainda não há
+usuários); os demais são criados na aba **Configurações**. Toda a API exige sessão; a senha única antiga
+(`APP_SENHA`) não existe mais.
+
+## Clientes (depois da proposta fechada)
+
+Fluxo operacional Kora-Comerc: **Cadastro → Contrato → Assinado → Troca de titularidade → Em compensação →
+Retorno da titularidade → Encerrado** (`src/lib/clientes.ts`).
+
+- Na aba Propostas, **Fechar** cria o cliente com o retrato da revisão (base contratada), nome, CNPJ, UCs e as
+  condições do contrato (preço R$/kWh = valor especial da proposta, prazo do saldo = prazo da operação).
+- Cadastro PJ/PF (busca de CNPJ na BrasilAPI), UCs com os dados que o contrato pede, anexos (PDF/imagem/Word, até
+  20 MB, guardados em `/data/documentos/<cliente>/`). Avançar de etapa exige os dados e documentos obrigatórios.
+- **Contrato de Assessoria Energética** e **Procuração** são gerados de modelos .docx (docxtemplater; campos entre
+  chaves). Os modelos **não ficam no git** (o repositório é público): um admin sobe/troca cada um na aba
+  Configurações e eles ficam em `/data/modelos/` (a versão anterior vira `.bak`). Para testes locais, coloque cópias
+  em `server/modelos/` (pasta ignorada). Texto variável em `src/lib/contratos.ts`; CPF/RG dos sócios da Kora também
+  vêm das Configurações, não do modelo.
+- **Assinatura eletrônica pela Autentique, conta própria da Kora** (`server/autentique.ts`): variável
+  `AUTENTIQUE_TOKEN`; `AUTENTIQUE_SANDBOX=1` manda documentos de teste. Contrato: cliente + signatário da Kora + 2
+  testemunhas (configurados na aba Configurações). Procuração: só o cliente. Cliente pode receber por WhatsApp.
+  "Atualizar status" consulta a Autentique e, quando todos assinaram, anexa o PDF assinado.

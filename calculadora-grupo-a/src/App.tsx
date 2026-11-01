@@ -4,6 +4,11 @@ import {
   postosDoGrupo, SUBGRUPOS,
 } from './lib/engine';
 import { DetalhamentoKora } from './DetalhamentoKora';
+import { botao, C, inputStyle, tdStyle, thStyle } from './estilo';
+import { ClientesView } from './ClientesView';
+import { ConfigView } from './ConfigView';
+import { useUsuario } from './Sessao';
+import { api } from './api';
 import { FolhetoKora } from './FolhetoKora';
 import { DATA, MES, PCT, R, RKWH, ROTULO_POSTO, RS } from './formato';
 import { identificacao, rotuloRevisao, type DadosProposta, type NovaRevisao, type Proposta, type RevisaoProposta } from './lib/propostas';
@@ -12,15 +17,6 @@ import type {
   DadosTarifarios, Enquadramento, Entrada, Fonte, Grupo, ModalidadeGD, ModalidadeTarifaria, Posto, Resultado,
 } from './types';
 
-// ── PALETA (mesma da calculadora-parceria) ───────────────────────────────────
-const C = {
-  azul: '#2a78d6', azulC: '#e6f1fb',
-  verde: '#1baf7a', verdeC: '#eaf3de',
-  amber: '#eda100', amberC: '#faeeda',
-  verm: '#e34948', vermC: '#fcebeb',
-  esc: '#2c2c2a', med: '#5f5e5a',
-  clar: '#f4f3ed', bord: '#d3d1c7',
-};
 
 
 const DEFAULT_DISTRIBUIDORA = DISTRIBUIDORAS.includes('Copel-DIS') ? 'Copel-DIS' : DISTRIBUIDORAS[0];
@@ -92,10 +88,6 @@ function Field({ label, children, help }: { label: string; children: React.React
   );
 }
 
-const inputStyle: React.CSSProperties = {
-  width: '100%', padding: '8px 10px', borderRadius: 6, border: `1px solid ${C.bord}`,
-  fontSize: 13, background: '#fff', color: C.esc,
-};
 
 function Select<T extends string | number>({ value, onChange, options }: {
   value: T; onChange: (v: T) => void; options: readonly T[];
@@ -183,8 +175,6 @@ function ComboBox({ value, onChange, options }: { value: string; onChange: (v: s
   );
 }
 
-const thStyle: React.CSSProperties = { textAlign: 'right', padding: '6px 8px', fontSize: 11, color: C.med, fontWeight: 600, borderBottom: `1px solid ${C.bord}` };
-const tdStyle: React.CSSProperties = { textAlign: 'right', padding: '6px 8px', fontSize: 12, borderBottom: `1px solid ${C.clar}` };
 
 function Linha({ label, value, forte }: { label: string; value: string; forte?: boolean }) {
   return (
@@ -236,7 +226,10 @@ export default function App() {
   const [operacao, setOperacao] = useState<ParametrosOperacao>(DEFAULT_OPERACAO);
   const [proposta, setProposta] = useState<DadosProposta>(DADOS_PROPOSTA_PADRAO);
   const [verProposta, setVerProposta] = useState(false);
-  const [aba, setAba] = useState<'simulacao' | 'propostas'>('simulacao');
+  const { usuario, sair } = useUsuario();
+  const [aba, setAba] = useState<'simulacao' | 'propostas' | 'clientes' | 'config'>('simulacao');
+  const [clienteAberto, setClienteAberto] = useState<string | null>(null);
+  const abrirCliente = (id: string) => { setClienteAberto(id); setAba('clientes'); window.scrollTo(0, 0); };
   // Proposta salva carregada para edição: o próximo "Gerar PDF" vira a revisão seguinte dela.
   const [editando, setEditando] = useState<RefRevisao | null>(null);
   // Revisão usada como base de uma proposta duplicada (só para o aviso; o próximo PDF cria número novo).
@@ -390,8 +383,10 @@ export default function App() {
         <nav className="no-print" style={{ display: 'flex', gap: 4, background: C.clar, padding: 4, borderRadius: 8 }}>
           <button style={aba_('simulacao')} onClick={() => setAba('simulacao')}>Simulação</button>
           <button style={aba_('propostas')} onClick={() => setAba('propostas')}>Propostas</button>
+          <button style={aba_('clientes')} onClick={() => { setClienteAberto(null); setAba('clientes'); }}>Clientes</button>
+          <button style={aba_('config')} onClick={() => setAba('config')}>Configurações</button>
         </nav>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', visibility: aba === 'simulacao' ? 'visible' : 'hidden' }}>
+        <div style={{ display: aba === 'simulacao' ? 'flex' : 'none', gap: 10, alignItems: 'center' }}>
           <BotaoAtualizarAneel onConcluido={carregarDados} />
           <button onClick={() => { setVerProposta(true); window.scrollTo(0, 0); }} className="no-print"
             disabled={!(simulacao && 'op' in simulacao)} title={simulacao && 'op' in simulacao ? '' : 'Corrija a simulação para gerar a proposta'}
@@ -403,10 +398,17 @@ export default function App() {
             Imprimir / PDF
           </button>
         </div>
+        <div className="no-print" style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, color: C.med }}>
+          <span title={usuario.email}>{usuario.nome}</span>
+          <button onClick={sair} style={{ ...botao(), padding: '4px 10px', fontSize: 11 }}>Sair</button>
+        </div>
       </header>
 
+      {aba === 'clientes' && <ClientesView abrir={clienteAberto} onAbrir={(id) => { setClienteAberto(id); window.scrollTo(0, 0); }} />}
+      {aba === 'config' && <ConfigView />}
+
       {aba === 'propostas' && <PropostasView onVer={(p, rev) => { setVisualizando({ proposta: p, rev }); window.scrollTo(0, 0); }} onEditar={editarProposta}
-        onDuplicar={duplicarProposta} onNova={novaPropostaEmBranco}
+        onDuplicar={duplicarProposta} onNova={novaPropostaEmBranco} onCliente={abrirCliente}
         onApagada={(numero) => { if (editando?.numero === numero) setEditando(null); }} />}
 
       {aba === 'simulacao' && duplicadaDe && !editando && (
@@ -910,10 +912,6 @@ function imprimirComo(titulo: string) {
 const nomeArquivo = (ref: RefRevisao, cliente: string) =>
   `Proposta ${ref.numero} ${rotuloRevisao(ref.revisao)}${cliente ? ` - ${cliente}` : ''}`.replace(/[\\/:*?"<>|]/g, '-');
 
-const botao = (cor?: string): React.CSSProperties => ({
-  padding: '8px 14px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
-  ...(cor ? { border: 'none', background: cor, color: '#fff', fontWeight: 600 } : { border: `1px solid ${C.bord}`, background: '#fff' }),
-});
 
 /** Com `gerar`, é a proposta da simulação atual (editável); sem ele, uma revisão salva, só leitura. */
 function PropostaView({ r, op, p, entrada, dados, onDados, onVoltar, gerar, editando, salva }: {
@@ -1000,7 +998,9 @@ function PropostaView({ r, op, p, entrada, dados, onDados, onVoltar, gerar, edit
 
 // ── CONTROLE DE PROPOSTAS ────────────────────────────────────────────────────
 
-function PropostasView({ onVer, onEditar, onDuplicar, onNova, onApagada }: {
+type PropostaListada = Proposta & { clienteId: string | null };
+
+function PropostasView({ onVer, onEditar, onDuplicar, onNova, onApagada, onCliente }: {
   onVer: (p: Proposta, rev: RevisaoProposta) => void;
   onEditar: (p: Proposta) => void;
   /** Leva a base de cálculo da revisão para a simulação como proposta nova. */
@@ -1009,8 +1009,10 @@ function PropostasView({ onVer, onEditar, onDuplicar, onNova, onApagada }: {
   onNova: () => void;
   /** Avisa quando uma proposta some de vez (para sair da edição dela). */
   onApagada: (numero: string) => void;
+  /** Abre o cliente (criado ao fechar a proposta). */
+  onCliente: (id: string) => void;
 }) {
-  const [lista, setLista] = useState<Proposta[] | null>(null);
+  const [lista, setLista] = useState<PropostaListada[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
   const [aberta, setAberta] = useState<string | null>(null);
@@ -1020,6 +1022,15 @@ function PropostasView({ onVer, onEditar, onDuplicar, onNova, onApagada }: {
       .then(setLista).catch((e) => setErro(String(e)));
   };
   useEffect(carregar, []);
+
+  // Proposta aceita pelo cliente: cria o cadastro com os dados da revisão escolhida.
+  const fecharProposta = async (p: Proposta, rev: RevisaoProposta) => {
+    if (!window.confirm(`Fechar a ${identificacao(p.numero, rev.revisao)}${p.cliente ? ` (${p.cliente})` : ''}? Vai criar o cliente com esses valores como base do contrato.`)) return;
+    try {
+      const c = await api<{ id: string }>(`/api/propostas/${p.numero}/fechar`, { method: 'POST', json: { revisao: rev.revisao } });
+      onCliente(c.id);
+    } catch (e) { setErro((e as Error).message); }
+  };
 
   const apagarProposta = async (p: Proposta, rev?: RevisaoProposta) => {
     const unica = rev && p.revisoes.length === 1;
@@ -1095,6 +1106,9 @@ function PropostasView({ onVer, onEditar, onDuplicar, onNova, onApagada }: {
                         <td style={tdStyle}>{ult.resumo.meses} meses</td>
                         <td style={tdStyle}>{RS(ult.resumo.valorContrato)}</td>
                         <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
+                          {p.clienteId
+                            ? <button style={{ ...link, border: 'none', background: C.azulC, color: C.azul, fontWeight: 600 }} onClick={() => onCliente(p.clienteId!)} title="Proposta fechada: abrir o cliente">Cliente {p.clienteId}</button>
+                            : <button style={{ ...link, border: 'none', background: C.esc, color: '#fff', fontWeight: 600 }} onClick={() => fecharProposta(p, ult)} title="Cliente aceitou: criar o cadastro a partir da última revisão">Fechar</button>}{' '}
                           <button style={link} onClick={() => onVer(p, ult)}>Ver / PDF</button>{' '}
                           <button style={{ ...link, border: 'none', background: C.verde, color: '#fff', fontWeight: 600 }} onClick={() => onEditar(p)}>Editar</button>{' '}
                           <button style={link} onClick={() => onDuplicar(p, ult)} title="Nova proposta com a mesma base de cálculo da última revisão">Duplicar</button>{' '}
@@ -1112,6 +1126,7 @@ function PropostasView({ onVer, onEditar, onDuplicar, onNova, onApagada }: {
                           <td style={tdStyle}>{rev.resumo.meses} meses</td>
                           <td style={tdStyle}>{RS(rev.resumo.valorContrato)}</td>
                           <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
+                            {!p.clienteId && <><button style={link} onClick={() => fecharProposta(p, rev)} title="Fechar com os valores desta revisão">Fechar</button>{' '}</>}
                             <button style={link} onClick={() => onVer(p, rev)}>Ver / PDF</button>{' '}
                             <button style={link} onClick={() => onDuplicar(p, rev)} title="Nova proposta com a mesma base de cálculo desta revisão">Duplicar</button>{' '}
                             <button style={apagarBtn} onClick={() => apagarProposta(p, rev)} title="Apagar só esta revisão">Apagar</button>
