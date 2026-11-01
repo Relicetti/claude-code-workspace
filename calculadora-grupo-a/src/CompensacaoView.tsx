@@ -5,6 +5,7 @@ import { botao, C, cartao, inputStyle, tdL, tdStyle, thL, thStyle } from './esti
 import { FaturaKora } from './FaturaKora';
 import { R, RS } from './formato';
 import type { Cliente } from './lib/clientes';
+import { mesmaUC, type LeituraFatura } from './lib/faturaCopel';
 import { mesBR, precoVigente, resumoControle, somarMeses, type FaturaKora as Fatura, type LancamentoMensal } from './lib/controle';
 
 const data = (iso: string) => iso.slice(0, 10).split('-').reverse().join('/');
@@ -64,6 +65,23 @@ export function CompensacaoBloco({ c, ocupado, executar, docUrl }: {
   const vazio = { mes: sugestaoMes, uc: c.ucs[0]?.numero ?? '', compensadoKWh: '', saldoDebitadoKWh: '', saldoFaturaKWh: '', vencimento: '', valorDistribuidora: '', observacao: '' };
   const [form, setForm] = useState(vazio);
   const [arquivo, setArquivo] = useState<File | null>(null);
+  const [leitura, setLeitura] = useState<LeituraFatura | null>(null);
+  const [lendo, setLendo] = useState<string | null>(null);
+
+  // Lê o PDF da distribuidora e preenche o formulário; o PDF fica para anexar ao salvar.
+  const lerPdf = async (f: File) => {
+    setArquivo(f); setLeitura(null); setLendo('Lendo a fatura…');
+    try {
+      const r = await api<LeituraFatura>('/api/ler-fatura', { method: 'POST', body: f, headers: { 'Content-Type': 'application/pdf' } });
+      const uc = c.ucs.find((u) => mesmaUC(u.numero, r.uc));
+      setLeitura(r);
+      setForm((x) => ({
+        ...x, mes: r.mes, uc: uc?.numero ?? x.uc, compensadoKWh: String(r.compensadoKWh), saldoDebitadoKWh: '',
+        saldoFaturaKWh: r.saldoAcumuladoKWh !== null ? String(r.saldoAcumuladoKWh) : '', vencimento: r.vencimento, valorDistribuidora: String(r.total),
+      }));
+      setLendo(uc ? null : `Atenção: a fatura é da UC ${r.uc}, que não está no cadastro deste cliente.`);
+    } catch (e) { setLendo((e as Error).message); }
+  };
   const set = (k: keyof typeof vazio, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const id = c.id;
   const grupoA = c.ucs.some((u) => u.subgrupo.startsWith('A'));
@@ -77,7 +95,7 @@ export function CompensacaoBloco({ c, ocupado, executar, docUrl }: {
     }
     const novo = await api<Cliente>(`/api/clientes/${id}/lancamentos`, { method: 'POST', json: { ...form, faturaDistribuidoraId } });
     setForm({ ...vazio, mes: form.mes, uc: c.ucs.find((u) => !novo.lancamentos.some((l) => l.mes === form.mes && l.uc === u.numero))?.numero ?? form.uc });
-    setArquivo(null);
+    setArquivo(null); setLeitura(null); setLendo(null);
     return novo;
   });
   const editar = (l: LancamentoMensal) => {
@@ -183,7 +201,25 @@ export function CompensacaoBloco({ c, ocupado, executar, docUrl }: {
 
       {aberto && (
         <div style={{ border: `1px solid ${C.bord}`, borderRadius: 8, padding: 12, marginBottom: 14, background: '#fcfcfa' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Lançar a fatura da distribuidora</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 12, fontWeight: 700 }}>Lançar a fatura da distribuidora</div>
+            <label style={{ ...botao(C.azul), cursor: 'pointer' }} title="Lê UC, mês, kWh compensados, saldo, vencimento e total (faturas da Copel)">
+              Ler fatura (PDF)
+              <input type="file" accept=".pdf,application/pdf" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) lerPdf(f); e.target.value = ''; }} />
+            </label>
+          </div>
+          {lendo && <div style={{ fontSize: 12, background: C.amberC, padding: '6px 10px', borderRadius: 6, marginBottom: 8 }}>{lendo}</div>}
+          {leitura && (
+            <div style={{ fontSize: 12, background: C.verdeC, padding: '8px 10px', borderRadius: 6, marginBottom: 8 }}>
+              <b>Lido da fatura {leitura.distribuidora}</b> · UC {leitura.uc} · {mesBR(leitura.mes)} · leitura {leitura.leituraAnterior ? `${data(leitura.leituraAnterior)} a ${data(leitura.leituraAtual!)}` : '—'}
+              {' '}· consumo {leitura.consumoKWh !== null ? `${R(leitura.consumoKWh)} kWh` : '—'} · <b>compensado {R(leitura.compensadoKWh)} kWh</b>
+              {leitura.compensadoPontaKWh > 0 && ` (ponta ${R(leitura.compensadoPontaKWh)}, fora ponta ${R(leitura.compensadoForaPontaKWh)})`}
+              {leitura.saldoAcumuladoKWh !== null && ` · saldo acumulado ${R(leitura.saldoAcumuladoKWh)} kWh`} · total {RS(leitura.total)} · vence {data(leitura.vencimento)}
+              {leitura.linhasCompensacao.length > 0 && <div style={{ fontSize: 11, color: C.med, marginTop: 4 }}>{leitura.linhasCompensacao.map((l) => `${l.descricao}: ${R(l.kWh)} kWh`).join(' · ')}</div>}
+              {leitura.avisos.map((a) => <div key={a} style={{ color: C.amber, marginTop: 2 }}>{a}</div>)}
+              <div style={{ fontSize: 11, color: C.med, marginTop: 4 }}>Confira os campos abaixo antes de salvar. O PDF será anexado.</div>
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
             {campo('Mês de referência', <input type="month" style={inputStyle} value={form.mes} onChange={(e) => set('mes', e.target.value)} />)}
             {campo('UC', <select style={inputStyle} value={form.uc} onChange={(e) => set('uc', e.target.value)}>{c.ucs.map((u) => <option key={u.numero} value={u.numero}>{u.numero}</option>)}</select>)}
@@ -193,7 +229,9 @@ export function CompensacaoBloco({ c, ocupado, executar, docUrl }: {
             {campo('Saldo informado na fatura (kWh)', <input type="number" style={inputStyle} value={form.saldoFaturaKWh} onChange={(e) => set('saldoFaturaKWh', e.target.value)} />)}
             {campo('Vencimento da fatura', <input type="date" style={inputStyle} value={form.vencimento} onChange={(e) => set('vencimento', e.target.value)} />)}
             {campo('Valor da fatura da distribuidora (R$)', <input type="number" step="0.01" style={inputStyle} value={form.valorDistribuidora} onChange={(e) => set('valorDistribuidora', e.target.value)} />)}
-            {campo('Fatura em PDF (opcional)', <input type="file" accept=".pdf,image/*" style={{ fontSize: 11 }} onChange={(e) => setArquivo(e.target.files?.[0] ?? null)} />)}
+            {campo('Fatura em PDF (anexo)', arquivo
+              ? <div style={{ fontSize: 11, padding: '8px 0' }}>{arquivo.name} <button style={{ border: 'none', background: 'none', color: C.verm, cursor: 'pointer', fontSize: 11 }} onClick={() => { setArquivo(null); setLeitura(null); }}>tirar</button></div>
+              : <input type="file" accept=".pdf,image/*" style={{ fontSize: 11 }} onChange={(e) => setArquivo(e.target.files?.[0] ?? null)} />)}
           </div>
           <div style={{ marginTop: 10 }}>{campo('Observação', <input style={inputStyle} value={form.observacao} onChange={(e) => set('observacao', e.target.value)} />)}</div>
           {grupoA && <div style={{ fontSize: 11, color: C.med, marginTop: 6 }}>Grupo A: a ponta compensada pelo fator gasta mais crédito do que os kWh cobrados — informe o que saiu do saldo (fora ponta + ponta × fator).</div>}
