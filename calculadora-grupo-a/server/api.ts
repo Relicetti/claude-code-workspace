@@ -449,7 +449,7 @@ rota('POST', /^\/usuarios$/, async (req, res) => {
   try { json(res, 201, auth.criarUsuario(corpo)); } catch (e) { throw new ErroHttp(400, (e as Error).message); }
 }, { admin: true });
 rota('PUT', /^\/usuarios\/([a-f0-9-]{36})$/, async (req, res, m) => {
-  const corpo = (await lerCorpo(req)) as { nome?: string; admin?: boolean; ativo?: boolean; senha?: string };
+  const corpo = (await lerCorpo(req)) as { nome?: string; email?: string; admin?: boolean; ativo?: boolean; senha?: string };
   try { json(res, 200, auth.alterarUsuario(m[1], corpo)); } catch (e) { throw new ErroHttp(400, (e as Error).message); }
 }, { admin: true });
 rota('POST', /^\/minha-senha$/, async (req, res, _m, u) => {

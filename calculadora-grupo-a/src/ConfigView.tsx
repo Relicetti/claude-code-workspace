@@ -78,6 +78,16 @@ export function ConfigView() {
 function Usuarios({ eu, onMsg }: { eu: Usuario; onMsg: (m: { ok: boolean; texto: string }) => void }) {
   const [lista, setLista] = useState<Usuario[]>([]);
   const [novo, setNovo] = useState({ nome: '', email: '', senha: '', admin: false });
+  const [editando, setEditando] = useState<{ id: string; nome: string; email: string } | null>(null);
+  const salvarEdicao = async () => {
+    if (!editando) return;
+    try {
+      await api(`/api/usuarios/${editando.id}`, { method: 'PUT', json: { nome: editando.nome, email: editando.email } });
+      onMsg({ ok: true, texto: `Usuário atualizado: ${editando.nome} (${editando.email.trim().toLowerCase()}).` });
+      setEditando(null);
+      carregar();
+    } catch (x) { onMsg({ ok: false, texto: (x as Error).message }); }
+  };
   const carregar = () => { api<Usuario[]>('/api/usuarios').then(setLista).catch((e) => onMsg({ ok: false, texto: e.message })); };
   useEffect(carregar, []);
 
@@ -108,11 +118,20 @@ function Usuarios({ eu, onMsg }: { eu: Usuario; onMsg: (m: { ok: boolean; texto:
         <tbody>
           {lista.map((u) => (
             <tr key={u.id} style={{ opacity: u.ativo ? 1 : 0.5 }}>
-              <td style={tdL}>{u.nome}{u.id === eu.id ? ' (você)' : ''}</td>
-              <td style={tdL}>{u.email}</td>
+              {editando?.id === u.id ? <>
+                <td style={tdL}><input style={{ ...inputStyle, padding: '4px 8px' }} value={editando.nome} onChange={(e) => setEditando({ ...editando, nome: e.target.value })} /></td>
+                <td style={tdL}><input type="email" style={{ ...inputStyle, padding: '4px 8px' }} value={editando.email} onChange={(e) => setEditando({ ...editando, email: e.target.value })} /></td>
+              </> : <>
+                <td style={tdL}>{u.nome}{u.id === eu.id ? ' (você)' : ''}</td>
+                <td style={tdL}>{u.email}</td>
+              </>}
               <td style={tdL}>{u.admin ? 'Administrador' : 'Usuário'}</td>
               <td style={tdL}>{u.ativo ? 'Ativo' : 'Desativado'}</td>
               <td style={{ ...tdL, whiteSpace: 'nowrap' }}>
+                {editando?.id === u.id
+                  ? <><button style={{ ...pequeno, background: C.verde, color: '#fff', border: 'none' }} onClick={salvarEdicao}>Salvar</button>{' '}
+                      <button style={pequeno} onClick={() => setEditando(null)}>Cancelar</button>{' '}</>
+                  : <><button style={pequeno} onClick={() => setEditando({ id: u.id, nome: u.nome, email: u.email })}>Editar</button>{' '}</>}
                 {u.id !== eu.id && <>
                   <button style={pequeno} onClick={() => alterar(u, { admin: !u.admin })}>{u.admin ? 'Tirar admin' : 'Tornar admin'}</button>{' '}
                   <button style={pequeno} onClick={() => alterar(u, { ativo: !u.ativo })}>{u.ativo ? 'Desativar' : 'Reativar'}</button>{' '}
