@@ -56,7 +56,22 @@ const lerPropostas = () => lerJson<Proposta[]>(PROPOSTAS, []);
 const gravarPropostas = (l: Proposta[]) => gravarJson(PROPOSTAS, l);
 const lerClientes = () => lerJson<Cliente[]>(CLIENTES, []);
 const gravarClientes = (l: Cliente[]) => gravarJson(CLIENTES, l);
-const lerConfig = (): ConfigKora => limparConfig(lerJson<Partial<ConfigKora>>(CONFIG, configVazia()));
+// Dados da Kora nos documentos (sócios, CPF/RG) vêm por padrão da variável KORA_DADOS_PADRAO (JSON), que fica só
+// no Railway — o repositório é público. O que for salvo na aba Configurações tem prioridade.
+function configPadrao(): Partial<ConfigKora> {
+  try { return JSON.parse(process.env.KORA_DADOS_PADRAO ?? '{}'); } catch { console.error('[config] KORA_DADOS_PADRAO não é JSON válido'); return {}; }
+}
+const lerConfig = (): ConfigKora => {
+  const salvo = limparConfig(lerJson<Partial<ConfigKora>>(CONFIG, configVazia()));
+  const padrao = limparConfig(configPadrao());
+  return {
+    ...salvo,
+    representanteContrato: salvo.representanteContrato.nome ? salvo.representanteContrato : padrao.representanteContrato,
+    sociosProcuracao: salvo.sociosProcuracao || padrao.sociosProcuracao,
+    signatarioKora: salvo.signatarioKora.email ? salvo.signatarioKora : padrao.signatarioKora,
+    testemunhas: [0, 1].map((i) => (salvo.testemunhas[i].email ? salvo.testemunhas[i] : padrao.testemunhas[i])) as ConfigKora['testemunhas'],
+  };
+};
 
 function cliente(id: string): Cliente {
   const c = lerClientes().find((x) => x.id === id);
