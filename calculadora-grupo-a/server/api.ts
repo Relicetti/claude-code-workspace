@@ -68,7 +68,7 @@ const lerConfig = (): ConfigKora => {
     ...salvo,
     representanteContrato: salvo.representanteContrato.nome ? salvo.representanteContrato : padrao.representanteContrato,
     sociosProcuracao: salvo.sociosProcuracao || padrao.sociosProcuracao,
-    signatarioKora: salvo.signatarioKora.email ? salvo.signatarioKora : padrao.signatarioKora,
+    signatariosKora: salvo.signatariosKora.length ? salvo.signatariosKora : padrao.signatariosKora,
     testemunhas: [0, 1].map((i) => (salvo.testemunhas[i].email ? salvo.testemunhas[i] : padrao.testemunhas[i])) as ConfigKora['testemunhas'],
   };
 };
@@ -156,7 +156,7 @@ function signatariosDe(c: Cliente, modelo: Modelo, cfg: ConfigKora, whatsapp: bo
   if (modelo === 'contrato') {
     const falta = pendenciasConfig(cfg);
     if (falta.length) throw new ErroHttp(400, `Configure antes (aba Configurações): ${falta.join('; ')}.`);
-    lista.push({ papel: 'kora', ...cfg.signatarioKora, whatsapp: false, testemunha: false });
+    for (const s of cfg.signatariosKora) lista.push({ papel: 'kora', ...s, whatsapp: false, testemunha: false });
     for (const t of cfg.testemunhas) lista.push({ papel: 'testemunha', ...t, whatsapp: false, testemunha: true });
   }
   return lista;
