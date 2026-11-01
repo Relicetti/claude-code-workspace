@@ -61,7 +61,20 @@ export function ConfigView() {
             <textarea disabled={!usuario.admin} rows={3} style={{ ...inputStyle, resize: 'vertical' }} value={cfg.sociosProcuracao}
               placeholder="NOME DO SÓCIO, brasileiro, inscrito no CPF sob nº …, e NOME DO SÓCIO, brasileiro, portador do RG nº … e inscrito no CPF sob nº …"
               onChange={(e) => setCfg({ ...cfg, sociosProcuracao: e.target.value })} /></label>
-          <Pessoa titulo="Assina o contrato pela Kora" p={cfg.signatarioKora} editavel={usuario.admin} onChange={(p) => setCfg({ ...cfg, signatarioKora: p })} />
+          {cfg.signatariosKora.map((s, i) => (
+            <div key={i} style={{ position: 'relative' }}>
+              <Pessoa titulo={`Assina o contrato pela Kora ${i + 1}${i === 0 ? ' (principal)' : ''}`} p={s} editavel={usuario.admin}
+                onChange={(p) => setCfg({ ...cfg, signatariosKora: cfg.signatariosKora.map((x, j) => (j === i ? p : x)) })} />
+              {usuario.admin && cfg.signatariosKora.length > 1 && (
+                <button onClick={() => setCfg({ ...cfg, signatariosKora: cfg.signatariosKora.filter((_, j) => j !== i) })}
+                  style={{ position: 'absolute', top: 0, right: 0, border: 'none', background: 'none', color: C.verm, fontSize: 11, cursor: 'pointer' }}>remover</button>
+              )}
+            </div>
+          ))}
+          {usuario.admin && (
+            <button style={{ ...botao(), padding: '4px 10px', fontSize: 11, marginBottom: 14 }}
+              onClick={() => setCfg({ ...cfg, signatariosKora: [...cfg.signatariosKora, { nome: '', email: '', telefone: '' }] })}>+ Signatário da Kora</button>
+          )}
           <Pessoa titulo="Testemunha 1" p={cfg.testemunhas[0]} editavel={usuario.admin} onChange={(p) => setCfg({ ...cfg, testemunhas: [p, cfg.testemunhas[1]] })} />
           <Pessoa titulo="Testemunha 2" p={cfg.testemunhas[1]} editavel={usuario.admin} onChange={(p) => setCfg({ ...cfg, testemunhas: [cfg.testemunhas[0], p] })} />
           {usuario.admin ? <button onClick={salvar} style={botao(C.verde)}>Salvar</button> : <div style={{ fontSize: 11, color: C.med }}>Só administradores alteram.</div>}
