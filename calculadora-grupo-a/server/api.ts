@@ -14,6 +14,10 @@ import {
   type Cliente, type DocumentoCliente, type EnvioAssinatura, type SignatarioEnvio, type StatusCliente, type TipoDocumento,
 } from '../src/lib/clientes.ts';
 import { dadosModelo } from '../src/lib/contratos.ts';
+import {
+  baixarFatura, cancelarFatura, emitirFatura, emitirQuitacao, lancar, proximoNumeroFatura, reajustar, removerLancamento,
+  type LancamentoMensal,
+} from '../src/lib/controle.ts';
 import { configVazia, limparConfig, pendenciasConfig, pendenciasModelo, type ConfigKora } from '../src/lib/config.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -405,6 +409,59 @@ rota('POST', /^\/clientes\/(CLI-\d+)\/assinaturas\/([A-Za-z0-9-]+)\/cancelar$/, 
       historico: [...c.historico, { em: agora, por: u.nome, texto: `Envio do ${TITULO[e.documento].toLowerCase()} para assinatura cancelado no app.` }],
     };
   }));
+});
+
+// ── Compensação mês a mês e faturas Kora ──
+/** Altera o cliente; erro de regra de negócio vira 409. */
+function regra(id: string, fn: (c: Cliente) => Cliente): Cliente {
+  return alterarCliente(id, (c) => {
+    try { return fn({ ...c, lancamentos: c.lancamentos ?? [], faturas: c.faturas ?? [] }); } catch (e) { throw e instanceof ErroHttp ? e : new ErroHttp(409, (e as Error).message); }
+  });
+}
+const numeroFatura = (agora: Date) => proximoNumeroFatura(lerClientes().flatMap((c) => (c.faturas ?? []).map((f) => f.numero)), agora.getFullYear());
+
+rota('POST', /^\/clientes\/(CLI-\d+)\/lancamentos$/, async (req, res, m, u) => {
+  const b = (await lerCorpo(req)) as Partial<LancamentoMensal>;
+  const num = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v));
+  const compensado = Number(b.compensadoKWh);
+  const l: LancamentoMensal = {
+    id: crypto.randomBytes(8).toString('hex'), mes: String(b.mes ?? ''), uc: String(b.uc ?? ''),
+    compensadoKWh: compensado, saldoDebitadoKWh: num(b.saldoDebitadoKWh) ?? compensado, saldoFaturaKWh: num(b.saldoFaturaKWh),
+    vencimento: String(b.vencimento ?? ''), valorDistribuidora: num(b.valorDistribuidora),
+    faturaDistribuidoraId: b.faturaDistribuidoraId ? String(b.faturaDistribuidoraId) : null,
+    observacao: String(b.observacao ?? '').trim(), criadoEm: new Date().toISOString(), criadoPor: u.nome,
+  };
+  json(res, 201, regra(m[1], (c) => lancar(c, l)));
+});
+rota('DELETE', /^\/clientes\/(CLI-\d+)\/lancamentos\/([a-f0-9]{16})$/, (_req, res, m, u) => {
+  json(res, 200, regra(m[1], (c) => removerLancamento(c, m[2], new Date(), u.nome)));
+});
+rota('POST', /^\/clientes\/(CLI-\d+)\/faturas$/, async (req, res, m, u) => {
+  const { mes, observacao } = (await lerCorpo(req)) as { mes: string; observacao?: string };
+  const agora = new Date();
+  json(res, 201, regra(m[1], (c) => emitirFatura(c, String(mes), numeroFatura(agora), agora, u.nome, String(observacao ?? '').trim())));
+});
+rota('POST', /^\/clientes\/(CLI-\d+)\/faturas\/quitacao$/, async (req, res, m, u) => {
+  const { vencimento, motivo } = (await lerCorpo(req)) as { vencimento: string; motivo?: string };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(vencimento))) throw new ErroHttp(400, 'Informe o vencimento.');
+  const agora = new Date();
+  json(res, 201, regra(m[1], (c) => emitirQuitacao(c, numeroFatura(agora), vencimento, agora, u.nome, String(motivo ?? '').trim())));
+});
+rota('POST', /^\/clientes\/(CLI-\d+)\/faturas\/(FK-\d{4}-\d{4})\/baixa$/, async (req, res, m, u) => {
+  const { pagaEm, valorPago } = (await lerCorpo(req)) as { pagaEm: string; valorPago: number };
+  json(res, 200, regra(m[1], (c) => baixarFatura(c, m[2], String(pagaEm), Number(valorPago), new Date(), u.nome)));
+});
+rota('POST', /^\/clientes\/(CLI-\d+)\/faturas\/(FK-\d{4}-\d{4})\/cancelar$/, async (req, res, m, u) => {
+  const { motivo } = (await lerCorpo(req)) as { motivo?: string };
+  json(res, 200, regra(m[1], (c) => cancelarFatura(c, m[2], String(motivo ?? '').trim(), new Date(), u.nome)));
+});
+rota('POST', /^\/clientes\/(CLI-\d+)\/reajustes$/, async (req, res, m, u) => {
+  const b = (await lerCorpo(req)) as { aPartirDe: string; precoKWh: number; motivo?: string };
+  json(res, 201, regra(m[1], (c) => reajustar(c, { aPartirDe: String(b.aPartirDe), precoKWh: Number(b.precoKWh), motivo: String(b.motivo ?? '').trim() }, new Date(), u.nome)));
+});
+// Todas as faturas (aba Faturamento).
+rota('GET', /^\/faturas$/, (_req, res) => {
+  json(res, 200, lerClientes().flatMap((c) => (c.faturas ?? []).map((f) => ({ ...f, clienteId: c.id, cliente: c.nome, documento: c.documento, tipo: c.tipo }))));
 });
 
 // Consulta de CNPJ (BrasilAPI, dados públicos da Receita) para preencher o cadastro.

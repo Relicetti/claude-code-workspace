@@ -2,6 +2,7 @@
 // cadastro e documentos → contrato → assinatura → troca de titularidade → compensação (mês a mês)
 // → retorno da titularidade → encerrado.
 import type { Proposta, RevisaoProposta } from './propostas';
+import type { FaturaKora, LancamentoMensal, Reajuste } from './controle';
 
 export type TipoPessoa = 'PJ' | 'PF';
 
@@ -90,6 +91,10 @@ export interface CondicoesContrato {
   distribuidoraNome: string;
   /** Razão social da distribuidora ("Copel Distribuição S.A."). */
   distribuidoraRazao: string;
+  /** Mês em que o crédito foi injetado ("YYYY-MM"); conta o prazo do saldo. Vazio = início da proposta. */
+  inicioInjecao?: string;
+  /** Reajustes do preço por kWh (Cláusula 3ª §3–5). */
+  reajustes?: Reajuste[];
 }
 
 export type PapelAssinatura = 'cliente' | 'kora' | 'testemunha';
@@ -171,6 +176,9 @@ export interface Cliente extends Cadastro {
   documentos: DocumentoCliente[];
   contrato: CondicoesContrato;
   assinaturas: EnvioAssinatura[];
+  /** Compensação mês a mês, por UC. */
+  lancamentos: LancamentoMensal[];
+  faturas: FaturaKora[];
   historico: EventoCliente[];
 }
 
@@ -298,6 +306,8 @@ export function clienteDaProposta(lista: Cliente[], proposta: Proposta, revisao:
     documentos: [],
     contrato: condicoesPadrao(rev, rev.entrada.distribuidora),
     assinaturas: [],
+    lancamentos: [],
+    faturas: [],
     historico: [evento(agora, por, `Cliente criado a partir da proposta ${proposta.numero} Rev. ${String(revisao).padStart(2, '0')}.`)],
   };
 }
@@ -308,7 +318,7 @@ export function clienteNovo(lista: Cliente[], cadastro: Partial<Cadastro>, agora
   return {
     ...cadastroVazio(), ...limparCadastro(cadastro),
     id: proximoIdCliente(lista.map((c) => c.id)), status: 'cadastro', criadoEm: iso, atualizadoEm: iso,
-    proposta: null, base: null, documentos: [], assinaturas: [],
+    proposta: null, base: null, documentos: [], assinaturas: [], lancamentos: [], faturas: [],
     contrato: condicoesPadrao(null, cadastro.ucs?.[0]?.distribuidora ?? ''),
     historico: [evento(agora, por, 'Cliente cadastrado.')],
   };
@@ -351,6 +361,9 @@ export function atualizarCondicoes(c: Cliente, patch: Partial<CondicoesContrato>
     prazoSaldoMeses: patch.prazoSaldoMeses !== undefined ? Math.round(Number(patch.prazoSaldoMeses)) || 0 : c.contrato.prazoSaldoMeses,
     distribuidoraNome: patch.distribuidoraNome !== undefined ? String(patch.distribuidoraNome).trim() : c.contrato.distribuidoraNome,
     distribuidoraRazao: patch.distribuidoraRazao !== undefined ? String(patch.distribuidoraRazao).trim() : c.contrato.distribuidoraRazao,
+    inicioInjecao: patch.inicioInjecao !== undefined
+      ? (/^\d{4}-\d{2}$/.test(String(patch.inicioInjecao)) ? String(patch.inicioInjecao) : '') : c.contrato.inicioInjecao,
+    reajustes: c.contrato.reajustes, // reajuste tem rota própria (fica no histórico)
   };
   if (JSON.stringify(novo) === JSON.stringify(c.contrato)) return c;
   return { ...c, contrato: novo, atualizadoEm: agora.toISOString(), historico: [...c.historico, evento(agora, por, 'Condições do contrato atualizadas.')] };

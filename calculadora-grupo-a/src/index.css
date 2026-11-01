@@ -8,3 +8,4 @@ input:focus, select:focus, button:focus { outline: 2px solid #2a78d6; outline-of
 .folheto { page: folheto; }
 .folheto, .detalhamento { box-shadow: 0 2px 12px rgba(0,0,0,.18); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 @media print { .folheto-fundo { background: none !important; padding: 0 !important; } .folheto, .detalhamento { box-shadow: none; } .detalhamento { break-before: page; width: auto !important; } .detalhamento-corpo { padding: 0 0 4mm !important; } }
+@media print { body.so-fatura #root { display: none !important; } body.so-fatura .fatura-overlay { position: static !important; overflow: visible !important; background: none !important; } body.so-fatura .fatura-overlay > div { padding: 0 !important; } }

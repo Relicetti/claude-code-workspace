@@ -7,6 +7,7 @@ import { DetalhamentoKora } from './DetalhamentoKora';
 import { botao, C, inputStyle, tdStyle, thStyle } from './estilo';
 import { ClientesView } from './ClientesView';
 import { ConfigView } from './ConfigView';
+import { FaturamentoView } from './FaturamentoView';
 import { useUsuario } from './Sessao';
 import { api } from './api';
 import { FolhetoKora } from './FolhetoKora';
@@ -227,7 +228,7 @@ export default function App() {
   const [proposta, setProposta] = useState<DadosProposta>(DADOS_PROPOSTA_PADRAO);
   const [verProposta, setVerProposta] = useState(false);
   const { usuario, sair } = useUsuario();
-  const [aba, setAba] = useState<'simulacao' | 'propostas' | 'clientes' | 'config'>('simulacao');
+  const [aba, setAba] = useState<'simulacao' | 'propostas' | 'clientes' | 'faturamento' | 'config'>('simulacao');
   const [clienteAberto, setClienteAberto] = useState<string | null>(null);
   const abrirCliente = (id: string) => { setClienteAberto(id); setAba('clientes'); window.scrollTo(0, 0); };
   // Proposta salva carregada para edição: o próximo "Gerar PDF" vira a revisão seguinte dela.
@@ -384,6 +385,7 @@ export default function App() {
           <button style={aba_('simulacao')} onClick={() => setAba('simulacao')}>Simulação</button>
           <button style={aba_('propostas')} onClick={() => setAba('propostas')}>Propostas</button>
           <button style={aba_('clientes')} onClick={() => { setClienteAberto(null); setAba('clientes'); }}>Clientes</button>
+          <button style={aba_('faturamento')} onClick={() => setAba('faturamento')}>Faturamento</button>
           <button style={aba_('config')} onClick={() => setAba('config')}>Configurações</button>
         </nav>
         <div style={{ display: aba === 'simulacao' ? 'flex' : 'none', gap: 10, alignItems: 'center' }}>
@@ -405,6 +407,7 @@ export default function App() {
       </header>
 
       {aba === 'clientes' && <ClientesView abrir={clienteAberto} onAbrir={(id) => { setClienteAberto(id); window.scrollTo(0, 0); }} />}
+      {aba === 'faturamento' && <FaturamentoView onCliente={abrirCliente} />}
       {aba === 'config' && <ConfigView />}
 
       {aba === 'propostas' && <PropostasView onVer={(p, rev) => { setVisualizando({ proposta: p, rev }); window.scrollTo(0, 0); }} onEditar={editarProposta}
