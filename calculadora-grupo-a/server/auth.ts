@@ -73,12 +73,18 @@ export class Auth {
     return Auth.publico(u);
   }
 
-  alterarUsuario(id: string, patch: { nome?: string; admin?: boolean; ativo?: boolean; senha?: string }): UsuarioPublico {
+  alterarUsuario(id: string, patch: { nome?: string; email?: string; admin?: boolean; ativo?: boolean; senha?: string }): UsuarioPublico {
     const lista = this.usuarios();
     const u = lista.find((x) => x.id === id);
     if (!u) throw new Error('Usuário não encontrado.');
     const novo = { ...u };
     if (patch.nome !== undefined) novo.nome = String(patch.nome).trim() || u.nome;
+    if (patch.email !== undefined) {
+      const email = String(patch.email).trim().toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('E-mail inválido.');
+      if (lista.some((x) => x.id !== id && x.email === email)) throw new Error('Já existe um usuário com esse e-mail.');
+      novo.email = email;
+    }
     if (patch.admin !== undefined) novo.admin = !!patch.admin;
     if (patch.ativo !== undefined) novo.ativo = !!patch.ativo;
     if (patch.senha !== undefined) {
