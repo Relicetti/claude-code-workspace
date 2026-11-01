@@ -8,6 +8,7 @@ import {
   type UnidadeConsumidora,
 } from './lib/clientes';
 import { useUsuario } from './Sessao';
+import { CompensacaoBloco } from './CompensacaoView';
 
 const COR_STATUS: Record<StatusCliente, [string, string]> = {
   cadastro: [C.amber, C.amberC], contrato: [C.azul, C.azulC], assinado: [C.azul, C.azulC], titularidade: [C.azul, C.azulC],
@@ -106,7 +107,8 @@ export function ClientesView({ abrir, onAbrir }: { abrir: string | null; onAbrir
 // ── DETALHE ──────────────────────────────────────────────────────────────────
 type Form = Cadastro & { contrato: CondicoesContrato };
 const paraForm = (c: Cliente): Form => {
-  const { id: _i, status: _s, criadoEm: _c, atualizadoEm: _a, proposta: _p, base: _b, documentos: _d, assinaturas: _as, historico: _h, ...form } = c;
+  const { id: _i, status: _s, criadoEm: _c, atualizadoEm: _a, proposta: _p, base: _b, documentos: _d, assinaturas: _as, historico: _h,
+    lancamentos: _l, faturas: _f, ...form } = c;
   return form;
 };
 
@@ -380,6 +382,10 @@ function ClienteDetalhe({ id, onVoltar }: { id: string; onVoltar: () => void }) 
           <Campo label="Prazo máximo para usar o saldo (meses)"><input type="number" style={inputStyle} value={form.contrato.prazoSaldoMeses} onChange={(e) => setCond('prazoSaldoMeses', Number(e.target.value))} /></Campo>
           <Campo label="Distribuidora no texto"><input style={inputStyle} placeholder="Copel" value={form.contrato.distribuidoraNome} onChange={(e) => setCond('distribuidoraNome', e.target.value)} /></Campo>
           <Campo label="Razão social da distribuidora"><input style={inputStyle} placeholder="Copel Distribuição S.A." value={form.contrato.distribuidoraRazao} onChange={(e) => setCond('distribuidoraRazao', e.target.value)} /></Campo>
+          <Campo label="Início da injeção do crédito (conta o prazo do saldo)">
+            <input type="month" style={inputStyle} value={form.contrato.inicioInjecao ?? ''} placeholder={c.base?.operacao.mesInicio}
+              onChange={(e) => setCond('inicioInjecao', e.target.value)} />
+          </Campo>
         </div>
         {c.base && (
           <div style={{ fontSize: 11, color: C.med, marginTop: 8 }}>
@@ -401,6 +407,14 @@ function ClienteDetalhe({ id, onVoltar }: { id: string; onVoltar: () => void }) 
             acao('cancelar', () => api<Cliente>(`/api/clientes/${id}/assinaturas/${e.autentiqueId}/cancelar`, { method: 'POST' }));
           }
         }} />
+
+      {(['titularidade', 'compensacao', 'retorno', 'encerrado'].includes(c.status) || (c.lancamentos ?? []).length > 0) ? (
+        <CompensacaoBloco c={c} ocupado={ocupado} docUrl={docUrl} executar={(nome, fn) => acao(nome, fn)} />
+      ) : (
+        <Bloco titulo="Compensação e faturas">
+          <div style={{ fontSize: 12, color: C.med }}>Liberado a partir da etapa "Troca de titularidade": aqui se lança, mês a mês, a fatura da distribuidora e se emite a fatura Kora.</div>
+        </Bloco>
+      )}
 
       <Bloco titulo="Histórico">
         <div style={{ maxHeight: 260, overflowY: 'auto' }}>
