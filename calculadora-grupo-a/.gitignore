@@ -8,3 +8,6 @@ server/data/
 # Modelos de contrato/procuração da Kora: não vão para o git (repo público). Sobem pelo app (Configurações).
 server/modelos/
 .DS_Store
+
+# Faturas reais de exemplo (dados de clientes): nunca no git.
+amostras/

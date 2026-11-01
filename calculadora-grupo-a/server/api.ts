@@ -6,6 +6,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { getProgresso, sincronizarAneel } from './aneel.ts';
 import { Auth, type UsuarioPublico } from './auth.ts';
 import { autentiqueConfigurada, autentiqueSandbox, baixarPdf, consultarDocumento, criarDocumento, type SignatarioAutentique } from './autentique.ts';
+import { linhasDoPdf } from './lerPdf.ts';
+import { lerFaturaCopel } from '../src/lib/faturaCopel.ts';
 import { arquivoModelo, gerarDocx, MODELOS, validarModelo, type Modelo } from './gerarDocx.ts';
 import { apagar, registrarRevisao, type NovaRevisao, type Proposta } from '../src/lib/propostas.ts';
 import {
@@ -459,6 +461,16 @@ rota('POST', /^\/clientes\/(CLI-\d+)\/reajustes$/, async (req, res, m, u) => {
   const b = (await lerCorpo(req)) as { aPartirDe: string; precoKWh: number; motivo?: string };
   json(res, 201, regra(m[1], (c) => reajustar(c, { aPartirDe: String(b.aPartirDe), precoKWh: Number(b.precoKWh), motivo: String(b.motivo ?? '').trim() }, new Date(), u.nome)));
 });
+// Lê a fatura da distribuidora (PDF) e devolve os números para o lançamento — não grava nada.
+rota('POST', /^\/ler-fatura$/, async (req, res) => {
+  const pdf = await lerBinario(req, 15 * 1024 * 1024);
+  if (pdf.subarray(0, 5).toString() !== '%PDF-') throw new ErroHttp(415, 'Envie a fatura em PDF.');
+  let linhas: string[];
+  try { linhas = await linhasDoPdf(pdf); } catch { throw new ErroHttp(422, 'Não consegui ler o texto do PDF (é uma foto/digitalização?).'); }
+  if (linhas.length < 5) throw new ErroHttp(422, 'O PDF não tem texto (parece uma imagem digitalizada). Digite os números.');
+  try { json(res, 200, lerFaturaCopel(linhas)); } catch (e) { throw new ErroHttp(422, `${(e as Error).message} Por enquanto só leio faturas da Copel; digite os números.`); }
+});
+
 // Todas as faturas (aba Faturamento).
 rota('GET', /^\/faturas$/, (_req, res) => {
   json(res, 200, lerClientes().flatMap((c) => (c.faturas ?? []).map((f) => ({ ...f, clienteId: c.id, cliente: c.nome, documento: c.documento, tipo: c.tipo }))));
