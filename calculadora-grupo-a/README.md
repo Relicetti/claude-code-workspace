@@ -122,3 +122,16 @@ Retorno da titularidade → Encerrado** (`src/lib/clientes.ts`).
   `AUTENTIQUE_TOKEN`; `AUTENTIQUE_SANDBOX=1` manda documentos de teste. Contrato: cliente + signatário da Kora + 2
   testemunhas (configurados na aba Configurações). Procuração: só o cliente. Cliente pode receber por WhatsApp.
   "Atualizar status" consulta a Autentique e, quando todos assinaram, anexa o PDF assinado.
+
+## Compensação mês a mês e faturas Kora (`src/lib/controle.ts`)
+
+Na ficha do cliente (a partir da troca de titularidade), "Compensação e faturas":
+- **Lançar mês**: por UC, os kWh compensados da fatura da distribuidora (o que a Kora cobra), o crédito que saiu do
+  saldo (no Grupo A pode ser maior, pela ponta × fator), vencimento, valor e o PDF da fatura.
+- Tabela previsto (proposta) × realizado, saldo de crédito restante, prazo do saldo (início da injeção + prazo) e
+  projeção do que sobra no fim do prazo.
+- **Emitir fatura** (FK-AAAA-NNNN, numeração única): kWh × R$/kWh vigente por UC, vence junto com a fatura da
+  distribuidora; impressão/PDF pelo navegador. Baixa de pagamento, cancelamento (libera o mês para corrigir),
+  **reajuste** de preço a partir de um mês e **quitação do saldo** remanescente (Cláusula 9ª §3).
+- Aba **Faturamento**: faturas de todos os clientes (em aberto, vencidas, pagas).
+- Ainda não: leitura automática do PDF da distribuidora e emissão de boleto.
