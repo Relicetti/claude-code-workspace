@@ -108,7 +108,7 @@ export function ClientesView({ abrir, onAbrir }: { abrir: string | null; onAbrir
 type Form = Cadastro & { contrato: CondicoesContrato };
 const paraForm = (c: Cliente): Form => {
   const { id: _i, status: _s, criadoEm: _c, atualizadoEm: _a, proposta: _p, base: _b, documentos: _d, assinaturas: _as, historico: _h,
-    lancamentos: _l, faturas: _f, ...form } = c;
+    lancamentos: _l, faturas: _f, asaasClienteId: _ac, ...form } = c;
   return form;
 };
 

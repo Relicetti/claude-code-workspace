@@ -31,6 +31,27 @@ export interface ItemFatura { uc: string; compensadoKWh: number; precoKWh: numbe
 
 export type StatusFatura = 'emitida' | 'paga' | 'cancelada';
 
+/** Boleto (com QR Pix) gerado no Asaas para a fatura. */
+export interface CobrancaBoleto {
+  asaasId: string;
+  /** Status no Asaas: PENDING, RECEIVED, CONFIRMED, OVERDUE, RECEIVED_IN_CASH, REFUNDED, DELETED… */
+  status: string;
+  vencimento: string;
+  valor: number;
+  linhaDigitavel: string;
+  pixCopiaCola: string;
+  /** QR Code do Pix em PNG base64. */
+  pixQrBase64: string;
+  boletoUrl: string;
+  faturaUrl: string;
+  sandbox: boolean;
+  criadaEm: string;
+  atualizadaEm: string;
+}
+
+/** Status do Asaas que significam dinheiro recebido. */
+export const PAGO_ASAAS = ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'];
+
 export interface FaturaKora {
   numero: string;       // FK-2026-0001
   mes: string;
@@ -45,6 +66,8 @@ export interface FaturaKora {
   /** Fatura de quitação do saldo remanescente (Cláusula 9ª §3), em vez de mensal. */
   quitacaoSaldo: boolean;
   observacao: string;
+  /** Boleto no Asaas, se gerado. */
+  cobranca?: CobrancaBoleto | null;
 }
 
 export interface Reajuste {
@@ -283,3 +306,32 @@ const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'o
 export const mesBR = (ym: string) => `${MESES[Number(ym.slice(5, 7)) - 1]}/${ym.slice(0, 4)}`;
 const dataBR = (iso: string) => iso.slice(0, 10).split('-').reverse().join('/');
 const fmt = (v: number, d = 0) => v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+
+/**
+ * Atualiza o boleto da fatura com o que o Asaas informou. Se foi pago, baixa a fatura sozinha
+ * (data e valor do pagamento); estorno volta a fatura para "emitida".
+ */
+export function aplicarCobranca(
+  c: Cliente, numero: string, cob: CobrancaBoleto, pagamento: { data: string | null; valor: number | null }, agora: Date, por: string,
+): Cliente {
+  const f = (c.faturas ?? []).find((x) => x.numero === numero);
+  if (!f) throw new Error('Fatura não encontrada.');
+  const iso = agora.toISOString();
+  const eventos: string[] = [];
+  let novo: FaturaKora = { ...f, cobranca: cob };
+  if (f.cobranca?.status !== cob.status) eventos.push(`Boleto da ${numero}: ${f.cobranca?.status ?? 'novo'} → ${cob.status}${cob.sandbox ? ' (sandbox)' : ''}.`);
+  if (PAGO_ASAAS.includes(cob.status) && f.status === 'emitida') {
+    const pagaEm = (pagamento.data ?? iso).slice(0, 10);
+    const valor = arred2(pagamento.valor ?? cob.valor);
+    novo = { ...novo, status: 'paga', pagaEm, valorPago: valor };
+    eventos.push(`Baixa automática da ${numero}: pago R$ ${fmt(valor, 2)} em ${dataBR(pagaEm)} (Asaas).`);
+  } else if (f.status === 'paga' && ['REFUNDED', 'PENDING', 'OVERDUE'].includes(cob.status) && f.cobranca && PAGO_ASAAS.includes(f.cobranca.status)) {
+    novo = { ...novo, status: 'emitida', pagaEm: null, valorPago: null };
+    eventos.push(`Pagamento da ${numero} desfeito no Asaas (${cob.status}); fatura voltou para em aberto.`);
+  }
+  if (JSON.stringify(novo) === JSON.stringify(f)) return c;
+  return {
+    ...c, faturas: c.faturas.map((x) => (x.numero === numero ? novo : x)), atualizadoEm: iso,
+    historico: [...c.historico, ...eventos.map((texto) => ({ em: iso, por, texto }))],
+  };
+}

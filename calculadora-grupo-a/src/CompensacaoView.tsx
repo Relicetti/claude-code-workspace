@@ -18,7 +18,10 @@ export function estadoFatura(f: Fatura): keyof typeof COR_FATURA {
 export function EtiquetaFatura({ f }: { f: Fatura }) {
   const e = estadoFatura(f);
   const [cor, fundo] = COR_FATURA[e];
-  return <span style={{ padding: '2px 8px', borderRadius: 10, background: fundo, color: cor, fontSize: 11, fontWeight: 600 }}>{e[0].toUpperCase() + e.slice(1)}</span>;
+  const boleto = f.cobranca && f.cobranca.status !== 'DELETED' && f.status === 'emitida'
+    ? (f.cobranca.status === 'OVERDUE' ? ' · boleto vencido' : ' · boleto')
+    : '';
+  return <span style={{ padding: '2px 8px', borderRadius: 10, background: fundo, color: cor, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>{e[0].toUpperCase() + e.slice(1)}{boleto}</span>;
 }
 
 /** Abre a impressão com o nome do arquivo PDF sugerido pelo título da página. */
@@ -60,6 +63,9 @@ export function CompensacaoBloco({ c, ocupado, executar, docUrl }: {
   const r = useMemo(() => resumoControle(c, new Date()), [c]);
   const [vendo, setVendo] = useState<Fatura | null>(null);
   const [aberto, setAberto] = useState(false);
+  const [asaas, setAsaas] = useState<{ configurado: boolean; producao: boolean } | null>(null);
+  const [avisoBoleto, setAvisoBoleto] = useState<string | null>(null);
+  useEffect(() => { api<{ asaas: { configurado: boolean; producao: boolean } }>('/api/config').then((r) => setAsaas(r.asaas)).catch(() => {}); }, []);
   const ultimoLancado = (c.lancamentos ?? []).map((l) => l.mes).sort().slice(-1)[0];
   const sugestaoMes = ultimoLancado ? somarMeses(ultimoLancado, 1) : (c.contrato.inicioInjecao || c.base?.operacao.mesInicio || new Date().toISOString().slice(0, 7));
   const vazio = { mes: sugestaoMes, uc: c.ucs[0]?.numero ?? '', compensadoKWh: '', saldoDebitadoKWh: '', saldoFaturaKWh: '', vencimento: '', valorDistribuidora: '', observacao: '' };
@@ -113,11 +119,33 @@ export function CompensacaoBloco({ c, ocupado, executar, docUrl }: {
     const linha = r.linhas.find((l) => l.mes === mes)!;
     if (!window.confirm(`Emitir a fatura de ${mesBR(mes)}: ${R(linha.compensadoKWh)} kWh × R$ ${R(linha.precoKWh, 4)} = ${RS(linha.valor)}?`)) return;
     executar('emitir', async () => {
-      const novo = await api<Cliente>(`/api/clientes/${id}/faturas`, { method: 'POST', json: { mes } });
+      const novo = await api<Cliente & { avisoBoleto?: string }>(`/api/clientes/${id}/faturas`, { method: 'POST', json: { mes } });
+      setAvisoBoleto(novo.avisoBoleto ? `Fatura emitida, mas o boleto não foi gerado: ${novo.avisoBoleto}` : null);
       setVendo(novo.faturas.find((f) => f.mes === mes && f.status === 'emitida' && !f.quitacaoSaldo) ?? null);
       return novo;
     });
   };
+  const gerarBoleto = (f: Fatura) => {
+    const hoje = hojeISO();
+    let vencimento: string | undefined;
+    if (f.vencimento < hoje) {
+      const d = new Date(); d.setDate(d.getDate() + 5);
+      const r = window.prompt(`O vencimento da fatura (${data(f.vencimento)}) já passou. Vencimento do boleto (DD/MM/AAAA):`, data(d.toISOString()));
+      if (!r) return;
+      const [dd, mm, aa] = r.split('/');
+      vencimento = `${aa}-${mm?.padStart(2, '0')}-${dd?.padStart(2, '0')}`;
+    }
+    setAvisoBoleto(null);
+    executar('boleto', () => api<Cliente>(`/api/clientes/${id}/faturas/${f.numero}/boleto`, { method: 'POST', json: { vencimento } }));
+  };
+  const atualizarBoletos = () => executar('sync-boletos', () => api<Cliente>(`/api/clientes/${id}/boletos/atualizar`, { method: 'POST' }));
+  const temBoletoAberto = (c.faturas ?? []).some((f) => f.status === 'emitida' && f.cobranca && f.cobranca.status !== 'DELETED');
+  const acoesBoleto = (f: Fatura) => {
+    if (f.status !== 'emitida' || !asaas?.configurado) return null;
+    if (!f.cobranca || f.cobranca.status === 'DELETED') return <><button style={{ ...pequeno, background: C.azul, color: '#fff', border: 'none' }} disabled={!!ocupado} onClick={() => gerarBoleto(f)}>Gerar boleto</button>{' '}</>;
+    return <>{f.cobranca.boletoUrl && <a href={f.cobranca.boletoUrl} target="_blank" rel="noreferrer" style={{ ...pequeno, textDecoration: 'none', color: C.esc, display: 'inline-block' }}>Boleto{f.cobranca.sandbox ? ' (teste)' : ''}</a>}{' '}</>;
+  };
+
   const baixar = (f: Fatura) => {
     const dataPag = window.prompt(`Data do pagamento da ${f.numero} (DD/MM/AAAA):`, data(hojeISO()));
     if (!dataPag) return;
@@ -171,6 +199,10 @@ export function CompensacaoBloco({ c, ocupado, executar, docUrl }: {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 14, fontWeight: 700 }}>Compensação e faturas</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {asaas?.configurado && temBoletoAberto && (
+            <button style={botao()} onClick={atualizarBoletos} disabled={!!ocupado} title="Consulta no Asaas os boletos em aberto e dá baixa nos pagos">
+              {ocupado === 'sync-boletos' ? 'Consultando…' : 'Atualizar pagamentos (Asaas)'}</button>
+          )}
           <button style={botao()} onClick={reajuste} disabled={!!ocupado}>Reajuste de preço</button>
           {r.saldoKWh > 0 && quitacoes.every((f) => f.status === 'cancelada') && (r.linhas.some((l) => l.ucsLancadas) || prazoEstourado) && (
             <button style={{ ...botao(), color: prazoEstourado ? C.verm : C.esc }} onClick={quitacao} disabled={!!ocupado}
@@ -180,6 +212,8 @@ export function CompensacaoBloco({ c, ocupado, executar, docUrl }: {
         </div>
       </div>
 
+      {avisoBoleto && <div style={{ fontSize: 12, background: C.vermC, color: C.verm, padding: '8px 12px', borderRadius: 6, marginBottom: 10 }}>{avisoBoleto}</div>}
+      {asaas?.configurado && !asaas.producao && <div style={{ fontSize: 11, color: C.azul, marginBottom: 8 }}>Boletos no Asaas em modo teste (sandbox): não são cobranças de verdade.</div>}
       {!c.base && <div style={{ fontSize: 12, color: C.amber, marginBottom: 10 }}>Cliente sem proposta fechada: sem previsto nem crédito total para o saldo.</div>}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8, marginBottom: 14 }}>
@@ -273,6 +307,7 @@ export function CompensacaoBloco({ c, ocupado, executar, docUrl }: {
                       <td style={tdL}>{l.fatura ? <><span style={{ fontSize: 11 }}>{l.fatura.numero}</span> <EtiquetaFatura f={l.fatura} /></> : ''}</td>
                       <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
                         {l.fatura ? <>
+                          {acoesBoleto(l.fatura)}
                           <button style={pequeno} onClick={() => setVendo(l.fatura)}>Ver / PDF</button>{' '}
                           {l.fatura.status === 'emitida' && <><button style={pequeno} onClick={() => baixar(l.fatura!)}>Baixar pgto</button>{' '}
                             <button style={{ ...pequeno, color: C.verm }} onClick={() => cancelar(l.fatura!)}>Cancelar</button></>}
@@ -311,6 +346,7 @@ export function CompensacaoBloco({ c, ocupado, executar, docUrl }: {
           {quitacoes.map((f) => (
             <div key={f.numero} style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 12, padding: '6px 0' }}>
               <b>Quitação do saldo</b> {f.numero} · {R(f.itens[0].compensadoKWh)} kWh · {RS(f.total)} · vence {data(f.vencimento)} <EtiquetaFatura f={f} />
+              {acoesBoleto(f)}
               <button style={pequeno} onClick={() => setVendo(f)}>Ver / PDF</button>
               {f.status === 'emitida' && <><button style={pequeno} onClick={() => baixar(f)}>Baixar pgto</button><button style={{ ...pequeno, color: C.verm }} onClick={() => cancelar(f)}>Cancelar</button></>}
             </div>

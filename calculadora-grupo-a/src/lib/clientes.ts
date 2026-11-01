@@ -179,6 +179,8 @@ export interface Cliente extends Cadastro {
   /** Compensação mês a mês, por UC. */
   lancamentos: LancamentoMensal[];
   faturas: FaturaKora[];
+  /** Id do cliente no Asaas (criado no primeiro boleto). */
+  asaasClienteId?: string;
   historico: EventoCliente[];
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  baixarFatura, cancelarFatura, emitirFatura, emitirQuitacao, lancar, precoVigente, proximoNumeroFatura, reajustar, removerLancamento,
+  aplicarCobranca, baixarFatura, cancelarFatura, emitirFatura, emitirQuitacao, lancar, precoVigente, proximoNumeroFatura, reajustar, removerLancamento,
   resumoControle, type LancamentoMensal,
 } from './controle';
 import { clientePronto } from './fixtures';
@@ -94,5 +94,20 @@ describe('controle de compensação', () => {
   it('numera FK-AAAA-NNNN por ano', () => {
     expect(proximoNumeroFatura([], 2027)).toBe('FK-2027-0001');
     expect(proximoNumeroFatura(['FK-2027-0003', 'FK-2026-0040'], 2027)).toBe('FK-2027-0004');
+  });
+
+  it('boleto do Asaas: guarda a cobrança, baixa sozinha quando pago e volta se estornado', () => {
+    let c = emitirFatura(lancar(cliente(), l('2026-12', 10000)), '2026-12', 'FK-2027-0001', agora, 'Ana');
+    const cob = { asaasId: 'pay_1', status: 'PENDING', vencimento: '2026-12-20', valor: 6000, linhaDigitavel: '123', pixCopiaCola: 'pix',
+      pixQrBase64: '', boletoUrl: 'u', faturaUrl: 'f', sandbox: true, criadaEm: agora.toISOString(), atualizadaEm: agora.toISOString() };
+    c = aplicarCobranca(c, 'FK-2027-0001', cob, { data: null, valor: null }, agora, 'Ana');
+    expect(c.faturas[0]).toMatchObject({ status: 'emitida', cobranca: { asaasId: 'pay_1', status: 'PENDING' } });
+    // Mesma informação de novo não mexe em nada.
+    expect(aplicarCobranca(c, 'FK-2027-0001', cob, { data: null, valor: null }, agora, 'Ana')).toBe(c);
+    c = aplicarCobranca(c, 'FK-2027-0001', { ...cob, status: 'RECEIVED' }, { data: '2026-12-19', valor: 6000 }, agora, 'Asaas');
+    expect(c.faturas[0]).toMatchObject({ status: 'paga', pagaEm: '2026-12-19', valorPago: 6000 });
+    expect(c.historico.slice(-1)[0].texto).toContain('Baixa automática');
+    c = aplicarCobranca(c, 'FK-2027-0001', { ...cob, status: 'REFUNDED' }, { data: null, valor: null }, agora, 'Asaas');
+    expect(c.faturas[0]).toMatchObject({ status: 'emitida', pagaEm: null });
   });
 });

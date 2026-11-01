@@ -7,6 +7,10 @@ import { getProgresso, sincronizarAneel } from './aneel.ts';
 import { Auth, type UsuarioPublico } from './auth.ts';
 import { autentiqueConfigurada, autentiqueSandbox, baixarPdf, consultarDocumento, criarDocumento, type SignatarioAutentique } from './autentique.ts';
 import { linhasDoPdf } from './lerPdf.ts';
+import {
+  asaasConfigurado, asaasProducao, cancelarCobranca, clienteAsaas, consultarCobranca, criarCobranca, linhaDigitavel, pixQrCode,
+  registrarWebhook, webhookAutentico, type PagamentoAsaas,
+} from './asaas.ts';
 import { lerFaturaCopel } from '../src/lib/faturaCopel.ts';
 import { arquivoModelo, gerarDocx, MODELOS, validarModelo, type Modelo } from './gerarDocx.ts';
 import { apagar, registrarRevisao, type NovaRevisao, type Proposta } from '../src/lib/propostas.ts';
@@ -17,8 +21,8 @@ import {
 } from '../src/lib/clientes.ts';
 import { dadosModelo } from '../src/lib/contratos.ts';
 import {
-  baixarFatura, cancelarFatura, emitirFatura, emitirQuitacao, lancar, proximoNumeroFatura, reajustar, removerLancamento,
-  type LancamentoMensal,
+  aplicarCobranca, baixarFatura, cancelarFatura, emitirFatura, emitirQuitacao, lancar, mesBR, PAGO_ASAAS, proximoNumeroFatura, reajustar,
+  removerLancamento, type CobrancaBoleto, type LancamentoMensal,
 } from '../src/lib/controle.ts';
 import { configVazia, limparConfig, pendenciasConfig, pendenciasModelo, type ConfigKora } from '../src/lib/config.ts';
 
@@ -441,13 +445,17 @@ rota('DELETE', /^\/clientes\/(CLI-\d+)\/lancamentos\/([a-f0-9]{16})$/, (_req, re
 rota('POST', /^\/clientes\/(CLI-\d+)\/faturas$/, async (req, res, m, u) => {
   const { mes, observacao } = (await lerCorpo(req)) as { mes: string; observacao?: string };
   const agora = new Date();
-  json(res, 201, regra(m[1], (c) => emitirFatura(c, String(mes), numeroFatura(agora), agora, u.nome, String(observacao ?? '').trim())));
+  const numero = numeroFatura(agora);
+  const c = regra(m[1], (x) => emitirFatura(x, String(mes), numero, agora, u.nome, String(observacao ?? '').trim()));
+  json(res, 201, await comBoletoAutomatico(c, numero, u.nome));
 });
 rota('POST', /^\/clientes\/(CLI-\d+)\/faturas\/quitacao$/, async (req, res, m, u) => {
   const { vencimento, motivo } = (await lerCorpo(req)) as { vencimento: string; motivo?: string };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(vencimento))) throw new ErroHttp(400, 'Informe o vencimento.');
   const agora = new Date();
-  json(res, 201, regra(m[1], (c) => emitirQuitacao(c, numeroFatura(agora), vencimento, agora, u.nome, String(motivo ?? '').trim())));
+  const numero = numeroFatura(agora);
+  const c = regra(m[1], (x) => emitirQuitacao(x, numero, vencimento, agora, u.nome, String(motivo ?? '').trim()));
+  json(res, 201, await comBoletoAutomatico(c, numero, u.nome));
 });
 rota('POST', /^\/clientes\/(CLI-\d+)\/faturas\/(FK-\d{4}-\d{4})\/baixa$/, async (req, res, m, u) => {
   const { pagaEm, valorPago } = (await lerCorpo(req)) as { pagaEm: string; valorPago: number };
@@ -455,12 +463,111 @@ rota('POST', /^\/clientes\/(CLI-\d+)\/faturas\/(FK-\d{4}-\d{4})\/baixa$/, async 
 });
 rota('POST', /^\/clientes\/(CLI-\d+)\/faturas\/(FK-\d{4}-\d{4})\/cancelar$/, async (req, res, m, u) => {
   const { motivo } = (await lerCorpo(req)) as { motivo?: string };
+  // Boleto em aberto no Asaas é cancelado junto; se o Asaas recusar, a fatura não é cancelada.
+  const f = cliente(m[1]).faturas?.find((x) => x.numero === m[2]);
+  if (f?.cobranca && f.status === 'emitida' && !['DELETED', ...PAGO_ASAAS].includes(f.cobranca.status)) {
+    try { await cancelarCobranca(f.cobranca.asaasId); } catch (e) { throw new ErroHttp(502, `Não consegui cancelar o boleto no Asaas: ${(e as Error).message}`); }
+    regra(m[1], (c) => aplicarCobranca(c, m[2], { ...f.cobranca!, status: 'DELETED', atualizadaEm: new Date().toISOString() }, { data: null, valor: null }, new Date(), u.nome));
+  }
   json(res, 200, regra(m[1], (c) => cancelarFatura(c, m[2], String(motivo ?? '').trim(), new Date(), u.nome)));
 });
 rota('POST', /^\/clientes\/(CLI-\d+)\/reajustes$/, async (req, res, m, u) => {
   const b = (await lerCorpo(req)) as { aPartirDe: string; precoKWh: number; motivo?: string };
   json(res, 201, regra(m[1], (c) => reajustar(c, { aPartirDe: String(b.aPartirDe), precoKWh: Number(b.precoKWh), motivo: String(b.motivo ?? '').trim() }, new Date(), u.nome)));
 });
+// ── Boleto no Asaas ──
+async function montarCobranca(p: PagamentoAsaas, anterior?: CobrancaBoleto | null): Promise<CobrancaBoleto> {
+  let linha = anterior?.linhaDigitavel ?? '';
+  let pix = { copia: anterior?.pixCopiaCola ?? '', qr: anterior?.pixQrBase64 ?? '' };
+  if (!linha) { try { linha = (await linhaDigitavel(p.id)).identificationField; } catch { /* ainda não registrado */ } }
+  if (!pix.copia) { try { const q = await pixQrCode(p.id); pix = { copia: q.payload, qr: q.encodedImage }; } catch { /* conta sem chave Pix */ } }
+  const agora = new Date().toISOString();
+  return {
+    asaasId: p.id, status: p.deleted ? 'DELETED' : p.status, vencimento: p.dueDate, valor: p.value, linhaDigitavel: linha,
+    pixCopiaCola: pix.copia, pixQrBase64: pix.qr, boletoUrl: p.bankSlipUrl ?? '', faturaUrl: p.invoiceUrl ?? '',
+    sandbox: !asaasProducao(), criadaEm: anterior?.criadaEm ?? agora, atualizadaEm: agora,
+  };
+}
+
+async function gerarBoleto(id: string, numero: string, por: string, vencimentoNovo?: string): Promise<Cliente> {
+  if (!asaasConfigurado()) throw new ErroHttp(503, 'Asaas ainda não configurado (falta ASAAS_API_KEY).');
+  const c = cliente(id);
+  const f = (c.faturas ?? []).find((x) => x.numero === numero);
+  if (!f) throw new ErroHttp(404, 'Fatura não encontrada.');
+  if (f.status !== 'emitida') throw new ErroHttp(409, `A fatura ${numero} está ${f.status}.`);
+  if (f.cobranca && f.cobranca.status !== 'DELETED') throw new ErroHttp(409, 'Essa fatura já tem boleto.');
+  const vencimento = vencimentoNovo || f.vencimento;
+  const hoje = new Date().toISOString().slice(0, 10);
+  if (vencimento < hoje) throw new ErroHttp(409, `O vencimento ${vencimento.split('-').reverse().join('/')} já passou; informe outra data para o boleto.`);
+  const pagador = {
+    nome: c.nome, cpfCnpj: c.documento, email: c.contatoFinanceiro.email || c.email || c.representante.email,
+    celular: soDigitos(c.contatoFinanceiro.telefone || c.telefone || c.representante.telefone), cep: soDigitos(c.endereco.cep),
+    numero: c.endereco.numero, endereco: c.endereco.logradouro, complemento: c.endereco.complemento, bairro: c.endereco.bairro, referencia: c.id,
+  };
+  let asaasCliente = c.asaasClienteId;
+  try {
+    if (!asaasCliente) asaasCliente = await clienteAsaas(pagador);
+    const p = await criarCobranca({
+      cliente: asaasCliente, valor: f.total, vencimento, referencia: numero, multaPct: 2, jurosMesPct: 1,
+      descricao: f.quitacaoSaldo ? `Fatura ${numero} - Kora Energia - quitação do saldo de créditos`
+        : `Fatura ${numero} - Kora Energia - energia compensada em ${mesBR(f.mes)}`,
+    });
+    const cob = await montarCobranca(p);
+    return regra(id, (x) => aplicarCobranca({ ...x, asaasClienteId: asaasCliente }, numero, cob, { data: null, valor: null }, new Date(), por));
+  } catch (e) {
+    if (e instanceof ErroHttp) throw e;
+    throw new ErroHttp(502, (e as Error).message);
+  }
+}
+
+/** Depois de emitir: gera o boleto se o Asaas estiver ligado; se falhar, a fatura fica e o aviso volta junto. */
+async function comBoletoAutomatico(c: Cliente, numero: string, por: string): Promise<Cliente & { avisoBoleto?: string }> {
+  if (!asaasConfigurado()) return c;
+  try { return await gerarBoleto(c.id, numero, por); } catch (e) { return { ...cliente(c.id), avisoBoleto: (e as Error).message }; }
+}
+
+/** Consulta no Asaas os boletos das faturas do cliente e aplica pagamentos. */
+async function sincronizarBoletos(id: string, por: string): Promise<Cliente> {
+  const faturas = (cliente(id).faturas ?? []).filter((f) => f.cobranca && f.cobranca.status !== 'DELETED' && f.status !== 'cancelada');
+  for (const f of faturas) {
+    const p = await consultarCobranca(f.cobranca!.asaasId);
+    const cob = await montarCobranca(p, f.cobranca);
+    regra(id, (x) => aplicarCobranca(x, f.numero, cob, { data: p.clientPaymentDate ?? p.paymentDate ?? null, valor: p.value }, new Date(), por));
+  }
+  return cliente(id);
+}
+
+rota('POST', /^\/clientes\/(CLI-\d+)\/faturas\/(FK-\d{4}-\d{4})\/boleto$/, async (req, res, m, u) => {
+  const { vencimento } = (await lerCorpo(req)) as { vencimento?: string };
+  if (vencimento && !/^\d{4}-\d{2}-\d{2}$/.test(vencimento)) throw new ErroHttp(400, 'Vencimento inválido.');
+  json(res, 201, await gerarBoleto(m[1], m[2], u.nome, vencimento));
+});
+rota('POST', /^\/clientes\/(CLI-\d+)\/boletos\/atualizar$/, async (_req, res, m, u) => {
+  if (!asaasConfigurado()) throw new ErroHttp(503, 'Asaas ainda não configurado.');
+  try { json(res, 200, await sincronizarBoletos(m[1], u.nome)); } catch (e) { throw e instanceof ErroHttp ? e : new ErroHttp(502, (e as Error).message); }
+});
+rota('POST', /^\/asaas\/registrar-webhook$/, async (req, res, _m, u) => {
+  const host = String(req.headers['x-forwarded-host'] ?? req.headers.host ?? '');
+  if (!host || /localhost|127\.0\.0\.1/.test(host)) throw new ErroHttp(400, 'Registre o aviso de pagamento a partir do app publicado (não do localhost).');
+  try { await registrarWebhook(`https://${host}/api/asaas/webhook`, u.email); } catch (e) { throw new ErroHttp(502, (e as Error).message); }
+  json(res, 200, { ok: true, url: `https://${host}/api/asaas/webhook` });
+}, { admin: true });
+
+/** Aviso de pagamento do Asaas (sem sessão; autenticado pelo token). Sempre consulta o pagamento de novo no Asaas. */
+async function webhookAsaas(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (!webhookAutentico(req.headers['asaas-access-token'] as string | undefined)) return json(res, 401, { erro: 'Token inválido.' });
+  const corpo = (await lerCorpo(req)) as { event?: string; payment?: { id?: string } };
+  const pid = corpo.payment?.id;
+  const dono = pid ? lerClientes().find((c) => (c.faturas ?? []).some((f) => f.cobranca?.asaasId === pid)) : undefined;
+  if (dono && pid) {
+    const f = dono.faturas.find((x) => x.cobranca?.asaasId === pid)!;
+    const p = await consultarCobranca(pid);
+    const cob = await montarCobranca(p, f.cobranca);
+    regra(dono.id, (x) => aplicarCobranca(x, f.numero, cob, { data: p.clientPaymentDate ?? p.paymentDate ?? null, valor: p.value }, new Date(), 'Asaas'));
+  }
+  json(res, 200, { ok: true });
+}
+
 // Lê a fatura da distribuidora (PDF) e devolve os números para o lançamento — não grava nada.
 rota('POST', /^\/ler-fatura$/, async (req, res) => {
   const pdf = await lerBinario(req, 15 * 1024 * 1024);
@@ -501,6 +608,7 @@ const infoModelos = () => Object.fromEntries(MODELOS.map((m) => {
 }));
 rota('GET', /^\/config$/, (_req, res) => json(res, 200, {
   ...lerConfig(), autentique: { configurada: autentiqueConfigurada(), sandbox: autentiqueSandbox() }, modelos: infoModelos(),
+  asaas: { configurado: asaasConfigurado(), producao: asaasProducao(), webhookToken: !!process.env.ASAAS_WEBHOOK_TOKEN },
 }));
 // Modelos .docx: PUT com o arquivo cru; GET baixa o atual.
 rota('PUT', /^\/modelos\/(contrato|procuracao)$/, async (req, res, m) => {
@@ -557,6 +665,10 @@ export function apiHandler(req: IncomingMessage, res: ServerResponse, next: () =
     return;
   }
   if (req.method === 'POST' && url === '/logout') { auth.logout(req, res); json(res, 200, { ok: true }); return; }
+  if (req.method === 'POST' && url === '/asaas/webhook') {
+    webhookAsaas(req, res).catch((e: Error) => { console.error('[asaas] webhook', e); if (!res.headersSent) json(res, 500, { erro: e.message }); });
+    return;
+  }
 
   const usuario = auth.usuarioDa(req);
   if (url === '/sessao' && req.method === 'GET') {

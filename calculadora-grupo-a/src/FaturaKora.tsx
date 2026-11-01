@@ -86,6 +86,24 @@ export function FaturaKora({ f, c, saldoAposKWh }: { f: Fatura; c: Cliente; sald
           </div>
         </div>
 
+        {f.cobranca && f.cobranca.status !== 'DELETED' && f.status !== 'cancelada' && (
+          <div style={{ ...caixa, display: 'flex', gap: '6mm', alignItems: 'center', position: 'relative' }}>
+            {f.cobranca.sandbox && (
+              <div style={{ position: 'absolute', top: '2mm', right: '4mm', fontSize: '8pt', fontWeight: 700, color: '#e34948' }}>TESTE (SANDBOX) — NÃO PAGUE</div>
+            )}
+            {f.cobranca.pixQrBase64 && <img src={`data:image/png;base64,${f.cobranca.pixQrBase64}`} alt="QR Code Pix" style={{ width: '32mm', height: '32mm' }} />}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={rotulo}>Linha digitável do boleto</div>
+              <div style={{ fontFamily: 'monospace', fontSize: '10.5pt', fontWeight: 700, wordBreak: 'break-all' }}>{f.cobranca.linhaDigitavel || '—'}</div>
+              {f.cobranca.pixCopiaCola && <>
+                <div style={{ ...rotulo, marginTop: '3mm' }}>Pix copia e cola</div>
+                <div style={{ fontFamily: 'monospace', fontSize: '6.5pt', wordBreak: 'break-all', color: '#3c4043' }}>{f.cobranca.pixCopiaCola}</div>
+              </>}
+              {f.cobranca.vencimento !== f.vencimento && <div style={{ fontSize: '8pt', marginTop: '2mm' }}>Boleto com vencimento em {data(f.cobranca.vencimento)}.</div>}
+            </div>
+          </div>
+        )}
+
         <div style={{ fontSize: '8.5pt', lineHeight: 1.5, color: '#3c4043' }}>
           {f.quitacaoSaldo ? (
             <p>Quitação do saldo de créditos não utilizado, calculado pelos kWh remanescentes × preço por kWh vigente, nos termos da Cláusula Nona, Parágrafo Terceiro, do Contrato de Assessoria Energética e Gestão de Créditos de Energia Elétrica.</p>
@@ -95,7 +113,7 @@ export function FaturaKora({ f, c, saldoAposKWh }: { f: Fatura; c: Cliente; sald
               {saldoAposKWh !== null && <p>Saldo de créditos remanescente após esta apuração: <b>{n(Math.max(0, saldoAposKWh))} kWh</b>.</p>}
             </>
           )}
-          <p>Pagamento por boleto bancário emitido pela KORA. Atraso sujeito a multa de 2%, juros de 1% ao mês pro rata die e correção pelo IPCA (Cláusula Oitava).</p>
+          <p>Pagamento por boleto bancário emitido pela KORA (também pode ser pago pelo Pix abaixo). Atraso sujeito a multa de 2%, juros de 1% ao mês pro rata die e correção pelo IPCA (Cláusula Oitava).</p>
           {f.observacao && <p>{f.observacao}</p>}
           {f.status === 'paga' && <p style={{ color: '#1baf7a', fontWeight: 700 }}>PAGA em {data(f.pagaEm!)} — R$ {n(f.valorPago ?? 0, 2)}</p>}
         </div>
