@@ -4,3 +4,6 @@ dist-server/
 .env
 .env.*
 server/data/
+
+# Modelos de contrato/procuração da Kora: não vão para o git (repo público). Sobem pelo app (Configurações).
+server/modelos/
