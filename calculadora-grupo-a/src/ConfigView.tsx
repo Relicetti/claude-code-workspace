@@ -25,11 +25,12 @@ export function ConfigView() {
   const [cfg, setCfg] = useState<ConfigKora | null>(null);
   const [autentique, setAutentique] = useState<{ configurada: boolean; sandbox: boolean } | null>(null);
   const [modelos, setModelos] = useState<InfoModelos | null>(null);
+  const [asaas, setAsaas] = useState<{ configurado: boolean; producao: boolean; webhookToken: boolean } | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; texto: string } | null>(null);
 
   useEffect(() => {
-    api<ConfigKora & { autentique: { configurada: boolean; sandbox: boolean }; modelos: InfoModelos }>('/api/config')
-      .then(({ autentique: a, modelos: m, ...c }) => { setCfg(c); setAutentique(a); setModelos(m); })
+    api<ConfigKora & { autentique: { configurada: boolean; sandbox: boolean }; modelos: InfoModelos; asaas: { configurado: boolean; producao: boolean; webhookToken: boolean } }>('/api/config')
+      .then(({ autentique: a, modelos: m, asaas: as, ...c }) => { setCfg(c); setAutentique(a); setModelos(m); setAsaas(as); })
       .catch((e) => setMsg({ ok: false, texto: e.message }));
   }, []);
 
@@ -81,6 +82,25 @@ export function ConfigView() {
         </>}
       </section>
 
+      {asaas && (
+        <section style={{ ...cartao, marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Boletos (Asaas)</div>
+          <div style={{ fontSize: 12, color: C.med, marginBottom: 10 }}>
+            {asaas.configurado
+              ? <>Conectado à conta da Kora — <b>{asaas.producao ? 'PRODUÇÃO (cobranças reais)' : 'modo teste (sandbox)'}</b>. Ao emitir uma fatura o boleto (com QR Pix, multa 2% e juros 1% a.m.) é gerado sozinho.</>
+              : <>Ainda não conectado: falta a chave de API do Asaas no servidor (<code>ASAAS_API_KEY</code>).</>}
+          </div>
+          {asaas.configurado && usuario.admin && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button style={botao()} disabled={!asaas.webhookToken} onClick={async () => {
+                try { const r = await api<{ url: string }>('/api/asaas/registrar-webhook', { method: 'POST' }); setMsg({ ok: true, texto: `Aviso de pagamento registrado no Asaas: ${r.url}` }); }
+                catch (e) { setMsg({ ok: false, texto: (e as Error).message }); }
+              }}>Registrar aviso de pagamento (webhook)</button>
+              <span style={{ fontSize: 11, color: C.med }}>Faz o Asaas avisar o app quando um boleto é pago (baixa automática). Uma vez só.{!asaas.webhookToken && ' Falta ASAAS_WEBHOOK_TOKEN no servidor.'}</span>
+            </div>
+          )}
+        </section>
+      )}
       {modelos && <Modelos info={modelos} admin={usuario.admin} onInfo={setModelos} onMsg={setMsg} />}
       {usuario.admin && <Usuarios eu={usuario} onMsg={setMsg} />}
       <MinhaSenha onMsg={setMsg} />
