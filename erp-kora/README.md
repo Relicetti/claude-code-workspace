@@ -88,8 +88,8 @@ do contrato, projeção por ano e premissas. **Não** mostra margem da Kora, ger
 
 ## Deploy (Railway)
 
-Projeto Railway `calculadora-grupo-a`, ambiente `production`:
-https://calculadora-grupo-a-production.up.railway.app
+Projeto Railway `erp-kora`, ambiente `production`:
+https://erp-kora-production.up.railway.app
 
 - Deploy é manual, a partir desta pasta: `railway up` (push no GitHub **não** publica).
 - Acesso por senha única (HTTP Basic): variável `APP_SENHA` no Railway — usuário pode ser
