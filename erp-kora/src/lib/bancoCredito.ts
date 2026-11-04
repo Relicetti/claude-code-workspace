@@ -135,3 +135,15 @@ export function resumoBanco(lista: CreditoGerador[]): ResumoBanco {
     fechadoKWh, fechadoValor, fechadoMedioKWh: fechadoKWh > 0 ? fechadoValor / fechadoKWh : null,
   };
 }
+
+/** Resumo de cada distribuidora, em ordem alfabética (lote antigo sem distribuidora fica em "Sem distribuidora"). */
+export function resumoPorDistribuidora(lista: CreditoGerador[]): (ResumoBanco & { distribuidora: string })[] {
+  const grupos = new Map<string, CreditoGerador[]>();
+  for (const c of lista) {
+    const d = c.distribuidora || 'Sem distribuidora';
+    grupos.set(d, [...(grupos.get(d) ?? []), c]);
+  }
+  return [...grupos.entries()]
+    .map(([distribuidora, cs]) => ({ distribuidora, ...resumoBanco(cs) }))
+    .sort((a, b) => a.distribuidora.localeCompare(b.distribuidora, 'pt-BR'));
+}
