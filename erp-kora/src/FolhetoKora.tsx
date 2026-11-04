@@ -37,7 +37,7 @@ export function FolhetoKora({ r, op, creditoTotalKWh, enquadramento, dados, iden
     <div className="folheto" style={{ width: '210mm', height: '297mm', margin: '0 auto', background: '#fff', color: K.texto, fontFamily: CORPO, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       {/* Topo: foto com cliente e logo */}
       <div style={{ height: '46mm', position: 'relative', background: `linear-gradient(90deg, rgba(7,20,40,.88) 0%, rgba(7,20,40,.65) 48%, rgba(7,20,40,0) 70%), url(${topo}) center 55% / cover` }}>
-        <img src={logo} alt="Kora" style={{ position: 'absolute', right: '6mm', top: '5mm', width: '44mm' }} />
+        <img src={logo} alt="Kora" style={{ position: 'absolute', right: '8mm', top: '7mm', width: '30mm', height: 'auto', display: 'block' }} />
         {identificacao && (
           <div style={{ position: 'absolute', right: '7mm', bottom: '6mm', color: '#fff', fontSize: '8.5pt', textAlign: 'right' }}>Proposta {identificacao}</div>
         )}
