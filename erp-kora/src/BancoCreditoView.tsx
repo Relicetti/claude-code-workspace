@@ -2,20 +2,20 @@ import React, { useEffect, useState } from 'react';
 import { api } from './api';
 import { C, botao, cartao, inputStyle, tdL, tdStyle, thL, thStyle } from './estilo';
 import { DATA, numeroBR, R, RKWH, RS } from './formato';
-import { ROTULO_STATUS_CREDITO, resumoBanco, resumoPorDistribuidora, totalDe, type CreditoGerador, type DadosCredito, type StatusCredito } from './lib/bancoCredito';
+import { ROTULO_PAGAMENTO, ROTULO_STATUS_CREDITO, resumoBanco, resumoPorDistribuidora, totalDe, type CreditoGerador, type DadosCredito, type FormaPagamento, type StatusCredito } from './lib/bancoCredito';
 import { DISTRIBUIDORAS } from './lib/engine';
 import { useUsuario } from './Sessao';
 
-type Form = { gerador: string; distribuidora: string; intermediador: string; volumeKWh: string; valorPropostoKWh: string; valorPedidoKWh: string; observacao: string };
-const FORM_VAZIO: Form = { gerador: '', distribuidora: '', intermediador: '', volumeKWh: '', valorPropostoKWh: '', valorPedidoKWh: '', observacao: '' };
+type Form = { gerador: string; distribuidora: string; intermediador: string; formaPagamento: FormaPagamento | ''; volumeKWh: string; valorPropostoKWh: string; valorPedidoKWh: string; observacao: string };
+const FORM_VAZIO: Form = { gerador: '', distribuidora: '', intermediador: '', formaPagamento: '', volumeKWh: '', valorPropostoKWh: '', valorPedidoKWh: '', observacao: '' };
 
 const texto = (n: number | null, d: number) => (n === null ? '' : n.toLocaleString('pt-BR', { maximumFractionDigits: d, useGrouping: false }));
 const doCredito = (c: CreditoGerador): Form => ({
-  gerador: c.gerador, distribuidora: c.distribuidora ?? '', intermediador: c.intermediador, volumeKWh: texto(c.volumeKWh, 0),
+  gerador: c.gerador, distribuidora: c.distribuidora ?? '', intermediador: c.intermediador, formaPagamento: c.formaPagamento ?? '', volumeKWh: texto(c.volumeKWh, 0),
   valorPropostoKWh: texto(c.valorPropostoKWh, 4), valorPedidoKWh: texto(c.valorPedidoKWh, 4), observacao: c.observacao,
 });
 const paraDados = (f: Form): Partial<DadosCredito> => ({
-  gerador: f.gerador, distribuidora: f.distribuidora, intermediador: f.intermediador, volumeKWh: numeroBR(f.volumeKWh) ?? 0,
+  gerador: f.gerador, distribuidora: f.distribuidora, intermediador: f.intermediador, formaPagamento: f.formaPagamento || undefined, volumeKWh: numeroBR(f.volumeKWh) ?? 0,
   valorPropostoKWh: numeroBR(f.valorPropostoKWh), valorPedidoKWh: numeroBR(f.valorPedidoKWh), observacao: f.observacao,
 });
 
@@ -173,7 +173,7 @@ export function BancoCreditoView() {
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead><tr>
-                <th style={thL}>Nº</th><th style={thL}>Gerador</th><th style={thL}>Distribuidora</th><th style={thL}>Intermediador</th><th style={thStyle}>Volume</th>
+                <th style={thL}>Nº</th><th style={thL}>Gerador</th><th style={thL}>Distribuidora</th><th style={thL}>Intermediador</th><th style={thL}>Pagamento</th><th style={thStyle}>Volume</th>
                 <th style={thStyle}>Pedido</th><th style={thStyle}>Proposto</th><th style={thStyle}>Fechado</th><th style={thStyle}>Total fechado</th><th style={thL}>Situação</th>
               </tr></thead>
               <tbody>
@@ -183,6 +183,7 @@ export function BancoCreditoView() {
                     <td style={tdL}>{c.gerador}</td>
                     <td style={tdL}>{c.distribuidora || <span style={{ color: C.verm }}>falta</span>}</td>
                     <td style={tdL}>{c.intermediador || <span style={{ color: C.med }}>direto</span>}</td>
+                    <td style={tdL}>{c.formaPagamento ? ROTULO_PAGAMENTO[c.formaPagamento] : <span style={{ color: C.verm }}>falta</span>}</td>
                     <td style={tdStyle}>{kwh(c.volumeKWh)}</td>
                     <td style={tdStyle}>{valorKWh(c.valorPedidoKWh)}</td>
                     <td style={tdStyle}>{valorKWh(c.valorPropostoKWh)}</td>
@@ -212,6 +213,12 @@ export function BancoCreditoView() {
               <datalist id="distribuidoras-credito">{DISTRIBUIDORAS.map((d) => <option key={d} value={d} />)}</datalist>
             </Campo>
             <Campo label="Intermediador (vazio = direto)"><input style={inputStyle} value={form.intermediador} onChange={(e) => set('intermediador', e.target.value)} /></Campo>
+            <Campo label="Forma de pagamento">
+              <select style={inputStyle} value={form.formaPagamento} onChange={(e) => set('formaPagamento', e.target.value)}>
+                <option value="" disabled>Selecione</option>
+                {(Object.keys(ROTULO_PAGAMENTO) as FormaPagamento[]).map((f) => <option key={f} value={f}>{ROTULO_PAGAMENTO[f]}</option>)}
+              </select>
+            </Campo>
             <Campo label="Volume de crédito (kWh)"><input style={inputStyle} inputMode="numeric" placeholder="500000" value={form.volumeKWh} onChange={(e) => set('volumeKWh', e.target.value)} /></Campo>
             <Campo label="Valor pedido pelo gerador (R$/kWh)">
               <input style={inputStyle} inputMode="decimal" placeholder="0,38" value={form.valorPedidoKWh} onChange={(e) => set('valorPedidoKWh', e.target.value)} />
