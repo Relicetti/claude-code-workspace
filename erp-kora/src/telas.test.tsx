@@ -6,6 +6,7 @@ import { CompensacaoBloco } from './CompensacaoView';
 import { clientePronto } from './lib/fixtures';
 import { emitirFatura, lancar } from './lib/controle';
 import type { Cliente } from './lib/clientes';
+import { numeroBR } from './formato';
 
 const agora = new Date('2027-01-20T12:00:00Z');
 function cliente() {
@@ -28,5 +29,17 @@ describe('telas', () => {
     const html = renderToStaticMarkup(<CompensacaoBloco c={cliente()} ocupado={null} executar={() => {}} docUrl={() => ''} />);
     expect(html).toContain('Compensação e faturas');
     expect(html).toContain('FK-2027-0001');
+  });
+});
+
+describe('banco de crédito (tela)', () => {
+  it('lê números no formato brasileiro', () => {
+    expect(numeroBR('0,32')).toBe(0.32);
+    expect(numeroBR('0.32')).toBe(0.32);
+    expect(numeroBR('1.500.000')).toBe(1500000);
+    expect(numeroBR('1.500.000,5')).toBe(1500000.5);
+    expect(numeroBR('500000')).toBe(500000);
+    expect(numeroBR('')).toBeNull();
+    expect(numeroBR('abc')).toBeNaN();
   });
 });
