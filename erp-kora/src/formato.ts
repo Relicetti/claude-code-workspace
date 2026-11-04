@@ -10,3 +10,12 @@ export const ROTULO_POSTO: Record<Posto, string> = { Ponta: 'Ponta', 'Fora ponta
 
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 export const MES = (ym: string) => `${MESES[Number(ym.slice(5, 7)) - 1]}/${ym.slice(0, 4)}`;
+
+/** Aceita "0,32", "0.32" e "1.500.000" (milhar com ponto). */
+export function numeroBR(s: string): number | null {
+  const t = s.trim().replace(/\s/g, '');
+  if (!t) return null;
+  const normal = t.includes(',') ? t.replace(/\./g, '').replace(',', '.') : /^\d{1,3}(\.\d{3})+$/.test(t) ? t.replace(/\./g, '') : t;
+  const n = Number(normal);
+  return Number.isFinite(n) ? n : NaN;
+}

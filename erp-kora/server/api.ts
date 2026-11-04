@@ -24,6 +24,9 @@ import {
   aplicarCobranca, baixarFatura, cancelarFatura, emitirFatura, emitirQuitacao, lancar, mesBR, PAGO_ASAAS, proximoNumeroFatura, reajustar,
   removerLancamento, type CobrancaBoleto, type LancamentoMensal,
 } from '../src/lib/controle.ts';
+import {
+  desistirCredito, editarCredito, fecharCredito, novoCredito, reabrirCredito, type CreditoGerador, type DadosCredito,
+} from '../src/lib/bancoCredito.ts';
 import { configVazia, limparConfig, pendenciasConfig, pendenciasModelo, type ConfigKora } from '../src/lib/config.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -35,6 +38,7 @@ const ATUAL = path.join(DATA_DIR, 'tarifas.json');
 const PROPOSTAS = path.join(DATA_DIR, 'propostas.json');
 const CLIENTES = path.join(DATA_DIR, 'clientes.json');
 const CONFIG = path.join(DATA_DIR, 'config.json');
+const CREDITOS = path.join(DATA_DIR, 'creditos.json');
 const DOCUMENTOS = path.join(DATA_DIR, 'documentos');
 const DIR_MODELOS = path.join(DATA_DIR, 'modelos');
 
@@ -304,6 +308,42 @@ rota('DELETE', /^\/clientes\/(CLI-\d+)$/, (_req, res, m) => {
   if (c.status !== 'cadastro' && c.status !== 'cancelado') throw new ErroHttp(409, 'Só dá para apagar cliente em cadastro ou cancelado.');
   gravarClientes(lerClientes().filter((x) => x.id !== c.id));
   fs.rmSync(path.join(DOCUMENTOS, c.id), { recursive: true, force: true });
+  json(res, 200, { ok: true });
+}, { admin: true });
+
+// Banco de crédito (lotes negociados com os geradores)
+const lerCreditos = () => lerJson<CreditoGerador[]>(CREDITOS, []);
+/** Aplica a mudança num lote e grava; erro de regra vira 400. */
+function alterarCredito(id: string, fn: (c: CreditoGerador) => CreditoGerador): CreditoGerador {
+  const lista = lerCreditos();
+  const i = lista.findIndex((c) => c.id === id);
+  if (i < 0) throw new ErroHttp(404, 'Crédito não encontrado.');
+  try { lista[i] = fn(lista[i]); } catch (e) { throw new ErroHttp(400, (e as Error).message); }
+  gravarJson(CREDITOS, lista);
+  return lista[i];
+}
+rota('GET', /^\/creditos$/, (_req, res) => json(res, 200, lerCreditos()));
+rota('POST', /^\/creditos$/, async (req, res, _m, u) => {
+  const lista = lerCreditos();
+  let novo: CreditoGerador;
+  try { novo = novoCredito(lista, (await lerCorpo(req)) as Partial<DadosCredito>, new Date(), u.nome); } catch (e) { throw new ErroHttp(400, (e as Error).message); }
+  gravarJson(CREDITOS, [...lista, novo]);
+  json(res, 201, novo);
+});
+rota('PUT', /^\/creditos\/(CRD-\d+)$/, async (req, res, m, u) => {
+  const corpo = (await lerCorpo(req)) as Partial<DadosCredito>;
+  json(res, 200, alterarCredito(m[1], (c) => editarCredito(c, corpo, new Date(), u.nome)));
+});
+rota('POST', /^\/creditos\/(CRD-\d+)\/(fechar|desistir|reabrir)$/, async (req, res, m, u) => {
+  const corpo = (await lerCorpo(req)) as { valorFechadoKWh?: number; motivo?: string };
+  const agora = new Date();
+  json(res, 200, alterarCredito(m[1], (c) => (m[2] === 'fechar' ? fecharCredito(c, corpo.valorFechadoKWh, agora, u.nome)
+    : m[2] === 'desistir' ? desistirCredito(c, corpo.motivo ?? '', agora, u.nome) : reabrirCredito(c, agora, u.nome))));
+});
+rota('DELETE', /^\/creditos\/(CRD-\d+)$/, (_req, res, m) => {
+  const lista = lerCreditos();
+  if (!lista.some((c) => c.id === m[1])) throw new ErroHttp(404, 'Crédito não encontrado.');
+  gravarJson(CREDITOS, lista.filter((c) => c.id !== m[1]));
   json(res, 200, { ok: true });
 }, { admin: true });
 
