@@ -1,5 +1,6 @@
 // Banco de crédito: lotes de crédito de GD negociados com os geradores (donos do crédito).
 // Cada lote nasce "em negociação" com o valor que o gerador pediu e o que a Kora propôs (R$/kWh);
+// O crédito só compensa dentro da mesma distribuidora, por isso ela é obrigatória (nome da lista ANEEL).
 // quando a negociação fecha, grava o valor fechado. Valores sempre em R$/kWh; o total é volume × valor.
 
 export type StatusCredito = 'negociacao' | 'fechado' | 'desistencia';
@@ -15,6 +16,7 @@ export interface EventoCredito { em: string; por: string; texto: string }
 export interface CreditoGerador {
   id: string;                       // CRD-001
   gerador: string;
+  distribuidora: string;            // nome da lista ANEEL (DISTRIBUIDORAS), ex. "Copel-DIS"
   intermediador: string;            // vazio = negociação direta
   volumeKWh: number;
   valorPropostoKWh: number | null;  // oferta da Kora
@@ -29,7 +31,9 @@ export interface CreditoGerador {
 }
 
 /** Campos que a tela envia ao cadastrar ou editar. */
-export type DadosCredito = Pick<CreditoGerador, 'gerador' | 'intermediador' | 'volumeKWh' | 'valorPropostoKWh' | 'valorPedidoKWh' | 'observacao'>;
+export type DadosCredito = Pick<CreditoGerador, 'gerador' | 'distribuidora' | 'intermediador' | 'volumeKWh' | 'valorPropostoKWh' | 'valorPedidoKWh' | 'observacao'>;
+
+import { DISTRIBUIDORAS } from './engine';
 
 const R4 = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 const KWH = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
@@ -45,10 +49,15 @@ function valorOuNulo(v: unknown, campo: string): number | null {
 export function limparDados(d: Partial<DadosCredito>): DadosCredito {
   const gerador = String(d.gerador ?? '').trim();
   if (!gerador) throw new Error('Informe o nome do gerador.');
+  const digitada = String(d.distribuidora ?? '').trim();
+  if (!digitada) throw new Error('Informe a distribuidora do crédito.');
+  const distribuidora = DISTRIBUIDORAS.find((x) => x.toLowerCase() === digitada.toLowerCase());
+  if (!distribuidora) throw new Error(`Distribuidora "${digitada}" não está na lista da ANEEL. Escolha uma das opções.`);
   const volumeKWh = Number(d.volumeKWh);
   if (!Number.isFinite(volumeKWh) || volumeKWh <= 0) throw new Error('O volume de crédito (kWh) precisa ser maior que zero.');
   return {
     gerador,
+    distribuidora,
     intermediador: String(d.intermediador ?? '').trim(),
     volumeKWh,
     valorPropostoKWh: valorOuNulo(d.valorPropostoKWh, 'O valor proposto'),
@@ -73,7 +82,7 @@ export function novoCredito(lista: CreditoGerador[], d: Partial<DadosCredito>, a
 }
 
 const ROTULO_CAMPO: Record<keyof DadosCredito, string> = {
-  gerador: 'gerador', intermediador: 'intermediador', volumeKWh: 'volume', valorPropostoKWh: 'valor proposto',
+  gerador: 'gerador', distribuidora: 'distribuidora', intermediador: 'intermediador', volumeKWh: 'volume', valorPropostoKWh: 'valor proposto',
   valorPedidoKWh: 'valor pedido', observacao: 'observação',
 };
 

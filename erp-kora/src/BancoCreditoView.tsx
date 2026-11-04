@@ -3,18 +3,19 @@ import { api } from './api';
 import { C, botao, cartao, inputStyle, tdL, tdStyle, thL, thStyle } from './estilo';
 import { DATA, numeroBR, R, RKWH, RS } from './formato';
 import { ROTULO_STATUS_CREDITO, resumoBanco, totalDe, type CreditoGerador, type DadosCredito, type StatusCredito } from './lib/bancoCredito';
+import { DISTRIBUIDORAS } from './lib/engine';
 import { useUsuario } from './Sessao';
 
-type Form = { gerador: string; intermediador: string; volumeKWh: string; valorPropostoKWh: string; valorPedidoKWh: string; observacao: string };
-const FORM_VAZIO: Form = { gerador: '', intermediador: '', volumeKWh: '', valorPropostoKWh: '', valorPedidoKWh: '', observacao: '' };
+type Form = { gerador: string; distribuidora: string; intermediador: string; volumeKWh: string; valorPropostoKWh: string; valorPedidoKWh: string; observacao: string };
+const FORM_VAZIO: Form = { gerador: '', distribuidora: '', intermediador: '', volumeKWh: '', valorPropostoKWh: '', valorPedidoKWh: '', observacao: '' };
 
 const texto = (n: number | null, d: number) => (n === null ? '' : n.toLocaleString('pt-BR', { maximumFractionDigits: d, useGrouping: false }));
 const doCredito = (c: CreditoGerador): Form => ({
-  gerador: c.gerador, intermediador: c.intermediador, volumeKWh: texto(c.volumeKWh, 0),
+  gerador: c.gerador, distribuidora: c.distribuidora ?? '', intermediador: c.intermediador, volumeKWh: texto(c.volumeKWh, 0),
   valorPropostoKWh: texto(c.valorPropostoKWh, 4), valorPedidoKWh: texto(c.valorPedidoKWh, 4), observacao: c.observacao,
 });
 const paraDados = (f: Form): Partial<DadosCredito> => ({
-  gerador: f.gerador, intermediador: f.intermediador, volumeKWh: numeroBR(f.volumeKWh) ?? 0,
+  gerador: f.gerador, distribuidora: f.distribuidora, intermediador: f.intermediador, volumeKWh: numeroBR(f.volumeKWh) ?? 0,
   valorPropostoKWh: numeroBR(f.valorPropostoKWh), valorPedidoKWh: numeroBR(f.valorPedidoKWh), observacao: f.observacao,
 });
 
@@ -41,6 +42,7 @@ export function BancoCreditoView() {
   const [lista, setLista] = useState<CreditoGerador[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<StatusCredito | 'todos'>('todos');
+  const [filtroDist, setFiltroDist] = useState('');
   /** null = fechado; 'novo' = cadastro; senão o id em edição. */
   const [aberto, setAberto] = useState<string | null>(null);
   const [form, setForm] = useState<Form>(FORM_VAZIO);
@@ -78,8 +80,11 @@ export function BancoCreditoView() {
     trocar(c); setForm(doCredito(c));
   });
 
-  const visiveis = (lista ?? []).filter((c) => filtro === 'todos' || c.status === filtro).sort((a, b) => b.id.localeCompare(a.id));
-  const resumo = resumoBanco(lista ?? []);
+  // Os totais seguem o filtro de distribuidora (crédito de uma não serve para cliente de outra).
+  const daDist = (lista ?? []).filter((c) => !filtroDist || c.distribuidora === filtroDist);
+  const visiveis = daDist.filter((c) => filtro === 'todos' || c.status === filtro).sort((a, b) => b.id.localeCompare(a.id));
+  const resumo = resumoBanco(daDist);
+  const distsUsadas = [...new Set((lista ?? []).map((c) => c.distribuidora).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const tile = (rotulo: string, valor: string, cor: string = C.esc) => (
     <div style={{ background: C.clar, borderRadius: 8, padding: '10px 14px' }}>
       <div style={{ fontSize: 10, color: C.med, textTransform: 'uppercase', letterSpacing: '.04em' }}>{rotulo}</div>
@@ -101,8 +106,12 @@ export function BancoCreditoView() {
             <div style={{ fontSize: 11, color: C.med }}>Lotes de crédito negociados com os geradores. Valores em R$/kWh; o total é volume × valor.</div>
           </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <select value={filtroDist} onChange={(e) => setFiltroDist(e.target.value)} style={{ ...inputStyle, width: 'auto' }} title="Distribuidora">
+              <option value="">Todas as distribuidoras</option>
+              {distsUsadas.map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
             <select value={filtro} onChange={(e) => setFiltro(e.target.value as typeof filtro)} style={{ ...inputStyle, width: 'auto' }}>
-              <option value="todos">Todos</option>
+              <option value="todos">Todas as situações</option>
               {(Object.keys(ROTULO_STATUS_CREDITO) as StatusCredito[]).map((s) => <option key={s} value={s}>{ROTULO_STATUS_CREDITO[s]}</option>)}
             </select>
             <button style={botao(C.azul)} onClick={() => abrir('novo')}>+ Novo crédito</button>
@@ -123,7 +132,7 @@ export function BancoCreditoView() {
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead><tr>
-                <th style={thL}>Nº</th><th style={thL}>Gerador</th><th style={thL}>Intermediador</th><th style={thStyle}>Volume</th>
+                <th style={thL}>Nº</th><th style={thL}>Gerador</th><th style={thL}>Distribuidora</th><th style={thL}>Intermediador</th><th style={thStyle}>Volume</th>
                 <th style={thStyle}>Pedido</th><th style={thStyle}>Proposto</th><th style={thStyle}>Fechado</th><th style={thStyle}>Total fechado</th><th style={thL}>Situação</th>
               </tr></thead>
               <tbody>
@@ -131,6 +140,7 @@ export function BancoCreditoView() {
                   <tr key={c.id} onClick={() => abrir(c.id)} style={{ cursor: 'pointer', background: aberto === c.id ? C.azulC : undefined }} title="Abrir">
                     <td style={{ ...tdL, fontWeight: 600 }}>{c.id}</td>
                     <td style={tdL}>{c.gerador}</td>
+                    <td style={tdL}>{c.distribuidora || <span style={{ color: C.verm }}>falta</span>}</td>
                     <td style={tdL}>{c.intermediador || <span style={{ color: C.med }}>direto</span>}</td>
                     <td style={tdStyle}>{kwh(c.volumeKWh)}</td>
                     <td style={tdStyle}>{valorKWh(c.valorPedidoKWh)}</td>
@@ -150,12 +160,16 @@ export function BancoCreditoView() {
         <div style={cartao}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12 }}>
             <div style={{ fontSize: 15, fontWeight: 700, display: 'flex', gap: 10, alignItems: 'center' }}>
-              {atual ? <>{atual.id} · {atual.gerador} <EtiquetaCredito s={atual.status} /></> : 'Novo crédito'}
+              {atual ? <>{atual.id} · {atual.gerador}{atual.distribuidora && <span style={{ fontSize: 12, fontWeight: 400, color: C.med }}>({atual.distribuidora})</span>} <EtiquetaCredito s={atual.status} /></> : 'Novo crédito'}
             </div>
             <button style={botao()} onClick={() => abrir(null)}>Fechar</button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
             <Campo label="Gerador (dono do crédito)"><input style={inputStyle} value={form.gerador} onChange={(e) => set('gerador', e.target.value)} /></Campo>
+            <Campo label="Distribuidora">
+              <input style={inputStyle} list="distribuidoras-credito" placeholder="Digite para buscar" value={form.distribuidora} onChange={(e) => set('distribuidora', e.target.value)} />
+              <datalist id="distribuidoras-credito">{DISTRIBUIDORAS.map((d) => <option key={d} value={d} />)}</datalist>
+            </Campo>
             <Campo label="Intermediador (vazio = direto)"><input style={inputStyle} value={form.intermediador} onChange={(e) => set('intermediador', e.target.value)} /></Campo>
             <Campo label="Volume de crédito (kWh)"><input style={inputStyle} inputMode="numeric" placeholder="500000" value={form.volumeKWh} onChange={(e) => set('volumeKWh', e.target.value)} /></Campo>
             <Campo label="Valor pedido pelo gerador (R$/kWh)">
