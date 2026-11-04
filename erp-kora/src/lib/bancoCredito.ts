@@ -11,6 +11,10 @@ export const ROTULO_STATUS_CREDITO: Record<StatusCredito, string> = {
   desistencia: 'Não fechou',
 };
 
+/** Como a Kora paga o gerador: conforme o crédito é compensado nos clientes, ou o lote todo à vista. */
+export type FormaPagamento = 'compensado' | 'avista';
+export const ROTULO_PAGAMENTO: Record<FormaPagamento, string> = { compensado: 'Compensado', avista: 'À vista' };
+
 export interface EventoCredito { em: string; por: string; texto: string }
 
 export interface CreditoGerador {
@@ -18,6 +22,7 @@ export interface CreditoGerador {
   gerador: string;
   distribuidora: string;            // nome da lista ANEEL (DISTRIBUIDORAS), ex. "Copel-DIS"
   intermediador: string;            // vazio = negociação direta
+  formaPagamento: FormaPagamento;
   volumeKWh: number;
   valorPropostoKWh: number | null;  // oferta da Kora
   valorPedidoKWh: number | null;    // pedido do gerador
@@ -31,7 +36,7 @@ export interface CreditoGerador {
 }
 
 /** Campos que a tela envia ao cadastrar ou editar. */
-export type DadosCredito = Pick<CreditoGerador, 'gerador' | 'distribuidora' | 'intermediador' | 'volumeKWh' | 'valorPropostoKWh' | 'valorPedidoKWh' | 'observacao'>;
+export type DadosCredito = Pick<CreditoGerador, 'gerador' | 'distribuidora' | 'intermediador' | 'formaPagamento' | 'volumeKWh' | 'valorPropostoKWh' | 'valorPedidoKWh' | 'observacao'>;
 
 import { DISTRIBUIDORAS } from './engine';
 
@@ -53,12 +58,15 @@ export function limparDados(d: Partial<DadosCredito>): DadosCredito {
   if (!digitada) throw new Error('Informe a distribuidora do crédito.');
   const distribuidora = DISTRIBUIDORAS.find((x) => x.toLowerCase() === digitada.toLowerCase());
   if (!distribuidora) throw new Error(`Distribuidora "${digitada}" não está na lista da ANEEL. Escolha uma das opções.`);
+  const formaPagamento = d.formaPagamento;
+  if (formaPagamento !== 'compensado' && formaPagamento !== 'avista') throw new Error('Escolha a forma de pagamento: Compensado ou À vista.');
   const volumeKWh = Number(d.volumeKWh);
   if (!Number.isFinite(volumeKWh) || volumeKWh <= 0) throw new Error('O volume de crédito (kWh) precisa ser maior que zero.');
   return {
     gerador,
     distribuidora,
     intermediador: String(d.intermediador ?? '').trim(),
+    formaPagamento,
     volumeKWh,
     valorPropostoKWh: valorOuNulo(d.valorPropostoKWh, 'O valor proposto'),
     valorPedidoKWh: valorOuNulo(d.valorPedidoKWh, 'O valor pedido'),
@@ -77,12 +85,12 @@ export function novoCredito(lista: CreditoGerador[], d: Partial<DadosCredito>, a
   return {
     id: proximoId(lista.map((c) => c.id)), ...dados,
     valorFechadoKWh: null, status: 'negociacao', criadoEm: em, atualizadoEm: em, fechadoEm: null,
-    historico: [{ em, por, texto: `Cadastrado: ${KWH(dados.volumeKWh)} kWh.` }],
+    historico: [{ em, por, texto: `Cadastrado: ${KWH(dados.volumeKWh)} kWh, pagamento ${ROTULO_PAGAMENTO[dados.formaPagamento].toLowerCase()}.` }],
   };
 }
 
 const ROTULO_CAMPO: Record<keyof DadosCredito, string> = {
-  gerador: 'gerador', distribuidora: 'distribuidora', intermediador: 'intermediador', volumeKWh: 'volume', valorPropostoKWh: 'valor proposto',
+  gerador: 'gerador', distribuidora: 'distribuidora', intermediador: 'intermediador', formaPagamento: 'forma de pagamento', volumeKWh: 'volume', valorPropostoKWh: 'valor proposto',
   valorPedidoKWh: 'valor pedido', observacao: 'observação',
 };
 

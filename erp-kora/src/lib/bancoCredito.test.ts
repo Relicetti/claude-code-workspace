@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { desistirCredito, resumoPorDistribuidora, editarCredito, fecharCredito, novoCredito, proximoId, reabrirCredito, resumoBanco, totalDe } from './bancoCredito';
 
 const agora = new Date('2026-11-04T12:00:00Z');
-const base = { gerador: 'Usina Sol Ltda', distribuidora: 'Copel-DIS', intermediador: 'João', volumeKWh: 500000, valorPropostoKWh: 0.3, valorPedidoKWh: 0.38, observacao: '' };
+const base = { gerador: 'Usina Sol Ltda', distribuidora: 'Copel-DIS', formaPagamento: 'compensado' as const, intermediador: 'João', volumeKWh: 500000, valorPropostoKWh: 0.3, valorPedidoKWh: 0.38, observacao: '' };
 
 describe('banco de crédito', () => {
   it('numera em sequência', () => {
@@ -18,6 +18,9 @@ describe('banco de crédito', () => {
     expect(() => novoCredito([], { ...base, distribuidora: '' }, agora, 'Ana')).toThrow(/distribuidora/);
     expect(() => novoCredito([], { ...base, distribuidora: 'Inventada' }, agora, 'Ana')).toThrow(/ANEEL/);
     expect(novoCredito([], { ...base, distribuidora: 'copel-dis' }, agora, 'Ana').distribuidora).toBe('Copel-DIS');
+    expect(() => novoCredito([], { ...base, formaPagamento: undefined }, agora, 'Ana')).toThrow(/forma de pagamento/);
+    expect(c.historico[0].texto).toContain('pagamento compensado');
+    expect(editarCredito(c, { formaPagamento: 'avista' }, agora, 'Bia').historico.slice(-1)[0].texto).toBe('Alterado: forma de pagamento.');
     expect(() => novoCredito([], { ...base, volumeKWh: 0 }, agora, 'Ana')).toThrow(/volume/);
     expect(() => novoCredito([], { ...base, valorPedidoKWh: -1 }, agora, 'Ana')).toThrow(/pedido/);
     // Valores vazios ficam em branco (pode cadastrar antes de ter proposta).
