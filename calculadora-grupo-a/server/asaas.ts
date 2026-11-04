@@ -12,7 +12,7 @@ async function chamar<T>(metodo: string, caminho: string, corpo?: unknown): Prom
   if (!chave) throw new Error('Asaas não configurado (falta ASAAS_API_KEY).');
   const res = await fetch(`${URL_BASE()}${caminho}`, {
     method: metodo,
-    headers: { access_token: chave, 'Content-Type': 'application/json', 'User-Agent': 'calculadora-kora' },
+    headers: { access_token: chave, 'Content-Type': 'application/json', 'User-Agent': 'erp-kora' },
     body: corpo === undefined ? undefined : JSON.stringify(corpo),
   });
   const texto = await res.text();
@@ -71,7 +71,7 @@ export async function registrarWebhook(url: string, email: string): Promise<void
   const token = process.env.ASAAS_WEBHOOK_TOKEN;
   if (!token || token.length < 32) throw new Error('Defina ASAAS_WEBHOOK_TOKEN (32+ caracteres) no servidor antes.');
   await chamar('POST', '/webhooks', {
-    name: 'Calculadora Kora', url, email, enabled: true, interrupted: false, apiVersion: 3, authToken: token, sendType: 'SEQUENTIALLY',
+    name: 'ERP Kora', url, email, enabled: true, interrupted: false, apiVersion: 3, authToken: token, sendType: 'SEQUENTIALLY',
     events: ['PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED', 'PAYMENT_OVERDUE', 'PAYMENT_DELETED', 'PAYMENT_REFUNDED', 'PAYMENT_RECEIVED_IN_CASH_UNDONE'],
   });
 }
