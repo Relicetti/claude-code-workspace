@@ -85,6 +85,13 @@ export function BancoCreditoView() {
   // Status do banco por distribuidora: crédito de uma não serve para cliente de outra.
   const porDist = resumoPorDistribuidora(lista ?? []);
   const geral = resumoBanco(lista ?? []);
+  const doFiltro = filtroDist ? resumoBanco(daDist) : geral;
+  const tile = (rotulo: string, valor: string, cor: string = C.esc) => (
+    <div style={{ background: C.clar, borderRadius: 8, padding: '10px 14px' }}>
+      <div style={{ fontSize: 10, color: C.med, textTransform: 'uppercase', letterSpacing: '.04em' }}>{rotulo}</div>
+      <div style={{ fontSize: 18, fontWeight: 700, color: cor }}>{valor}</div>
+    </div>
+  );
   const distsUsadas = [...new Set((lista ?? []).map((c) => c.distribuidora).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const volumeForm = numeroBR(form.volumeKWh);
   const totalForm = (s: string) => {
@@ -112,6 +119,17 @@ export function BancoCreditoView() {
             <button style={botao(C.azul)} onClick={() => abrir('novo')}>+ Novo crédito</button>
           </div>
         </div>
+        {lista && (
+          <>
+            {filtroDist && <div style={{ fontSize: 11, color: C.med, marginBottom: 6 }}>Totais de <b>{filtroDist}</b></div>}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 8, marginBottom: 14 }}>
+              {tile('Em negociação', kwh(doFiltro.negociacaoKWh), C.amber)}
+              {tile('Crédito fechado', kwh(doFiltro.fechadoKWh), C.verde)}
+              {tile('Valor fechado (total)', RS(doFiltro.fechadoValor))}
+              {tile('Preço médio fechado', valorKWh(doFiltro.fechadoMedioKWh))}
+            </div>
+          </>
+        )}
         {lista && lista.length > 0 && (
           <div style={{ background: C.clar, borderRadius: 8, padding: '10px 12px', marginBottom: 16, overflowX: 'auto' }}>
             <div style={{ fontSize: 11, color: C.med, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 6 }}>Status por distribuidora · clique para filtrar</div>
