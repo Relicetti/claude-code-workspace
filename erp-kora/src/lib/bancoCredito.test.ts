@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { desistirCredito, editarCredito, fecharCredito, novoCredito, proximoId, reabrirCredito, resumoBanco, totalDe } from './bancoCredito';
+import { desistirCredito, resumoPorDistribuidora, editarCredito, fecharCredito, novoCredito, proximoId, reabrirCredito, resumoBanco, totalDe } from './bancoCredito';
 
 const agora = new Date('2026-11-04T12:00:00Z');
 const base = { gerador: 'Usina Sol Ltda', distribuidora: 'Copel-DIS', intermediador: 'João', volumeKWh: 500000, valorPropostoKWh: 0.3, valorPedidoKWh: 0.38, observacao: '' };
@@ -54,5 +54,16 @@ describe('banco de crédito', () => {
     expect(r.fechadoKWh).toBe(2000000);
     expect(r.fechadoValor).toBeCloseTo(660000);
     expect(r.fechadoMedioKWh).toBeCloseTo(0.33);
+  });
+
+  it('resume por distribuidora', () => {
+    const a = fecharCredito(novoCredito([], base, agora, 'Ana'), 0.3, agora, 'Ana');
+    const b = novoCredito([a], { ...base, distribuidora: 'Celesc-DIS', volumeKWh: 200000 }, agora, 'Ana');
+    const c = novoCredito([a, b], { ...base, volumeKWh: 100000 }, agora, 'Ana');
+    const r = resumoPorDistribuidora([a, b, c]);
+    expect(r.map((x) => x.distribuidora)).toEqual(['Celesc-DIS', 'Copel-DIS']);
+    expect(r[0]).toMatchObject({ negociacaoKWh: 200000, fechadoKWh: 0, fechadoMedioKWh: null });
+    expect(r[1]).toMatchObject({ negociacaoKWh: 100000, fechadoKWh: 500000 });
+    expect(r[1].fechadoValor).toBeCloseTo(150000);
   });
 });

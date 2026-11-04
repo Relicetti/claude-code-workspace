@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from './api';
 import { C, botao, cartao, inputStyle, tdL, tdStyle, thL, thStyle } from './estilo';
 import { DATA, numeroBR, R, RKWH, RS } from './formato';
-import { ROTULO_STATUS_CREDITO, resumoBanco, totalDe, type CreditoGerador, type DadosCredito, type StatusCredito } from './lib/bancoCredito';
+import { ROTULO_STATUS_CREDITO, resumoBanco, resumoPorDistribuidora, totalDe, type CreditoGerador, type DadosCredito, type StatusCredito } from './lib/bancoCredito';
 import { DISTRIBUIDORAS } from './lib/engine';
 import { useUsuario } from './Sessao';
 
@@ -80,17 +80,12 @@ export function BancoCreditoView() {
     trocar(c); setForm(doCredito(c));
   });
 
-  // Os totais seguem o filtro de distribuidora (crédito de uma não serve para cliente de outra).
   const daDist = (lista ?? []).filter((c) => !filtroDist || c.distribuidora === filtroDist);
   const visiveis = daDist.filter((c) => filtro === 'todos' || c.status === filtro).sort((a, b) => b.id.localeCompare(a.id));
-  const resumo = resumoBanco(daDist);
+  // Status do banco por distribuidora: crédito de uma não serve para cliente de outra.
+  const porDist = resumoPorDistribuidora(lista ?? []);
+  const geral = resumoBanco(lista ?? []);
   const distsUsadas = [...new Set((lista ?? []).map((c) => c.distribuidora).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  const tile = (rotulo: string, valor: string, cor: string = C.esc) => (
-    <div style={{ background: C.clar, borderRadius: 8, padding: '10px 14px' }}>
-      <div style={{ fontSize: 10, color: C.med, textTransform: 'uppercase', letterSpacing: '.04em' }}>{rotulo}</div>
-      <div style={{ fontSize: 18, fontWeight: 700, color: cor }}>{valor}</div>
-    </div>
-  );
   const volumeForm = numeroBR(form.volumeKWh);
   const totalForm = (s: string) => {
     const v = numeroBR(s);
@@ -117,12 +112,40 @@ export function BancoCreditoView() {
             <button style={botao(C.azul)} onClick={() => abrir('novo')}>+ Novo crédito</button>
           </div>
         </div>
-        {lista && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 8, marginBottom: 14 }}>
-            {tile('Em negociação', kwh(resumo.negociacaoKWh), C.amber)}
-            {tile('Crédito fechado', kwh(resumo.fechadoKWh), C.verde)}
-            {tile('Valor fechado (total)', RS(resumo.fechadoValor))}
-            {tile('Preço médio fechado', valorKWh(resumo.fechadoMedioKWh))}
+        {lista && lista.length > 0 && (
+          <div style={{ background: C.clar, borderRadius: 8, padding: '10px 12px', marginBottom: 16, overflowX: 'auto' }}>
+            <div style={{ fontSize: 11, color: C.med, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 6 }}>Status por distribuidora · clique para filtrar</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr>
+                <th style={thL}>Distribuidora</th><th style={thStyle}>Lotes</th><th style={thStyle}>Em negociação</th><th style={thStyle}>Crédito fechado</th>
+                <th style={thStyle}>Valor fechado</th><th style={thStyle}>Preço médio fechado</th>
+              </tr></thead>
+              <tbody>
+                {porDist.map((d) => {
+                  const sel = filtroDist === d.distribuidora;
+                  return (
+                    <tr key={d.distribuidora} onClick={() => setFiltroDist(sel ? '' : d.distribuidora)} style={{ cursor: 'pointer', background: sel ? C.azulC : undefined }}>
+                      <td style={{ ...tdL, fontWeight: 600 }}>{d.distribuidora}</td>
+                      <td style={tdStyle}>{(lista ?? []).filter((c) => (c.distribuidora || 'Sem distribuidora') === d.distribuidora).length}</td>
+                      <td style={{ ...tdStyle, color: d.negociacaoKWh ? C.amber : C.med }}>{kwh(d.negociacaoKWh)}</td>
+                      <td style={{ ...tdStyle, color: d.fechadoKWh ? C.verde : C.med, fontWeight: 600 }}>{kwh(d.fechadoKWh)}</td>
+                      <td style={tdStyle}>{RS(d.fechadoValor)}</td>
+                      <td style={tdStyle}>{valorKWh(d.fechadoMedioKWh)}</td>
+                    </tr>
+                  );
+                })}
+                {porDist.length > 1 && (
+                  <tr style={{ fontWeight: 700 }}>
+                    <td style={tdL}>Total</td>
+                    <td style={tdStyle}>{lista.length}</td>
+                    <td style={tdStyle}>{kwh(geral.negociacaoKWh)}</td>
+                    <td style={tdStyle}>{kwh(geral.fechadoKWh)}</td>
+                    <td style={tdStyle}>{RS(geral.fechadoValor)}</td>
+                    <td style={tdStyle}>{valorKWh(geral.fechadoMedioKWh)}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         )}
         {erro && <div style={{ color: C.verm, fontSize: 12 }}>{erro}</div>}
