@@ -5,7 +5,7 @@ import { pipeline } from 'node:stream/promises';
 import { parseNumeroBr, streamCsvRows } from './csvStream.ts';
 import type { DadosTarifarios, FioBRow, Posto, TarifaRow } from '../src/types.ts';
 
-const HEADERS = { 'User-Agent': 'Mozilla/5.0 (calculadora-grupo-a)' };
+const HEADERS = { 'User-Agent': 'Mozilla/5.0 (erp-kora)' };
 
 const TARIFAS_URL =
   'https://dadosabertos.aneel.gov.br/dataset/5a583f3e-1646-4f67-bf0f-69db4203e89e/resource/fcf2906c-7c32-4b9b-a637-054e7a5234f4/download/tarifas-homologadas-distribuidoras-energia-eletrica.csv';
