@@ -1,4 +1,4 @@
-# Calculadora Kora - Grupo A e B
+# ERP Kora (Grupo A e B)
 
 Calcula a operação de **compra de crédito de GD travado em saldo e venda para clientes Grupo A
 (e Grupo B)**: quanto o cliente paga hoje, quanto passa a pagar com os créditos, quanto fica com a

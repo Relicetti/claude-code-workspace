@@ -51,7 +51,7 @@ function Login({ onEntrar }: { onEntrar: (u: Usuario) => void }) {
   return (
     <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 16 }}>
       <form onSubmit={entrar} style={{ background: '#fff', borderRadius: 12, padding: 28, width: '100%', maxWidth: 360, boxShadow: '0 4px 20px rgba(0,0,0,.06)' }}>
-        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Calculadora Kora</div>
+        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>ERP Kora</div>
         <div style={{ fontSize: 12, color: C.med, marginBottom: 20 }}>Entre com seu e-mail e senha.</div>
         <label style={{ fontSize: 12, color: C.med }}>E-mail</label>
         <input type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} style={{ ...inputStyle, margin: '4px 0 12px' }} />

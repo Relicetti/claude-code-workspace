@@ -68,5 +68,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`[prodServer] Calculadora Kora rodando na porta ${PORT}`);
+  console.log(`[prodServer] ERP Kora rodando na porta ${PORT}`);
 });
