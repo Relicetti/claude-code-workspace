@@ -29,7 +29,7 @@ export function FaturaKora({ f, c, saldoAposKWh }: { f: Fatura; c: Cliente; sald
         <div style={{ position: 'absolute', top: '120mm', left: 0, right: 0, textAlign: 'center', fontFamily: PRETO, fontSize: '60pt', color: 'rgba(227,73,72,.18)', transform: 'rotate(-20deg)', pointerEvents: 'none' }}>CANCELADA</div>
       )}
       <div style={{ background: K.marinho, color: '#fff', padding: '8mm 12mm', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <img src={logo} alt="Kora" style={{ width: '42mm' }} />
+        <img src={logo} alt="Kora" style={{ width: '26mm', height: 'auto', display: 'block' }} />
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontFamily: PRETO, fontSize: '15pt', color: K.ciano }}>{f.quitacaoSaldo ? 'FATURA DE QUITAÇÃO DE SALDO' : 'FATURA DE SERVIÇOS'}</div>
           <div style={{ fontSize: '11pt', marginTop: '1mm' }}>Nº {f.numero}</div>

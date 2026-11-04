@@ -72,7 +72,7 @@ export function DetalhamentoKora({ r, op, p, entrada, dados, identificacao, emit
       <div className="detalhamento-corpo" style={{ padding: '12mm 14mm 4mm' }}>
         {/* Topo: faixa com a foto, como no folheto */}
         <div style={{ position: 'relative', height: '30mm', borderRadius: '2mm', overflow: 'hidden', marginBottom: '8mm', background: `linear-gradient(90deg, rgba(7,20,40,.92) 0%, rgba(7,20,40,.7) 55%, rgba(7,20,40,.15) 85%), url(${topo}) center 55% / cover` }}>
-          <img src={logo} alt="Kora" style={{ position: 'absolute', right: '4mm', top: '2mm', width: '34mm' }} />
+          <img src={logo} alt="Kora" style={{ position: 'absolute', right: '7mm', top: '50%', transform: 'translateY(-50%)', width: '22mm', height: 'auto', display: 'block' }} />
           <div style={{ position: 'absolute', left: '6mm', top: '5mm', right: '45mm', color: '#fff' }}>
             <div style={{ fontFamily: PRETO, fontSize: '17pt', lineHeight: 1.15 }}>Detalhamento <span style={{ color: K.ciano }}>técnico</span></div>
             <div style={{ fontSize: '9.5pt', marginTop: '1.5mm', lineHeight: 1.45 }}>
