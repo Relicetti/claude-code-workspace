@@ -97,7 +97,8 @@ transação embutidos (`TAKER_FEE` em `backtest.py`). Não é para execução re
   `railway up`. Depois da proposta: clientes, documentos, contrato/procuração gerados de modelos .docx enviados pelo app
   (ficam no volume, **fora do git — o repo é público**) e
   assinatura pela Autentique **da Kora** (`AUTENTIQUE_TOKEN`; a Kora não tem relação com a Alexandria — não reutilizar
-  contas/integrações dos outros projetos). Diferenças conhecidas em
+  contas/integrações dos outros projetos). Leitura dos anexos do cliente por IA (`server/extrair.ts`, `ANTHROPIC_API_KEY`)
+  só sugere: preenche campos vazios do formulário e lista divergências (`src/lib/extracao.ts`), nunca salva sozinha. Diferenças conhecidas em
   relação à planilha estão no README.
 - **`controle-calorico/`** — app de controle calórico com backend Express + Postgres (`pg`)
   e uso da API da Anthropic (`@anthropic-ai/sdk`) no server.

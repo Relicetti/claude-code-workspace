@@ -4,11 +4,12 @@ import { botao, C, cartao, inputStyle, tdL, tdStyle, thL, thStyle } from './esti
 import { DATA, PCT, R, RS } from './formato';
 import {
   documentosObrigatorios, ETAPAS, formatarDocumento, pendencias, pendenciasContrato, ROTULO_DOCUMENTO, ROTULO_STATUS, soDigitos, UC_VAZIA,
-  type Cadastro, type Cliente, type CondicoesContrato, type EnvioAssinatura, type StatusCliente, type TipoDocumento, type TipoPessoa,
+  type Cadastro, type Cliente, type CondicoesContrato, type DocumentoCliente, type EnvioAssinatura, type StatusCliente, type TipoDocumento, type TipoPessoa,
   type UnidadeConsumidora,
 } from './lib/clientes';
 import { useUsuario } from './Sessao';
 import { CompensacaoBloco } from './CompensacaoView';
+import { mesclarExtracao, MIME_LEGIVEL_IA, type Extracao } from './lib/extracao';
 
 const COR_STATUS: Record<StatusCliente, [string, string]> = {
   cadastro: [C.amber, C.amberC], contrato: [C.azul, C.azulC], assinado: [C.azul, C.azulC], titularidade: [C.azul, C.azulC],
@@ -106,6 +107,8 @@ export function ClientesView({ abrir, onAbrir }: { abrir: string | null; onAbrir
 
 // ── DETALHE ──────────────────────────────────────────────────────────────────
 type Form = Cadastro & { contrato: CondicoesContrato };
+/** Documentos que vêm do cliente (os gerados pelo app não entram na leitura). */
+const TIPOS_LEITURA: TipoDocumento[] = ['doc_identidade', 'doc_representante', 'cartao_cnpj', 'contrato_social', 'fatura', 'comprovante_endereco', 'outro'];
 const paraForm = (c: Cliente): Form => {
   const { id: _i, status: _s, criadoEm: _c, atualizadoEm: _a, proposta: _p, base: _b, documentos: _d, assinaturas: _as, historico: _h,
     lancamentos: _l, faturas: _f, asaasClienteId: _ac, ...form } = c;
@@ -142,11 +145,14 @@ function ClienteDetalhe({ id, onVoltar }: { id: string; onVoltar: () => void }) 
   const [aviso, setAviso] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [autentique, setAutentique] = useState<{ configurada: boolean; sandbox: boolean } | null>(null);
+  const [iaOk, setIaOk] = useState(false);
+  const [divergencias, setDivergencias] = useState<string[]>([]);
 
   const aplicar = (novo: Cliente) => { setC(novo); setForm(paraForm(novo)); };
   useEffect(() => {
     api<Cliente>(`/api/clientes/${id}`).then(aplicar).catch((e) => setErro(e.message));
-    api<{ autentique: { configurada: boolean; sandbox: boolean } }>('/api/config').then((r) => setAutentique(r.autentique)).catch(() => {});
+    api<{ autentique: { configurada: boolean; sandbox: boolean }; extracaoIA?: boolean }>('/api/config')
+      .then((r) => { setAutentique(r.autentique); setIaOk(!!r.extracaoIA); }).catch(() => {});
   }, [id]);
 
   const alterado = useMemo(() => !!c && !!form && JSON.stringify(paraForm(c)) !== JSON.stringify(form), [c, form]);
@@ -183,6 +189,31 @@ function ClienteDetalhe({ id, onVoltar }: { id: string; onVoltar: () => void }) 
       representante: f.representante.nome || !d.socios[0] ? f.representante : { ...f.representante, nome: d.socios[0].nome, cargo: d.socios[0].qualificacao.toLowerCase() },
     }));
     setAviso(`Dados da Receita preenchidos${d.socios.length ? ` (sócios: ${d.socios.map((s) => s.nome).join(', ')})` : ''}. Confira e salve.`);
+  });
+
+  /** Lê os anexos por IA, um por vez, e preenche só o que está vazio no formulário (sem salvar). */
+  const lerDocumentos = (docs: DocumentoCliente[]) => acao('ia', async () => {
+    setDivergencias([]);
+    let atual = form;
+    const preenchidos: string[] = [];
+    const diverg: string[] = [];
+    const falhas: string[] = [];
+    for (const d of docs) {
+      setOcupado(`ia-${d.id}`);
+      try {
+        const e = await api<Extracao>(`/api/clientes/${id}/documentos/${d.id}/extrair`, { method: 'POST' });
+        const r = mesclarExtracao(atual, e, ROTULO_DOCUMENTO[d.tipo].toLowerCase());
+        atual = r.form;
+        preenchidos.push(...r.preenchidos);
+        diverg.push(...r.divergencias);
+        if (e.observacoes.trim()) diverg.push(`${d.nomeArquivo}: ${e.observacoes.trim()}`);
+      } catch (err) { falhas.push(`${d.nomeArquivo}: ${(err as Error).message}`); }
+    }
+    setForm(atual);
+    setDivergencias([...diverg, ...falhas]);
+    setAviso(preenchidos.length
+      ? `Lido por IA — ${preenchidos.length} campo(s) preenchido(s): ${preenchidos.join('; ')}. Confira e clique em Salvar.`
+      : 'Nada novo para preencher a partir dos documentos.');
   });
 
   const mudarEtapa = (status: StatusCliente) => {
@@ -227,6 +258,15 @@ function ClienteDetalhe({ id, onVoltar }: { id: string; onVoltar: () => void }) 
 
       {erro && <div style={{ background: C.vermC, color: C.verm, padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 12 }}>{erro}</div>}
       {aviso && <div style={{ background: C.verdeC, color: C.esc, padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 12 }}>{aviso}</div>}
+      {divergencias.length > 0 && (
+        <div style={{ background: C.amberC, color: C.esc, padding: '10px 14px', borderRadius: 8, fontSize: 12, marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <b>Conferir (a IA não mudou estes campos):</b>
+            <button onClick={() => setDivergencias([])} style={{ ...botao(), padding: '2px 8px', fontSize: 11 }}>Fechar</button>
+          </div>
+          <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>{divergencias.map((d, i) => <li key={i}>{d}</li>)}</ul>
+        </div>
+      )}
 
       {/* Etapas */}
       <Bloco titulo="Etapa">
@@ -396,7 +436,7 @@ function ClienteDetalhe({ id, onVoltar }: { id: string; onVoltar: () => void }) 
         )}
       </Bloco>
 
-      <DocumentosBloco c={c} ocupado={ocupado} onEnviar={enviarArquivo} onApagar={apagarArquivo} docUrl={docUrl} />
+      <DocumentosBloco c={c} ocupado={ocupado} onEnviar={enviarArquivo} onApagar={apagarArquivo} docUrl={docUrl} iaOk={iaOk} onLer={lerDocumentos} />
 
       <ContratosBloco c={c} falta={faltaContrato} alterado={alterado} ocupado={ocupado} autentique={autentique} docUrl={docUrl}
         gerar={(m) => acao(`gerar-${m}`, () => api<Cliente>(`/api/clientes/${id}/gerar/${m}`, { method: 'POST' }), true)}
@@ -443,16 +483,24 @@ function BotaoArquivo({ rotulo, onArquivo, desabilitado }: { rotulo: string; onA
   );
 }
 
-function DocumentosBloco({ c, ocupado, onEnviar, onApagar, docUrl }: {
+function DocumentosBloco({ c, ocupado, onEnviar, onApagar, docUrl, iaOk, onLer }: {
   c: Cliente; ocupado: string | null; onEnviar: (t: TipoDocumento, f: File) => void; onApagar: (id: string, nome: string) => void;
-  docUrl: (id: string, baixar?: boolean) => string;
+  docUrl: (id: string, baixar?: boolean) => string; iaOk: boolean; onLer: (docs: DocumentoCliente[]) => void;
 }) {
+  const legivel = (d: DocumentoCliente) => TIPOS_LEITURA.includes(d.tipo) && MIME_LEGIVEL_IA.includes(d.mime);
+  const legiveis = c.documentos.filter(legivel);
   const [tipoOutro, setTipoOutro] = useState<TipoDocumento>('procuracao');
   const obrig = documentosObrigatorios(c.tipo);
   const link: React.CSSProperties = { ...botao(), padding: '4px 10px', fontSize: 11, textDecoration: 'none', color: C.esc, display: 'inline-block' };
   return (
     <Bloco titulo="Documentos" acoes={
       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        {iaOk && legiveis.length > 0 && (
+          <button onClick={() => onLer(legiveis)} disabled={!!ocupado} style={{ ...botao(C.azul), padding: '4px 10px', fontSize: 11 }}
+            title="Lê RG/CNH, cartão CNPJ, contrato social, fatura e comprovante e preenche os campos vazios. Não salva sozinho.">
+            {ocupado?.startsWith('ia') ? 'Lendo documentos…' : `Preencher cadastro pelos documentos (${legiveis.length})`}
+          </button>
+        )}
         <select value={tipoOutro} onChange={(e) => setTipoOutro(e.target.value as TipoDocumento)} style={{ ...inputStyle, width: 'auto', padding: '4px 8px', fontSize: 11 }}>
           {(Object.keys(ROTULO_DOCUMENTO) as TipoDocumento[]).filter((t) => !obrig.includes(t)).map((t) => <option key={t} value={t}>{ROTULO_DOCUMENTO[t]}</option>)}
         </select>
@@ -483,6 +531,10 @@ function DocumentosBloco({ c, ocupado, onEnviar, onApagar, docUrl }: {
                   <td style={tdStyle}>{tamanho(d.tamanho)}</td>
                   <td style={tdL}>{quando(d.enviadoEm)} · {d.enviadoPor}</td>
                   <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
+                    {iaOk && legivel(d) && (
+                      <><button onClick={() => onLer([d])} disabled={!!ocupado} style={{ ...botao(), padding: '4px 10px', fontSize: 11 }}>
+                        {ocupado === `ia-${d.id}` ? 'Lendo…' : 'Ler com IA'}</button>{' '}</>
+                    )}
                     <a href={docUrl(d.id)} target="_blank" rel="noreferrer" style={link}>Abrir</a>{' '}
                     <a href={docUrl(d.id, true)} style={link}>Baixar</a>{' '}
                     <button onClick={() => onApagar(d.id, d.nomeArquivo)} style={{ ...botao(), padding: '4px 10px', fontSize: 11, color: C.verm }}>Remover</button>
