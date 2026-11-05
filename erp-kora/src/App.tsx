@@ -13,7 +13,7 @@ import { BancoCreditoView } from './BancoCreditoView';
 import { api } from './api';
 import { FolhetoKora } from './FolhetoKora';
 import { DATA, MES, PCT, R, RKWH, ROTULO_POSTO, RS } from './formato';
-import { identificacao, rotuloRevisao, type DadosProposta, type NovaRevisao, type Proposta, type RevisaoProposta } from './lib/propostas';
+import { doVendedor, identificacao, rotuloRevisao, SEM_VENDEDOR, vendedorDe, vendedores, type DadosProposta, type NovaRevisao, type Proposta, type RevisaoProposta } from './lib/propostas';
 import { creditoNecessario, prazoPeloConsumo, simularOperacao, type ParametrosOperacao, type ResultadoOperacao } from './lib/operacao';
 import type {
   DadosTarifarios, Enquadramento, Entrada, Fonte, Grupo, ModalidadeGD, ModalidadeTarifaria, Posto, Resultado,
@@ -903,7 +903,7 @@ function OperacaoView({ op, p }: { op: ResultadoOperacao; p: ParametrosOperacao 
 // "Gerar PDF" grava a proposta (ou uma nova revisão, se estiver editando) e abre a impressão.
 
 const OBS_PADRAO = 'Crédito será injetado total nas UCs.\nNecessário troca de titularidade das UCs para a Usina.';
-const DADOS_PROPOSTA_PADRAO: DadosProposta = { cliente: '', cnpj: '', uc: '', validadeDias: 15, observacao: OBS_PADRAO, detalhamento: false };
+const DADOS_PROPOSTA_PADRAO: DadosProposta = { cliente: '', vendedor: '', cnpj: '', uc: '', validadeDias: 15, observacao: OBS_PADRAO, detalhamento: false };
 
 interface RefRevisao { numero: string; revisao: number; criadaEm?: string }
 
@@ -935,6 +935,12 @@ function PropostaView({ r, op, p, entrada, dados, onDados, onVoltar, gerar, edit
   const [erro, setErro] = useState<string | null>(null);
   const [imprimir, setImprimir] = useState(false);
   const mudar = (d: DadosProposta) => { onDados?.(d); setGerada(null); };
+  // Sugestões de vendedor já usados, para não digitar o nome de jeitos diferentes.
+  const [nomesVendedores, setNomesVendedores] = useState<string[]>([]);
+  useEffect(() => {
+    if (!gerar) return;
+    fetch('/api/propostas').then((r) => (r.ok ? r.json() : [])).then((l: Proposta[]) => setNomesVendedores(vendedores(l))).catch(() => {});
+  }, [!!gerar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Imprime depois que o número da revisão já está renderizado no folheto.
   useEffect(() => {
@@ -965,6 +971,9 @@ function PropostaView({ r, op, p, entrada, dados, onDados, onVoltar, gerar, edit
             <input placeholder="Nome do cliente" style={{ ...campo, minWidth: 220 }} value={dados.cliente} onChange={(e) => mudar({ ...dados, cliente: e.target.value })} />
             <input placeholder="CNPJ" style={{ ...campo, minWidth: 160 }} value={dados.cnpj} onChange={(e) => mudar({ ...dados, cnpj: e.target.value })} />
             <input placeholder="Unidade consumidora (UC)" style={{ ...campo, minWidth: 180 }} value={dados.uc} onChange={(e) => mudar({ ...dados, uc: e.target.value })} />
+            <input placeholder="Vendedor (comissão)" title="Quem ganha a comissão. Não aparece no PDF do cliente." list="lista-vendedores" style={{ ...campo, minWidth: 180 }}
+              value={dados.vendedor ?? ''} onChange={(e) => mudar({ ...dados, vendedor: e.target.value })} />
+            <datalist id="lista-vendedores">{nomesVendedores.map((v) => <option key={v} value={v} />)}</datalist>
             <textarea placeholder="Observação abaixo do volume" rows={2} style={{ ...campo, minWidth: 300, fontSize: 11, resize: 'vertical' }} value={dados.observacao}
               onChange={(e) => mudar({ ...dados, observacao: e.target.value })} />
             <label style={{ fontSize: 12, color: C.med, display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -1021,6 +1030,7 @@ function PropostasView({ onVer, onEditar, onDuplicar, onNova, onApagada, onClien
   const [lista, setLista] = useState<PropostaListada[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
+  const [vendedor, setVendedor] = useState('');
   const [aberta, setAberta] = useState<string | null>(null);
 
   const carregar = () => {
@@ -1052,7 +1062,8 @@ function PropostasView({ onVer, onEditar, onDuplicar, onNova, onApagada, onClien
 
   const termo = busca.trim().toLowerCase();
   const visiveis = (lista ?? [])
-    .filter((p) => !termo || p.numero.toLowerCase().includes(termo) || p.cliente.toLowerCase().includes(termo))
+    .filter((p) => !termo || p.numero.toLowerCase().includes(termo) || p.cliente.toLowerCase().includes(termo) || vendedorDe(p).toLowerCase().includes(termo))
+    .filter((p) => doVendedor(p, vendedor))
     .sort((a, b) => b.numero.localeCompare(a.numero));
   const th: React.CSSProperties = { ...thStyle, background: C.clar };
   const thE: React.CSSProperties = { ...th, textAlign: 'left' };
@@ -1069,7 +1080,12 @@ function PropostasView({ onVer, onEditar, onDuplicar, onNova, onApagada, onClien
             <div style={{ fontSize: 11, color: C.med }}>Cada "Gerar PDF" grava uma revisão. "Editar" leva os dados para a simulação; o próximo PDF sobe a revisão. "Duplicar" usa a mesma base de cálculo numa proposta nova.</div>
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <input placeholder="Buscar por cliente ou número" style={{ ...inputStyle, width: 260 }} value={busca} onChange={(e) => setBusca(e.target.value)} />
+            <select style={{ ...inputStyle, width: 200 }} value={vendedor} onChange={(e) => setVendedor(e.target.value)} title="Filtrar por vendedor">
+              <option value="">Todos os vendedores</option>
+              {vendedores(lista ?? []).map((v) => <option key={v} value={v}>{v}</option>)}
+              <option value={SEM_VENDEDOR}>Sem vendedor</option>
+            </select>
+            <input placeholder="Buscar por cliente, número ou vendedor" style={{ ...inputStyle, width: 260 }} value={busca} onChange={(e) => setBusca(e.target.value)} />
             <button onClick={onNova}
               style={{ padding: '8px 14px', borderRadius: 6, border: 'none', background: C.verde, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
               + Nova proposta
@@ -1089,7 +1105,7 @@ function PropostasView({ onVer, onEditar, onDuplicar, onNova, onApagada, onClien
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead><tr>
-                <th style={thE}>Número</th><th style={thE}>Cliente</th><th style={th}>Revisão</th><th style={th}>Última geração</th>
+                <th style={thE}>Número</th><th style={thE}>Cliente</th><th style={thE}>Vendedor</th><th style={th}>Revisão</th><th style={th}>Última geração</th>
                 <th style={th}>Economia</th><th style={th}>Crédito (kWh)</th><th style={th}>Prazo</th><th style={th}>Valor do contrato</th><th style={th}></th>
               </tr></thead>
               <tbody>
@@ -1100,6 +1116,7 @@ function PropostasView({ onVer, onEditar, onDuplicar, onNova, onApagada, onClien
                       <tr>
                         <td style={{ ...tdE, fontWeight: 600 }}>{p.numero}</td>
                         <td style={tdE}>{p.cliente || '—'}</td>
+                        <td style={tdE}>{vendedorDe(p) || '—'}</td>
                         <td style={tdStyle}>
                           <button onClick={() => setAberta(aberta === p.numero ? null : p.numero)} title="Histórico de revisões"
                             style={{ ...link, border: 'none', background: C.azulC, color: C.azul, fontWeight: 600 }}>
@@ -1125,6 +1142,7 @@ function PropostasView({ onVer, onEditar, onDuplicar, onNova, onApagada, onClien
                         <tr key={rev.revisao} style={{ background: C.clar }}>
                           <td style={tdE}></td>
                           <td style={{ ...tdE, color: C.med }}>{rev.dados.cliente || '—'}</td>
+                          <td style={{ ...tdE, color: C.med }}>{rev.dados.vendedor?.trim() || '—'}</td>
                           <td style={tdStyle}>{rotuloRevisao(rev.revisao)}</td>
                           <td style={tdStyle}>{new Date(rev.criadaEm).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</td>
                           <td style={tdStyle}>{PCT(rev.resumo.economiaPct)}</td>
