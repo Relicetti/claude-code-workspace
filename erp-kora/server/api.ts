@@ -7,6 +7,7 @@ import { getProgresso, sincronizarAneel } from './aneel.ts';
 import { Auth, type UsuarioPublico } from './auth.ts';
 import { autentiqueConfigurada, autentiqueSandbox, baixarPdf, consultarDocumento, criarDocumento, type SignatarioAutentique } from './autentique.ts';
 import { linhasDoPdf } from './lerPdf.ts';
+import { extracaoConfigurada, extrairDocumento } from './extrair.ts';
 import {
   asaasConfigurado, asaasProducao, cancelarCobranca, clienteAsaas, consultarCobranca, criarCobranca, linhaDigitavel, pixQrCode,
   registrarWebhook, webhookAutentico, type PagamentoAsaas,
@@ -361,6 +362,14 @@ rota('POST', /^\/clientes\/(CLI-\d+)\/documentos$/, async (req, res, m, u) => {
   const doc = salvarDocumento(m[1], tipo, nome, mime, conteudo, u.nome);
   json(res, 201, alterarCliente(m[1], (c) => anexarDocumento(c, doc, new Date())));
 });
+// Lê o anexo por IA e devolve os dados encontrados (não grava nada: a tela mescla no formulário).
+rota('POST', /^\/clientes\/(CLI-\d+)\/documentos\/([a-f0-9]{24})\/extrair$/, async (_req, res, m) => {
+  const doc = cliente(m[1]).documentos.find((d) => d.id === m[2]);
+  if (!doc) throw new ErroHttp(404, 'Documento não encontrado.');
+  if (!extracaoConfigurada()) throw new ErroHttp(503, 'Leitura por IA ainda não configurada (falta ANTHROPIC_API_KEY).');
+  try { json(res, 200, await extrairDocumento(fs.readFileSync(arquivoDoc(m[1], doc.id)), doc.mime, doc.tipo)); }
+  catch (e) { throw new ErroHttp(422, (e as Error).message); }
+});
 rota('GET', /^\/clientes\/(CLI-\d+)\/documentos\/([a-f0-9]{24})$/, (req, res, m) => {
   const doc = cliente(m[1]).documentos.find((d) => d.id === m[2]);
   const arq = arquivoDoc(m[1], m[2]);
@@ -647,7 +656,7 @@ const infoModelos = () => Object.fromEntries(MODELOS.map((m) => {
   return [m, fs.existsSync(arq) ? { enviadoEm: fs.statSync(arq).mtime.toISOString(), tamanho: fs.statSync(arq).size } : null];
 }));
 rota('GET', /^\/config$/, (_req, res) => json(res, 200, {
-  ...lerConfig(), autentique: { configurada: autentiqueConfigurada(), sandbox: autentiqueSandbox() }, modelos: infoModelos(),
+  ...lerConfig(), autentique: { configurada: autentiqueConfigurada(), sandbox: autentiqueSandbox() }, extracaoIA: extracaoConfigurada(), modelos: infoModelos(),
   asaas: { configurado: asaasConfigurado(), producao: asaasProducao(), webhookToken: !!process.env.ASAAS_WEBHOOK_TOKEN },
 }));
 // Modelos .docx: PUT com o arquivo cru; GET baixa o atual.
