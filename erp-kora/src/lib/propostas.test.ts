@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { apagar, identificacao, proximoNumero, registrarRevisao, type NovaRevisao, type Proposta } from './propostas';
+import { apagar, doVendedor, identificacao, SEM_VENDEDOR, vendedores, proximoNumero, registrarRevisao, type NovaRevisao, type Proposta } from './propostas';
 
 const nova = (cliente: string) => ({
   entrada: {}, operacao: { creditoTotalKWh: 1000 }, dados: { cliente },
@@ -43,5 +43,20 @@ describe('propostas', () => {
 
   it('recusa revisão de proposta inexistente', () => {
     expect(() => registrarRevisao([] as Proposta[], nova('X'), new Date(), 'KORA-2026-999')).toThrow();
+  });
+});
+
+describe('vendedor da proposta', () => {
+  const comVendedor = (numero: string, vendedor?: string) =>
+    ({ numero, cliente: 'X', revisoes: [{ revisao: 0, dados: { vendedor } }] }) as unknown as Proposta;
+  const lista = [comVendedor('A', 'João'), comVendedor('B', 'joao '), comVendedor('C', 'Ana'), comVendedor('D'), comVendedor('E', '  ')];
+
+  it('lista vendedores distintos, sem repetir por acento/maiúscula', () => {
+    expect(vendedores(lista)).toEqual(['Ana', 'João']);
+  });
+  it('filtra por vendedor, sem vendedor e todos', () => {
+    expect(lista.filter((p) => doVendedor(p, 'João')).map((p) => p.numero)).toEqual(['A', 'B']);
+    expect(lista.filter((p) => doVendedor(p, SEM_VENDEDOR)).map((p) => p.numero)).toEqual(['D', 'E']);
+    expect(lista.filter((p) => doVendedor(p, '')).length).toBe(5);
   });
 });

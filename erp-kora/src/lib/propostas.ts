@@ -6,6 +6,8 @@ import type { Entrada, Resultado } from '../types';
 /** Campos que o usuário preenche na tela da proposta. */
 export interface DadosProposta {
   cliente: string;
+  /** Vendedor que ganha a comissão (não aparece no folheto do cliente). Propostas antigas não têm. */
+  vendedor?: string;
   cnpj: string;
   uc: string;
   validadeDias: number;
@@ -64,6 +66,27 @@ export function resumir(rev: Pick<RevisaoProposta, 'r' | 'op' | 'operacao'>): Re
     economiaContrato: rev.op.total.desconto,
     tarifaKora: rev.r.tarifaMediaGeracao,
   };
+}
+
+/** Vendedor da proposta = o da última revisão ('' se não informado). */
+export const vendedorDe = (p: Proposta): string => (p.revisoes[p.revisoes.length - 1]?.dados.vendedor ?? '').trim();
+
+/** Vendedores distintos das propostas, em ordem alfabética (ignora maiúsculas/acentos ao juntar). */
+export function vendedores(lista: Proposta[]): string[] {
+  const chave = (v: string) => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const m = new Map<string, string>();
+  for (const p of lista) { const v = vendedorDe(p); if (v && !m.has(chave(v))) m.set(chave(v), v); }
+  return [...m.values()].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+}
+
+/** Filtro do controle: '' = todos, '__sem__' = sem vendedor, senão o nome (ignora maiúsculas/acentos). */
+export const SEM_VENDEDOR = '__sem__';
+export function doVendedor(p: Proposta, filtro: string): boolean {
+  if (!filtro) return true;
+  const v = vendedorDe(p);
+  if (filtro === SEM_VENDEDOR) return !v;
+  const chave = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return chave(v) === chave(filtro);
 }
 
 /** Acrescenta uma revisão: sem `numero` cria a proposta (Rev. 00); com `numero`, sobe a revisão. */
