@@ -26,7 +26,7 @@ import {
   removerLancamento, type CobrancaBoleto, type LancamentoMensal,
 } from '../src/lib/controle.ts';
 import {
-  desistirCredito, editarCredito, fecharCredito, novoCredito, reabrirCredito, type CreditoGerador, type DadosCredito,
+  desistirCredito, editarCredito, fecharCredito, normalizarCredito, novoCredito, reabrirCredito, type CreditoGerador, type DadosCredito,
 } from '../src/lib/bancoCredito.ts';
 import { configVazia, limparConfig, pendenciasConfig, pendenciasModelo, type ConfigKora } from '../src/lib/config.ts';
 
@@ -313,7 +313,8 @@ rota('DELETE', /^\/clientes\/(CLI-\d+)$/, (_req, res, m) => {
 }, { admin: true });
 
 // Banco de crédito (lotes negociados com os geradores)
-const lerCreditos = () => lerJson<CreditoGerador[]>(CREDITOS, []);
+// Lotes gravados antes dos itens GD I / GD II são convertidos na leitura (gravam no formato novo na próxima mudança).
+const lerCreditos = () => lerJson<CreditoGerador[]>(CREDITOS, []).map(normalizarCredito);
 /** Aplica a mudança num lote e grava; erro de regra vira 400. */
 function alterarCredito(id: string, fn: (c: CreditoGerador) => CreditoGerador): CreditoGerador {
   const lista = lerCreditos();
@@ -336,9 +337,9 @@ rota('PUT', /^\/creditos\/(CRD-\d+)$/, async (req, res, m, u) => {
   json(res, 200, alterarCredito(m[1], (c) => editarCredito(c, corpo, new Date(), u.nome)));
 });
 rota('POST', /^\/creditos\/(CRD-\d+)\/(fechar|desistir|reabrir)$/, async (req, res, m, u) => {
-  const corpo = (await lerCorpo(req)) as { valorFechadoKWh?: number; motivo?: string };
+  const corpo = (await lerCorpo(req)) as { valoresFechadosKWh?: number[]; motivo?: string };
   const agora = new Date();
-  json(res, 200, alterarCredito(m[1], (c) => (m[2] === 'fechar' ? fecharCredito(c, corpo.valorFechadoKWh, agora, u.nome)
+  json(res, 200, alterarCredito(m[1], (c) => (m[2] === 'fechar' ? fecharCredito(c, corpo.valoresFechadosKWh, agora, u.nome)
     : m[2] === 'desistir' ? desistirCredito(c, corpo.motivo ?? '', agora, u.nome) : reabrirCredito(c, agora, u.nome))));
 });
 rota('DELETE', /^\/creditos\/(CRD-\d+)$/, (_req, res, m) => {

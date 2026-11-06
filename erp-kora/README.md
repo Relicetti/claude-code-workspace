@@ -135,3 +135,19 @@ Na ficha do cliente (a partir da troca de titularidade), "Compensação e fatura
   **reajuste** de preço a partir de um mês e **quitação do saldo** remanescente (Cláusula 9ª §3).
 - Aba **Faturamento**: faturas de todos os clientes (em aberto, vencidas, pagas).
 - Ainda não: leitura automática do PDF da distribuidora e emissão de boleto.
+
+## Banco de crédito (`src/lib/bancoCredito.ts`)
+
+Lotes de crédito negociados com os geradores (donos do crédito), gravados em `creditos.json` no volume.
+
+- Cada lote é uma negociação com um gerador: **empresa**, **contato** (pessoa com quem a Kora fala),
+  intermediador e forma de pagamento (compensado / à vista).
+- O lote tem um ou mais **itens**: distribuidora (lista ANEEL) + modalidade **GD I / GD II**, cada um com
+  volume (kWh), valor pedido, proposto e fechado (R$/kWh) próprios. Um gerador com crédito em várias
+  distribuidoras, ou com GD I e GD II, fica num lote só com um item para cada. A mesma
+  distribuidora + modalidade não se repete no lote.
+- Fechar a negociação pede o valor fechado de cada item. Em lote fechado dá para editar os dados, mas
+  incluir ou tirar itens exige reabrir.
+- O status por distribuidora e modalidade e os filtros (distribuidora, GD I/GD II, situação) somam só os itens.
+- Lotes gravados antes da separação (um volume/valor no próprio lote) são lidos como um item
+  "sem modalidade". A tela avisa, e salvar o lote exige escolher GD I ou GD II.
